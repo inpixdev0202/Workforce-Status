@@ -1,0 +1,857 @@
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { Table, TrendingUp, Search, Plus, Save, Trash2, CheckCircle2, ChevronsLeftRight, FileText, Download, Filter, Maximize2, Sun, Moon, Settings, X, ChevronUp, ChevronDown, Lock, AlignLeft } from 'lucide-react';
+
+const SpreadsheetCellInput = React.memo(({ initialValue, onCommit, onFocus, isFocused, className = "", isMultilineField = false }) => {
+    const [localValue, setLocalValue] = useState(initialValue || '');
+    const textAreaRef = useRef(null);
+    const selectionRef = useRef({ start: 0, end: 0 });
+
+    useEffect(() => {
+        if (!isFocused) {
+            setLocalValue(initialValue || '');
+        }
+    }, [initialValue, isFocused]);
+
+    useEffect(() => {
+        if (isFocused && textAreaRef.current) {
+            textAreaRef.current.focus();
+            // Optional: Move cursor to end on initial focus if needed, 
+            // but we usually want to maintain if already set.
+            // For now, let's just restore from selectionRef.
+        }
+    }, [isFocused]);
+
+    useEffect(() => {
+        if (isFocused && textAreaRef.current) {
+            const { start, end } = selectionRef.current;
+            textAreaRef.current.setSelectionRange(start, end);
+        }
+    });
+
+    const handleChange = (e) => {
+        const { value, selectionStart, selectionEnd } = e.target;
+        selectionRef.current = { start: selectionStart, end: selectionEnd };
+        setLocalValue(value);
+    };
+
+    const handleBlur = () => {
+        if (localValue !== initialValue) {
+            onCommit(localValue);
+        }
+    };
+
+    const handleKeyDown = (e) => {
+        if (e.key === 'Enter') {
+            if (e.altKey) {
+                // Insert newline at cursor
+                e.preventDefault();
+                const { selectionStart, selectionEnd } = e.target;
+                const newValue = localValue.substring(0, selectionStart) + "\n" + localValue.substring(selectionEnd);
+                setLocalValue(newValue);
+                // Update selection to be after the new newline
+                selectionRef.current = { start: selectionStart + 1, end: selectionStart + 1 };
+            } else {
+                // Normal Enter blurs (commits)
+                textAreaRef.current.blur();
+            }
+        }
+    };
+
+    return (
+        <textarea 
+            ref={textAreaRef}
+            value={localValue}
+            onChange={handleChange}
+            onFocus={onFocus}
+            onBlur={handleBlur}
+            onKeyDown={handleKeyDown}
+            spellCheck={false}
+            className={`absolute inset-0 w-full h-full px-2 py-1 transition-none leading-snug overflow-hidden block m-0 pointer-events-auto z-10 ${isFocused ? 'focused-field overflow-y-auto' : 'bg-transparent text-inherit'} ${className}`}
+            rows={1}
+            style={{ 
+                resize: 'none',
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-all'
+            }}
+        />
+    );
+});
+
+const ColumnResizeHandle = React.memo(({ column, onMouseDown }) => (
+    <div 
+        onMouseDown={(e) => onMouseDown(e, column)}
+        className="absolute -right-1 top-0 bottom-0 w-2 cursor-col-resize hover:bg-blue-600/20 transition-all z-[100] group/handle pointer-events-auto resize-handle"
+    >
+        <div className="absolute right-[3px] top-0 bottom-0 w-[2px] opacity-0 group-hover/handle:opacity-100 bg-blue-500 transition-all duration-200 pointer-events-none" />
+    </div>
+));
+
+const RowResizeHandle = React.memo(({ rowId, onMouseDown }) => (
+    <div 
+        onMouseDown={(e) => onMouseDown(e, rowId)}
+        className="absolute -bottom-1 left-0 right-0 h-2 cursor-row-resize hover:bg-blue-600/20 transition-all z-[100] group/row-handle pointer-events-auto resize-handle"
+    >
+        <div className="absolute bottom-[3px] left-0 right-0 h-[2px] opacity-0 group-hover/row-handle:opacity-100 bg-blue-500 transition-all duration-200 pointer-events-none" />
+    </div>
+));
+
+const SpreadsheetCellSelect = React.memo(({ value, options, onCommit, onFocus, isFocused, className = "" }) => {
+    return (
+        <select
+            value={value || ''}
+            onChange={(e) => onCommit(e.target.value)}
+            onFocus={onFocus}
+            className={`grid-input ${isFocused ? 'focused-field' : ''} ${className}`}
+            style={{ 
+                appearance: 'none',
+                WebkitAppearance: 'none',
+                background: 'transparent',
+                textAlign: 'center',
+                textAlignLast: 'center'
+            }}
+        >
+            <option value="" disabled hidden>-</option>
+            {options.map(opt => (
+                <option key={opt} value={opt} style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>{opt}</option>
+            ))}
+        </select>
+    );
+});
+
+const getCategoryStyle = (category, isDark) => {
+    const normalize = (val) => {
+        const str = String(val || '').normalize('NFC').trim();
+        return str === '수행' ? '진행중' : (str || '진행중');
+    };
+    
+    const cat = normalize(category);
+    
+    if (!isDark) {
+        switch (cat) {
+            case '진행중': return { bg: '#e6fffa', text: '#059669' }; // Light Emerald
+            case '홀딩': return { bg: '#fffaf0', text: '#d97706' };   // Light Amber
+            case '수주': return { bg: '#ebf8ff', text: '#2563eb' };   // Light Blue
+            case '드롭': return { bg: '#fff5f5', text: '#dc2626' };   // Light Red
+            case '탈락': return { bg: '#f7fafc', text: '#4b5563' };   // Light Gray
+            default: return { bg: 'transparent', text: 'inherit' };
+        }
+    }
+
+    // Neon Styles for Dark Mode
+    switch (cat) {
+        case '진행중':
+            return {
+                bg: 'rgba(0, 255, 127, 0.12)',
+                text: '#00ff7f',
+                shadow: '0 0 8px rgba(0, 255, 127, 0.5)'
+            };
+        case '홀딩':
+            return {
+                bg: 'rgba(255, 215, 0, 0.12)',
+                text: '#ffd700',
+                shadow: '0 0 8px rgba(255, 215, 0, 0.5)'
+            };
+        case '수주':
+            return {
+                bg: 'rgba(0, 242, 255, 0.12)',
+                text: '#00f2ff',
+                shadow: '0 0 8px rgba(0, 242, 255, 0.8)'
+            };
+        case '드롭':
+            return {
+                bg: 'rgba(255, 49, 49, 0.12)',
+                text: '#ff3131',
+                shadow: '0 0 8px rgba(255, 49, 49, 0.6)'
+            };
+        case '탈락':
+            return {
+                bg: 'rgba(211, 211, 211, 0.1)',
+                text: '#d3d3d3',
+                shadow: 'none'
+            };
+        default:
+            return { bg: 'transparent', text: 'inherit', shadow: 'none' };
+    }
+};
+
+const SalesDataRow = React.memo(({ 
+    item, 
+    rowIndex, 
+    columns, 
+    columnWidths, 
+    rowHeight, 
+    focusedCell, 
+    setFocusedCell,
+    onCellChange,
+    onDelete,
+    onRowResize,
+    theme
+}) => {
+    const catStyle = useMemo(() => getCategoryStyle(item.category, theme === 'dark'), [item.category, theme]);
+
+    return (
+        <tr className="group hover:bg-white/[0.01]">
+            <td 
+                className="w-10 bg-[var(--bg-tertiary)] border border-[var(--border)] p-0 text-[9px] font-bold text-[var(--text-muted)] text-center select-none sticky left-0 z-20 relative"
+                style={{ height: rowHeight }}
+            >
+                {rowIndex + 1}
+                <RowResizeHandle rowId={item.id} onMouseDown={onRowResize} />
+            </td>
+            
+            {columns.map((col) => {
+                if (col.key === 'manage') {
+                    return (
+                        <td key={col.key} className="border border-[var(--border)] p-0 text-center w-[60px] relative" style={{ height: rowHeight }}>
+                            <button 
+                                onClick={() => onDelete(item.id)}
+                                className="relative z-10 p-1.5 text-gray-600 hover:text-red-500 transition-all opacity-0 group-hover:opacity-100"
+                            >
+                                <Trash2 size={12} />
+                            </button>
+                        </td>
+                    );
+                }
+
+                if (col.key === 'category') {
+                    const categoryOptions = ['진행중', '홀딩', '수주', '드롭', '탈락'];
+                    const displayValue = item[col.key] === '수행' ? '진행중' : item[col.key];
+                    return (
+                        <td 
+                            key={col.key} 
+                            className="border border-[var(--border)] p-0 relative transition-colors duration-200" 
+                            style={{ 
+                                width: columnWidths[col.key], 
+                                height: rowHeight,
+                                backgroundColor: catStyle.bg
+                            }}
+                        >
+                            <SpreadsheetCellSelect
+                                value={displayValue}
+                                options={categoryOptions}
+                                onCommit={(v) => onCellChange(item.id, col.key, v)}
+                                onFocus={() => setFocusedCell({ rowId: item.id, field: `${item.id}-${col.key}` })}
+                                isFocused={focusedCell?.field === `${item.id}-${col.key}`}
+                                className="font-bold text-center text-[11px]"
+                                style={{ 
+                                    color: catStyle.text,
+                                    textShadow: theme === 'dark' ? catStyle.shadow : 'none'
+                                }}
+                            />
+                        </td>
+                    );
+                }
+
+                return (
+                    <td key={col.key} className="border border-[var(--border)] p-0 relative" style={{ width: columnWidths[col.key], height: rowHeight }}>
+                        <SpreadsheetCellInput 
+                            initialValue={item[col.key]}
+                            onCommit={(v) => onCellChange(item.id, col.key, v)}
+                            onFocus={() => setFocusedCell({ rowId: item.id, field: `${item.id}-${col.key}` })}
+                            isFocused={focusedCell?.field === `${item.id}-${col.key}`}
+                            className={
+                                col.key === 'projectName' ? 'font-bold text-[var(--text-primary)] text-[11px]' :
+                                col.key === 'status' ? 'text-[var(--text-muted)] text-[10px]' :
+                                'text-[var(--text-muted)] text-[11px]'
+                            }
+                        />
+                    </td>
+                );
+            })}
+        </tr>
+    );
+});
+
+const ColumnSettingsModal = ({ isOpen, onClose, columns, onUpdateColumns }) => {
+    const [localColumns, setLocalColumns] = useState(columns);
+    const [newColLabel, setNewColLabel] = useState('');
+
+    useEffect(() => {
+        if (isOpen) setLocalColumns(columns);
+    }, [isOpen, columns]);
+
+    const handleAdd = () => {
+        if (!newColLabel.trim()) return;
+        const newKey = `custom_${Date.now()}`;
+        const newCol = { key: newKey, label: newColLabel.trim(), width: 120 };
+        const updated = [...localColumns];
+        const manageIdx = updated.findIndex(c => c.key === 'manage');
+        if (manageIdx !== -1) {
+            updated.splice(manageIdx, 0, newCol);
+        } else {
+            updated.push(newCol);
+        }
+        setLocalColumns(updated);
+        setNewColLabel('');
+    };
+
+    const handleDelete = (key) => {
+        if (['category', 'projectName', 'manage'].includes(key)) return;
+        setLocalColumns(localColumns.filter(c => c.key !== key));
+    };
+
+    const move = (index, direction) => {
+        const newIdx = index + direction;
+        if (newIdx < 0 || newIdx >= localColumns.length) return;
+        if (index <= 1 && direction < 0) return;
+        if (localColumns[index].key === 'manage') return;
+        if (localColumns[newIdx].key === 'manage') return;
+
+        const updated = [...localColumns];
+        [updated[index], updated[newIdx]] = [updated[newIdx], updated[index]];
+        setLocalColumns(updated);
+    };
+
+    const handleSave = () => {
+        onUpdateColumns(localColumns);
+        onClose();
+    };
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 z-[100000] flex justify-end" style={{ pointerEvents: 'auto' }}>
+            {/* Backdrop Overlay */}
+            <div 
+                className="absolute inset-0 bg-black/60 backdrop-blur-[4px] animate-in fade-in duration-300"
+                onClick={onClose}
+            />
+            
+            {/* Sliding Sidebar Container */}
+            <div 
+                className="relative w-[400px] h-full flex flex-col shadow-[-20px_0_60px_rgba(0,0,0,0.8)] border-l border-[#00f2ff]/30 animate-in slide-in-from-right duration-500 ease-out"
+                style={{ backgroundColor: '#0d1117' }}
+            >
+                {/* Left Accent Glow Line */}
+                <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '2px', background: 'linear-gradient(to bottom, transparent, #00f2ff, transparent)', opacity: 0.5 }} />
+
+                {/* Sidebar Header */}
+                <div style={{ padding: '24px 24px 16px 24px', backgroundColor: 'rgba(22, 27, 34, 0.9)', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div className="flex items-center gap-3">
+                        <div className="flex gap-1.5">
+                            <div className="w-2h-2 rounded-full" style={{ backgroundColor: '#ff5f56', width: '9px', height: '9px' }} />
+                            <div className="w-2h-2 rounded-full" style={{ backgroundColor: '#ffbd2e', width: '9px', height: '9px' }} />
+                            <div className="w-2h-2 rounded-full" style={{ backgroundColor: '#27c93f', width: '9px', height: '9px' }} />
+                        </div>
+                        <div style={{ width: '1px', height: '14px', backgroundColor: 'rgba(255,255,255,0.1)', margin: '0 4px' }} />
+                        <div className="flex flex-col">
+                            <span style={{ fontSize: '15px', fontWeight: '900', color: '#fff', letterSpacing: '-0.02em' }}>시트 구성</span>
+                            <span style={{ fontSize: '9px', color: '#00f2ff', fontWeight: 'bold', opacity: 0.6, textTransform: 'uppercase', marginTop: '-1px' }}>Settings</span>
+                        </div>
+                    </div>
+                    <button 
+                        onClick={onClose} 
+                        style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer', padding: '6px', borderRadius: '50%' }} 
+                        className="hover:bg-white/10 hover:text-white transition-all active:scale-90"
+                    >
+                        <X size={20} />
+                    </button>
+                </div>
+
+                {/* Content Area - Scrollable */}
+                <div className="flex-1 overflow-y-auto custom-scrollbar" style={{ padding: '24px' }}>
+                    {/* Add Column Section */}
+                    <div style={{ marginBottom: '28px' }}>
+                        <label style={{ display: 'block', fontSize: '9px', fontWeight: '900', color: '#00f2ff', textTransform: 'uppercase', letterSpacing: '0.2em', marginBottom: '10px', opacity: 0.8 }}>Add New Column</label>
+                        <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                            <input 
+                                type="text" 
+                                value={newColLabel}
+                                onChange={(e) => setNewColLabel(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
+                                placeholder="컬럼명 입력"
+                                style={{ 
+                                    flex: 1,
+                                    backgroundColor: 'rgba(255,255,255,0.04)',
+                                    border: '1px solid rgba(0, 242, 255, 0.15)',
+                                    borderRadius: '12px',
+                                    padding: '12px 50px 12px 16px',
+                                    color: '#fff',
+                                    fontSize: '13px',
+                                    outline: 'none'
+                                }}
+                                className="focus:border-[#00f2ff]/40 focus:bg-white/[0.06] transition-all"
+                            />
+                            <button 
+                                onClick={handleAdd} 
+                                style={{ position: 'absolute', right: '8px', backgroundColor: '#fff', color: '#000', border: 'none', borderRadius: '8px', padding: '6px 12px', fontSize: '10px', fontWeight: '900', cursor: 'pointer' }}
+                                className="active:scale-95 transition-transform shadow-xl hover:bg-[#00f2ff]"
+                            >
+                                <Plus size={14} />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Column List Section */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', padding: '0 4px' }}>
+                        <span style={{ fontSize: '10px', fontWeight: '900', color: '#666', textTransform: 'uppercase', letterSpacing: '0.12em' }}>Architecture</span>
+                        <div style={{ padding: '3px 8px', backgroundColor: 'rgba(0, 242, 255, 0.08)', borderRadius: '20px', border: '1px solid rgba(0, 242, 255, 0.15)' }}>
+                            <span style={{ fontSize: '9px', fontWeight: '900', color: '#00f2ff' }}>{localColumns.length} UNITS</span>
+                        </div>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        {localColumns.map((col, idx) => {
+                            const isProtected = ['category', 'projectName', 'manage'].includes(col.key);
+                            return (
+                                <div 
+                                    key={col.key} 
+                                    style={{ 
+                                        display: 'flex', 
+                                        alignItems: 'center', 
+                                        gap: '12px', 
+                                        padding: '4px 14px', 
+                                        backgroundColor: 'rgba(255,255,255,0.02)', 
+                                        borderRadius: '12px',
+                                        border: '1px solid transparent'
+                                    }}
+                                    className="hover:bg-white/[0.04] hover:border-white/[0.08] transition-all group"
+                                >
+                                    <div style={{ width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: '900', color: '#00f2ff', backgroundColor: 'rgba(0, 242, 255, 0.08)', borderRadius: '10px', border: '1px solid rgba(0, 242, 255, 0.15)' }}>
+                                        {String.fromCharCode(65 + idx)}
+                                    </div>
+                                    <div style={{ flex: 1, fontSize: '13.5px', fontWeight: 'bold', color: isProtected ? '#fff' : '#aaa', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                        {col.label}
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                        {!isProtected && col.key !== 'manage' ? (
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }} className="opacity-0 group-hover:opacity-100 transition-all">
+                                                <button onClick={() => move(idx, -1)} style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer', padding: '4px' }} className="hover:text-white"><ChevronUp size={16} /></button>
+                                                <button onClick={() => move(idx, 1)} style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer', padding: '4px' }} className="hover:text-white"><ChevronDown size={16} /></button>
+                                                <div style={{ width: '1px', height: '12px', backgroundColor: 'rgba(255,255,255,0.08)', margin: '0 2px' }} />
+                                                <button onClick={() => handleDelete(col.key)} style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer', padding: '4px' }} className="hover:text-red-400"><Trash2 size={16} /></button>
+                                            </div>
+                                        ) : (
+                                            <div style={{ padding: '6px', opacity: 0.3 }}>
+                                                <Lock size={12} style={{ color: '#00f2ff' }} />
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                {/* Sidebar Footer - Sticky */}
+                <div style={{ padding: '20px 24px', borderTop: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(22, 27, 34, 0.95)', display: 'flex', gap: '12px' }}>
+                    <button 
+                        onClick={onClose} 
+                        style={{ flex: 1, padding: '12px', backgroundColor: 'transparent', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '14px', color: '#666', fontSize: '11px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.1em', cursor: 'pointer' }}
+                        className="hover:bg-white/[0.05] hover:text-white transition-all"
+                    >
+                        Cancel
+                    </button>
+                    <button 
+                        onClick={handleSave} 
+                        style={{ flex: 1.5, padding: '12px', backgroundColor: '#2563eb', border: 'none', borderRadius: '14px', color: '#fff', fontSize: '13px', fontWeight: '900', cursor: 'pointer' }}
+                        className="hover:bg-blue-500 shadow-[0_5px_20px_rgba(37,99,235,0.2)] hover:shadow-[0_8px_30px_rgba(37,99,235,0.4)] active:scale-[0.98] transition-all"
+                    >
+                        Apply Config
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const SalesStatus = () => {
+    const STORAGE_KEY = 'sales_data_v3';
+    const COLUMN_WIDTHS_KEY = 'sales_column_widths_v3';
+    const ROW_HEIGHTS_KEY = 'sales_row_heights_v3';
+    const COLUMNS_CONFIG_KEY = 'sales_columns_config_v3';
+    
+    const [salesData, setSalesData] = useState(() => {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+            try { return JSON.parse(saved); } catch (e) { console.error(e); }
+        }
+        return [
+            { id: 1, category: '진행중', projectName: '20260223_경기신용보증재단 디지털채널 고도화(이지원 리뉴얼)', pd: '김시영, 이종호', mainContractor: '-', estimatedAmount: '3.5(vat포함)', progress: 'S-vat포함)', kickoff: '-', rfpInfo: '-', proposal: '-', pt: '-', status: '2026.02.23 업무 협의, 개발자 별도 UI/UX 미팅 진행, 참여 인원 파악\n2026.02.24 견적서 제출, 견적 협의\n2026.02.26 3월 10일 공고 입찰 마감 UI/UX 별도 산정\n2026.03.01 제안 준비, 3월 12일 마감, PT 진행', plan: '', clientInfo: '-' },
+            { id: 2, category: '진행중', projectName: '20260103_KB국민은행 현대화 2차', pd: 'KBDS, SKC&C', mainContractor: '-', estimatedAmount: '-', progress: 'LG CNS(바이오 날자 외주리, 설계급)', kickoff: '18개월', rfpInfo: '2026.03.13', proposal: '2026.04.03', pt: '-', status: '2025.12.09 매출 사업 파악\n2025.12.10 SI 컨셉팅 진행, 고객사측에서 파트너 곡\n2025.12.11 LG CNS 영업 연동', plan: '', clientInfo: '-' },
+            { id: 3, category: '진행중', projectName: '20260223_포스코 IWP 구축(EP)', pd: '김경환, 김현우', mainContractor: '-', estimatedAmount: '-', progress: '-', kickoff: '-', rfpInfo: '-', proposal: '-', pt: '-', status: '2025.12.23 EP 개선 프로젝트 (IWP: Intelligence Workplace)\n- 포스코와 포스코DX 동일 프로젝트 동시에 진행\n- 3월 ~ 4월 선행 파트 2 프로젝트 진행 예상\n- 7월 ~ 9월 순차 도입, 단가 850 이상 협의 중\n- 3월 기획 2명 선투입 / 기획 역량 및 정규직 투입 원함\n2026.01.03 포스코DX 사업 수주 완료, 최대 6~7명 투입 규모. 2명부터 투입 계회, 매주 1-2명 에정', plan: '', clientInfo: '-' },
+            { id: 4, category: '진행중', projectName: '20250109_신흥기업 홈페이지 리뉴얼_포스TNS', pd: '임시영', mainContractor: '-', estimatedAmount: '인픽스 외 2개사', progress: '-', kickoff: '-', rfpInfo: '-', proposal: '-', pt: '-', status: '2025.12.23 검토 지원 요청 (3개사 견적 제안 및 미팅)\n아이디 이신이 설계서 가져오셔서 인피닉스로 지원\n2025.12.24 견적 지원 (0.5억 내외)', plan: '기1 대1 퍼1 개1', clientInfo: '-' }
+        ];
+    });
+
+    const [columns, setColumns] = useState(() => {
+        const saved = localStorage.getItem(COLUMNS_CONFIG_KEY);
+        if (saved) {
+            try { return JSON.parse(saved); } catch (e) { console.error(e); }
+        }
+        return [
+            { key: 'category', label: '구분', width: 80 },
+            { key: 'projectName', label: '프로젝트명', width: 320 },
+            { key: 'pd', label: 'PD명', width: 150 },
+            { key: 'mainContractor', label: '주사업자명', width: 150 },
+            { key: 'estimatedAmount', label: '예상금액', width: 120 },
+            { key: 'progress', label: '진행사항', width: 180 },
+            { key: 'kickoff', label: '킥오프/기간', width: 120 },
+            { key: 'rfpInfo', label: 'RFP설명회', width: 120 },
+            { key: 'proposal', label: '제안서', width: 120 },
+            { key: 'pt', label: 'PT', width: 100 },
+            { key: 'status', label: '현황 및 계획', width: 500 },
+            { key: 'plan', label: '예상인력투입계획', width: 150 },
+            { key: 'clientInfo', label: '고객사 정보', width: 200 },
+            { key: 'manage', label: '관리', width: 60 }
+        ];
+    });
+
+    // Data Migration for 'plan' field (object to string)
+    useEffect(() => {
+        const migrateData = () => {
+            let changed = false;
+            const migrated = salesData.map(item => {
+                if (item.plan && typeof item.plan === 'object') {
+                    changed = true;
+                    const p = item.plan;
+                    const parts = [];
+                    if (p.planning) parts.push(`기${p.planning}`);
+                    if (p.design) parts.push(`디${p.design}`);
+                    if (p.publishing) parts.push(`퍼${p.publishing}`);
+                    if (p.dev) parts.push(`개${p.dev}`);
+                    return { ...item, plan: parts.join(' ') };
+                }
+                return item;
+            });
+            if (changed) {
+                setSalesData(migrated);
+            }
+        };
+        migrateData();
+    }, []);
+
+    useEffect(() => {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(salesData));
+    }, [salesData]);
+
+    useEffect(() => {
+        localStorage.setItem(COLUMNS_CONFIG_KEY, JSON.stringify(columns));
+    }, [columns]);
+
+    const [searchTerm, setSearchTerm] = useState('');
+    const [showSaveToast, setShowSaveToast] = useState(false);
+    const [focusedCell, setFocusedCell] = useState(null);
+    const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+
+    const handleUpdateColumns = useCallback((newCols) => {
+        setSalesData(prevData => {
+            return prevData.map(item => {
+                const newItem = { ...item };
+                newCols.forEach(col => {
+                    if (newItem[col.key] === undefined) {
+                        newItem[col.key] = '-';
+                    }
+                });
+                return newItem;
+            });
+        });
+        setColumns(newCols);
+    }, []);
+
+    const columnLetters = useMemo(() => 
+        Array.from({ length: columns.length }, (_, i) => String.fromCharCode(65 + i))
+    , [columns]);
+
+    const [columnWidths, setColumnWidths] = useState(() => {
+        const saved = localStorage.getItem(COLUMN_WIDTHS_KEY);
+        if (saved) {
+            try { return JSON.parse(saved); } catch (e) { console.error(e); }
+        }
+        return columns.reduce((acc, col) => ({ ...acc, [col.key]: col.width }), {});
+    });
+
+    const THEME_KEY = 'sales_status_theme';
+    const [theme, setTheme] = useState(() => localStorage.getItem(THEME_KEY) || 'dark');
+
+    useEffect(() => {
+        localStorage.setItem(THEME_KEY, theme);
+    }, [theme]);
+
+    const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+
+    const [rowHeights, setRowHeights] = useState(() => {
+        const saved = localStorage.getItem(ROW_HEIGHTS_KEY);
+        if (saved) {
+            try { 
+                const parsed = JSON.parse(saved);
+                if (parsed && !parsed.header) parsed.header = 36;
+                return parsed;
+            } catch (e) { console.error(e); }
+        }
+        const initialHeights = salesData.reduce((acc, item) => ({ ...acc, [item.id]: 36 }), {});
+        return { ...initialHeights, header: 36 };
+    });
+
+    useEffect(() => {
+        localStorage.setItem(COLUMN_WIDTHS_KEY, JSON.stringify(columnWidths));
+    }, [columnWidths]);
+
+    useEffect(() => {
+        localStorage.setItem(ROW_HEIGHTS_KEY, JSON.stringify(rowHeights));
+    }, [rowHeights]);
+
+    const resizingRef = useRef({ isResizing: false, type: null, id: null, startPos: 0, startSize: 0 });
+
+    const handleColumnMouseDown = useCallback((e, column) => {
+        e.stopPropagation();
+        resizingRef.current = { isResizing: true, type: 'col', id: column, startPos: e.clientX, startSize: columnWidths[column] };
+        document.body.style.cursor = 'col-resize';
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+    }, [columnWidths]);
+
+    const handleRowMouseDown = useCallback((e, rowId) => {
+        e.stopPropagation();
+        resizingRef.current = { isResizing: true, type: 'row', id: rowId, startPos: e.clientY, startSize: rowHeights[rowId] || 36 };
+        document.body.style.cursor = 'row-resize';
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+    }, [rowHeights]);
+
+    const handleMouseMove = useCallback((e) => {
+        if (!resizingRef.current.isResizing) return;
+        if (resizingRef.current.type === 'col') {
+            const deltaX = e.clientX - resizingRef.current.startPos;
+            const newWidth = Math.max(40, resizingRef.current.startSize + deltaX);
+            setColumnWidths(prev => ({ ...prev, [resizingRef.current.id]: newWidth }));
+        } else if (resizingRef.current.type === 'row') {
+            const deltaY = e.clientY - resizingRef.current.startPos;
+            const newHeight = Math.max(24, resizingRef.current.startSize + deltaY);
+            setRowHeights(prev => ({ ...prev, [resizingRef.current.id]: newHeight }));
+        }
+    }, []);
+
+    const handleMouseUp = useCallback(() => {
+        resizingRef.current.isResizing = false;
+        document.body.style.cursor = 'default';
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+    }, [handleMouseMove]);
+
+    const handleCellChange = useCallback((id, field, value) => {
+        setSalesData(prev => prev.map(item => item.id === id ? { ...item, [field]: value } : item));
+    }, []);
+
+    const handleHeaderChange = useCallback((key, newLabel) => {
+        setColumns(prev => prev.map(col => col.key === key ? { ...col, label: newLabel } : col));
+    }, []);
+
+    const addNewRow = () => {
+        const newRow = { id: Date.now(), category: '진행중', projectName: '', pd: '', mainContractor: '-', estimatedAmount: '-', progress: '-', kickoff: '-', rfpInfo: '-', proposal: '-', pt: '-', status: '', plan: '', clientInfo: '-' };
+        setSalesData([newRow, ...salesData]);
+    };
+
+    const deleteRow = useCallback((id) => {
+        if (window.confirm('이 행을 삭제하시겠습니까?')) {
+            setSalesData(prev => prev.filter(item => item.id !== id));
+        }
+    }, []);
+
+    const handleSave = () => { setShowSaveToast(true); setTimeout(() => setShowSaveToast(false), 3000); };
+
+    const filteredData = useMemo(() => {
+        const order = ['진행중', '홀딩', '수주', '드롭', '탈락'];
+        
+        return salesData
+            .filter(item => 
+                (item.projectName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (item.pd || '').toLowerCase().includes(searchTerm.toLowerCase())
+            )
+            .sort((a, b) => {
+                const weights = {
+                    '진행중': 1,
+                    '홀딩': 2,
+                    '수주': 3,
+                    '드롭': 4,
+                    '탈락': 5
+                };
+                
+                const normalize = (val) => {
+                    const str = String(val || '').normalize('NFC').trim();
+                    if (str === '수행') return '진행중';
+                    return str || '진행중';
+                };
+                
+                const catA = normalize(a.category);
+                const catB = normalize(b.category);
+                
+                const weightA = weights[catA] || 99;
+                const weightB = weights[catB] || 99;
+
+                // Log only if search is "DEBUG_SORT" to avoid spam
+                if (searchTerm === 'DEBUG_SORT') {
+                    console.log(`[SORT DEBUG] Comparing ID ${a.id} (${catA}, w:${weightA}) vs ID ${b.id} (${catB}, w:${weightB})`);
+                }
+
+                if (weightA !== weightB) return weightA - weightB;
+                
+                // Secondary sort: Stabilize with ID (numeric)
+                const idA = Number(a.id);
+                const idB = Number(b.id);
+                if (!isNaN(idA) && !isNaN(idB)) return idA - idB;
+                return String(a.id).localeCompare(String(b.id));
+            });
+    }, [salesData, searchTerm]);
+
+    return (
+        <div className={`flex flex-col h-full min-h-0 animate-in fade-in duration-700 ${theme === 'light' ? 'light-theme' : ''}`}>
+            <style>
+                {`
+                    .sales-spreadsheet-container {
+                        --grid-border: rgba(255, 255, 255, 0.15);
+                    }
+                    .light-theme .sales-spreadsheet-container {
+                        --grid-border: rgba(0, 0, 0, 0.15);
+                    }
+                    .sales-spreadsheet-container table { 
+                        border-collapse: separate !important; 
+                        border-spacing: 0 !important; 
+                        table-layout: fixed !important; 
+                        width: max-content !important; 
+                    }
+                    .sales-spreadsheet-container td, .sales-spreadsheet-container th { 
+                        padding: 0 !important; 
+                        margin: 0 !important; 
+                        border: 1px solid var(--grid-border) !important; 
+                    }
+                    .sales-spreadsheet-container td { position: relative !important; }
+                    .sales-spreadsheet-container input, .sales-spreadsheet-container textarea { box-shadow: none !important; border: none !important; outline: none !important; appearance: none !important; user-select: text !important; cursor: text !important; width: 100% !important; height: 100% !important; background: transparent; color: inherit; }
+                    .sales-spreadsheet-container .focused-field { box-shadow: inset 0 0 0 2px #3b82f6 !important; z-index: 60 !important; background: var(--bg-secondary) !important; color: var(--text-primary) !important; caret-color: #3b82f6 !important; }
+                    .sales-spreadsheet-container thead th {
+                        position: sticky !important;
+                        background: var(--bg-tertiary) !important;
+                    }
+                    .sales-spreadsheet-container thead tr:nth-child(1) th {
+                        top: 0 !important;
+                        z-index: 55 !important;
+                    }
+                    .sales-spreadsheet-container thead tr:nth-child(2) th {
+                        top: 28px !important;
+                        z-index: 55 !important;
+                    }
+                    .sales-spreadsheet-container td.sticky { 
+                        position: sticky !important;
+                        left: 0 !important;
+                        z-index: 40 !important;
+                        background: var(--bg-tertiary) !important; 
+                    }
+                    .sales-spreadsheet-container thead th:first-child {
+                        left: 0 !important;
+                        z-index: 65 !important;
+                    }
+                    .sales-spreadsheet-container td:not(.sticky) { overflow: hidden !important; background: var(--bg-secondary); }
+                    .sales-spreadsheet-container .resize-handle { z-index: 100 !important; pointer-events: auto !important; }
+                `}
+            </style>
+            {showSaveToast && (
+                <div className="fixed top-10 left-1/2 -translate-x-1/2 z-[100] animate-in slide-in-from-top duration-500">
+                    <div 
+                        className="px-6 py-3 rounded-xl shadow-[0_0_30px_rgba(0,0,0,0.8)] flex items-center gap-3 border"
+                        style={{ 
+                            backgroundColor: '#000000', 
+                            borderColor: '#2563eb', 
+                            color: '#ffffff',
+                            opacity: 1,
+                            zIndex: 9999
+                        }}
+                    >
+                        <CheckCircle2 size={20} color="#2563eb" /><span className="font-bold">성공적으로 저장되었습니다.</span>
+                    </div>
+                </div>
+            )}
+            <div className={`flex items-center justify-between px-4 py-1.5 bg-[var(--bg-secondary)] border-b border-[var(--border)] z-30 ${theme === 'light' ? 'shadow-sm' : ''}`}>
+                <div className="flex items-center gap-1">
+                    <div className="p-1.5 hover:bg-[var(--bg-tertiary)] rounded cursor-pointer transition-colors" title="파일"><FileText size={16} className="text-[var(--text-muted)]" /></div>
+                    <div className="w-px h-5 bg-[var(--border)] mx-1.5"></div>
+                    <div onClick={handleSave} className="flex items-center gap-1.5 px-2.5 py-1 hover:bg-[var(--bg-tertiary)] rounded cursor-pointer text-[var(--text-secondary)] font-bold text-xs"><Save size={14} className="text-blue-400" /> 저장 </div>
+                    <div onClick={addNewRow} className="flex items-center gap-1.5 px-2.5 py-1 hover:bg-[var(--bg-tertiary)] rounded cursor-pointer text-[var(--text-secondary)] font-bold text-xs"><Plus size={14} className="text-green-400" /> 행 추가 </div>
+                </div>
+                <div className="flex items-center gap-3">
+                    <button 
+                        onClick={() => setIsSettingsModalOpen(true)}
+                        className="p-1.5 hover:bg-[var(--bg-tertiary)] rounded cursor-pointer transition-colors flex items-center gap-2 group border border-[var(--border)]"
+                    >
+                        <Settings size={15} className="text-gray-400 group-hover:rotate-45 transition-transform" />
+                        <span className="text-[11px] font-bold text-gray-400 group-hover:text-gray-200 uppercase">Columns</span>
+                    </button>
+                    <div className="w-px h-5 bg-[var(--border)] mx-1"></div>
+                    <button 
+                        onClick={toggleTheme}
+                        className="p-1.5 hover:bg-[var(--bg-tertiary)] rounded cursor-pointer transition-colors flex items-center gap-2 group border border-[var(--border)]"
+                        title={theme === 'dark' ? '라이트 모드로 전환' : '다크 모드로 전환'}
+                    >
+                        {theme === 'dark' ? (
+                            <Sun size={15} className="text-yellow-400 group-hover:rotate-12 transition-transform" />
+                        ) : (
+                            <Moon size={15} className="text-blue-600 group-hover:-rotate-12 transition-transform" />
+                        )}
+                        <span className="text-[11px] font-bold text-gray-400 group-hover:text-gray-200 transition-colors uppercase">
+                            {theme === 'dark' ? 'Light' : 'Dark'}
+                        </span>
+                    </button>
+                    <div className="w-px h-5 bg-[var(--border)] mx-1"></div>
+                    <div className="relative">
+                        <Search className="absolute left-2 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" size={12} />
+                        <input 
+                            type="text" 
+                            value={searchTerm} 
+                            onChange={(e) => setSearchTerm(e.target.value)} 
+                            placeholder="시트 내 검색..." 
+                            spellCheck={false}
+                            className="bg-[var(--bg-tertiary)] border border-[var(--border)] rounded px-7 py-1 text-[11px] text-[var(--text-primary)] focus:outline-none focus:border-blue-500/50 w-40 transition-all placeholder:text-[var(--text-muted)]" 
+                        />
+                    </div>
+                </div>
+            </div>
+            <div className="flex-1 overflow-auto bg-[var(--bg-primary)] sales-spreadsheet-container">
+                <table className="table-fixed w-max">
+                    <thead className="z-40">
+                        <tr className="bg-[var(--bg-tertiary)]">
+                            <th className="w-10 h-7 border border-[var(--border)] bg-[var(--bg-tertiary)] flex items-center justify-center text-[9px] font-bold text-[var(--text-muted)] select-none">#</th>
+                            {columnLetters.map((le, idx) => (
+                                <th key={idx} className="border border-[var(--border)] text-[9px] font-bold text-[var(--text-muted)] text-center h-7 relative p-0 select-none" style={{ width: columnWidths[columns[idx].key] }}>
+                                    {le}
+                                    <ColumnResizeHandle column={columns[idx].key} onMouseDown={handleColumnMouseDown} />
+                                </th>
+                            ))}
+                        </tr>
+                        <tr className="bg-[var(--bg-tertiary)]">
+                            <th className="w-10 border border-[var(--border)] bg-[var(--bg-tertiary)] select-none relative" style={{ height: rowHeights.header || 36 }}>
+                                <RowResizeHandle rowId="header" onMouseDown={handleRowMouseDown} />
+                            </th>
+                            {columns.map((col, idx) => (
+                                <th key={idx} className={`border border-[var(--border)] p-0 text-[10px] font-bold uppercase tracking-tight text-[var(--text-primary)] text-center relative truncate select-none ${col.key === 'plan' ? 'bg-blue-500/5' : ''}`} style={{ width: columnWidths[col.key], height: rowHeights.header || 36 }}>
+                                    {col.key === 'manage' ? (
+                                        <span className="p-1.5 inline-block">{col.label}</span>
+                                    ) : (
+                                        <SpreadsheetCellInput 
+                                            initialValue={col.label}
+                                            onCommit={(v) => handleHeaderChange(col.key, v)}
+                                            onFocus={() => setFocusedCell({ rowId: 'header', field: col.key })}
+                                            isFocused={focusedCell?.rowId === 'header' && focusedCell?.field === col.key}
+                                            className="text-center font-bold uppercase !px-1 text-[var(--text-primary)]"
+                                        />
+                                    )}
+                                </th>
+                            ))}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {filteredData.map((item, rowIndex) => (
+                            <SalesDataRow key={item.id} item={item} rowIndex={rowIndex} columns={columns} columnWidths={columnWidths} rowHeight={rowHeights[item.id] || 36} focusedCell={focusedCell} setFocusedCell={setFocusedCell} onCellChange={handleCellChange} onDelete={deleteRow} onRowResize={handleRowMouseDown} theme={theme} />
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+            <ColumnSettingsModal 
+                isOpen={isSettingsModalOpen} 
+                onClose={() => setIsSettingsModalOpen(false)} 
+                columns={columns}
+                onUpdateColumns={handleUpdateColumns}
+            />
+        </div>
+    );
+};
+
+export default SalesStatus;

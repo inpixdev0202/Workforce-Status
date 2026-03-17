@@ -1,0 +1,11 @@
+
+TIMESTAMP: 2026-02-19T03:25:11.037Z
+MESSAGE: cannot commit - no transaction is active
+CODE: undefined
+STACK: Error: cannot commit - no transaction is active
+    at e.handleError (D:\Workforce-Status\server\node_modules\sql.js\dist\sql-wasm.js:90:371)
+    at c.step (D:\Workforce-Status\server\node_modules\sql.js\dist\sql-wasm.js:80:460)
+    at e.run (D:\Workforce-Status\server\node_modules\sql.js\dist\sql-wasm.js:87:369)
+    at run (file:///D:/Workforce-Status/server/db.js:241:8)
+    at testBatchUpdate (file:///D:/Workforce-Status/server/debug_transaction.js:48:9)
+        

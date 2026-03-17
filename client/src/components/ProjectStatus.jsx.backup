@@ -1,0 +1,1174 @@
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
+import { projectsAPI, employeesAPI } from '../api';
+import { format, addWeeks, addDays, startOfWeek, endOfWeek, eachWeekOfInterval, parseISO } from 'date-fns';
+import { ko } from 'date-fns/locale';
+
+function ProjectStatus() {
+    const [data, setData] = useState([]);
+    const [employees, setEmployees] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [showProjectModal, setShowProjectModal] = useState(false);
+    const [showMemberModal, setShowMemberModal] = useState(false);
+    const [selectedProject, setSelectedProject] = useState(null);
+    const [startDate, setStartDate] = useState(new Date()); // View start date
+    const [searchTerm, setSearchTerm] = useState('');
+    const [activeInlineIdx, setActiveInlineIdx] = useState(null); // Which project's add row is focused
+    const [autoCompleteIdx, setAutoCompleteIdx] = useState(-1); // Keyboard selection in dropdown
+    const [inlineInputRect, setInlineInputRect] = useState(null); // Position for floating dropdown
+
+    // Custom Confirm Modal State
+    const [confirmConfig, setConfirmConfig] = useState({ isOpen: false, title: '', message: '', onConfirm: null, type: 'danger' });
+
+    // View Mode State
+    const [viewMode, setViewMode] = useState('project'); // 'project' | 'group'
+    const [selectedGroup, setSelectedGroup] = useState(null); // Group filter
+
+
+    // Grid State
+    const [weeks, setWeeks] = useState([]);
+    const [cursor, setCursor] = useState({ memberIndex: null, weekIndex: null });
+    const cellRefs = useRef({}); // cellRefs.current[`${memberIndex}-${weekIndex}`] = element
+
+    useEffect(() => {
+        // Generate 12 weeks from start date
+        const start = startOfWeek(startDate, { weekStartsOn: 1 });
+        const end = addWeeks(start, 11);
+        const intervals = eachWeekOfInterval({ start, end }, { weekStartsOn: 1 });
+        setWeeks(intervals);
+    }, [startDate]);
+
+    useEffect(() => {
+        loadData(true); // Auto-sync on mount
+    }, []);
+
+    // Focus management effect
+    useEffect(() => {
+        if (cursor.memberIndex !== null && cursor.weekIndex !== null) {
+            const key = `${cursor.memberIndex}-${cursor.weekIndex}`;
+            const el = cellRefs.current[key];
+            if (el) {
+                el.focus();
+            }
+        }
+    }, [cursor]);
+
+    const findEarliestDate = (projects) => {
+        let earliest = null;
+        projects.forEach(p => {
+            p.members.forEach(m => {
+                if (m.input_start_date) {
+                    const d = new Date(m.input_start_date);
+                    if (!isNaN(d.getTime())) {
+                        if (!earliest || d < earliest) earliest = d;
+                    }
+                }
+            });
+        });
+        return earliest;
+    };
+
+    const loadData = async (shouldAutoSyncDates = false) => {
+        try {
+            setLoading(true);
+            const [matrixRes, empRes] = await Promise.all([
+                projectsAPI.getMatrix(),
+                employeesAPI.getAll({ status: 'active' })
+            ]);
+            setData(matrixRes.data);
+            setEmployees(empRes.data);
+
+            if (shouldAutoSyncDates) {
+                const earliest = findEarliestDate(matrixRes.data);
+                if (earliest) {
+                    // Sync view to earliest date start of week
+                    setStartDate(earliest);
+                }
+            }
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Helper to get flattened list of members for navigation
+    // Now includes "Add" rows at the end of each project
+    const getFlatRows = useCallback(() => {
+        const flat = [];
+        data.forEach(p => {
+            p.members.forEach(m => {
+                flat.push({ type: 'member', member: m, projectId: p.id });
+            });
+            flat.push({ type: 'add', projectId: p.id, projectName: p.name });
+        });
+        return flat;
+    }, [data]);
+
+    // Transform data for group-based view
+    const transformDataByGroup = useCallback(() => {
+        const groupMap = new Map();
+
+        // Iterate through all projects and their members
+        data.forEach(project => {
+            project.members.forEach(member => {
+                const groupName = member.group_name || '미지정';
+
+                if (!groupMap.has(groupName)) {
+                    groupMap.set(groupName, {
+                        group_name: groupName,
+                        members: new Map()
+                    });
+                }
+
+                const group = groupMap.get(groupName);
+                const employeeId = member.employee_id;
+
+                if (!group.members.has(employeeId)) {
+                    group.members.set(employeeId, {
+                        employee_id: employeeId,
+                        employee_name: member.employee_name,
+                        position: member.position,
+                        group_name: groupName,
+                        projects: []
+                    });
+                }
+
+                const memberData = group.members.get(employeeId);
+                memberData.projects.push({
+                    project_id: project.id,
+                    project_name: project.name,
+                    assignment_id: member.id,
+                    input_start_date: member.input_start_date,
+                    input_end_date: member.input_end_date,
+                    allocations: member.allocations || {}
+                });
+            });
+        });
+
+        // Convert maps to arrays and filter by selectedGroup if needed
+        const groups = Array.from(groupMap.values()).map(group => ({
+            ...group,
+            members: Array.from(group.members.values())
+        }));
+
+        if (selectedGroup) {
+            return groups.filter(g => g.group_name === selectedGroup);
+        }
+
+        return groups.sort((a, b) => a.group_name.localeCompare(b.group_name));
+    }, [data, selectedGroup]);
+
+
+    const handleAllocationChange = async (assignmentId, date, value) => {
+        // Validation: 0 to 1, up to 2 decimal places
+        let cleanValue = value.replace(/[^0-9.]/g, ''); // Allow only numbers and dot
+
+        // Handle multiple dots
+        const parts = cleanValue.split('.');
+        if (parts.length > 2) cleanValue = parts[0] + '.' + parts.slice(1).join('');
+
+        // Limit to 2 decimal places
+        if (parts.length === 2 && parts[1].length > 2) {
+            cleanValue = parts[0] + '.' + parts[1].substring(0, 2);
+        }
+
+        const num = parseFloat(cleanValue);
+        if (!isNaN(num)) {
+            if (num > 1) cleanValue = '1';
+            if (num < 0) cleanValue = '0';
+        }
+
+        // Optimistic update
+        const newData = [...data];
+        let found = false;
+
+        for (const project of newData) {
+            const assignment = project.members.find(m => m.id === assignmentId);
+            if (assignment) {
+                if (!assignment.allocations) assignment.allocations = {};
+                assignment.allocations[format(date, 'yyyy-MM-dd')] = cleanValue;
+                found = true;
+                break;
+            }
+        }
+
+        if (found) {
+            setData(newData);
+            try {
+                await projectsAPI.updateAllocation({
+                    assignment_id: assignmentId,
+                    date: format(date, 'yyyy-MM-dd'),
+                    value: cleanValue
+                });
+            } catch (err) {
+                console.error('Update failed', err);
+                loadData(); // Revert on error
+            }
+        }
+    };
+
+    const handleAssignmentUpdate = async (assignmentId, field, value) => {
+        const newData = [...data];
+        let found = false;
+        let assignment = null;
+
+        for (const project of newData) {
+            assignment = project.members.find(m => m.id === assignmentId);
+            if (assignment) {
+                assignment[field] = value;
+                found = true;
+                break;
+            }
+        }
+
+        if (found) {
+            setData(newData);
+            try {
+                await projectsAPI.updateAssignment(assignmentId, {
+                    role: assignment.role,
+                    input_start_date: assignment.input_start_date,
+                    input_end_date: assignment.input_end_date
+                });
+            } catch (err) {
+                console.error('Assignment update failed', err);
+                loadData();
+            }
+        }
+    };
+
+    const handleKeyDown = (e, rowIndex, weekIndex, isAddCell = false) => {
+        const flatRows = getFlatRows();
+        const totalRows = flatRows.length;
+        const totalWeeks = weeks.length;
+
+        // Navigation range: 
+        // Member Row: [0: StartDate, 1: EndDate, 2..W+1: Weeks]
+        // Add Row: [0: Name]
+        const maxColIndex = isAddCell ? 0 : totalWeeks + 1;
+
+        let nextRowIndex = rowIndex;
+        let nextWeekIndex = weekIndex;
+
+        // If in autocomplete dropdown
+        if (isAddCell && searchTerm) {
+            const filtered = employees.filter(emp => {
+                const proj = data.find(p => p.id === flatRows[rowIndex].projectId);
+                const isAlreadyAssigned = proj?.members?.some(m => m.employee_id === emp.id);
+                return !isAlreadyAssigned && emp.name.toLowerCase().includes(searchTerm.toLowerCase());
+            });
+
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                setAutoCompleteIdx(prev => Math.min(prev + 1, filtered.length - 1));
+                return;
+            }
+            if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                setAutoCompleteIdx(prev => Math.max(prev - 1, -1));
+                return;
+            }
+            if (e.key === 'Enter' && autoCompleteIdx >= 0) {
+                e.preventDefault();
+                handleInlineAssign(flatRows[rowIndex].projectId, filtered[autoCompleteIdx].id);
+                return;
+            }
+            if (e.key === 'Escape') {
+                setSearchTerm('');
+                setAutoCompleteIdx(-1);
+                return;
+            }
+        }
+
+        switch (e.key) {
+            case 'ArrowUp':
+                e.preventDefault();
+                nextRowIndex = Math.max(0, rowIndex - 1);
+                break;
+            case 'ArrowDown':
+            case 'Enter':
+                e.preventDefault();
+                nextRowIndex = Math.min(totalRows - 1, rowIndex + 1);
+                break;
+            case 'ArrowLeft':
+                if (e.target.selectionStart === 0 && e.target.selectionEnd === 0) {
+                    e.preventDefault();
+                    nextWeekIndex = Math.max(0, weekIndex - 1);
+                }
+                break;
+            case 'ArrowRight':
+                if (e.target.selectionStart === e.target.value.length) {
+                    e.preventDefault();
+                    nextWeekIndex = Math.min(maxColIndex, weekIndex + 1);
+                }
+                break;
+            case 'Tab':
+                e.preventDefault();
+                if (e.shiftKey) {
+                    nextWeekIndex = weekIndex - 1;
+                    if (nextWeekIndex < 0 && rowIndex > 0) {
+                        nextRowIndex = rowIndex - 1;
+                        const prevIsAdd = flatRows[nextRowIndex].type === 'add';
+                        nextWeekIndex = prevIsAdd ? 0 : totalWeeks + 1;
+                    } else {
+                        nextWeekIndex = Math.max(0, nextWeekIndex);
+                    }
+                } else {
+                    nextWeekIndex = weekIndex + 1;
+                    // If we've reached the end of visible weeks, load next 4 weeks
+                    if (nextWeekIndex > maxColIndex && !isAddCell) {
+                        // Auto-advance the view by 4 weeks
+                        setStartDate(addWeeks(startDate, 4));
+                        // Stay on the same row but move to first week column (index 2)
+                        setTimeout(() => {
+                            setCursor({ memberIndex: rowIndex, weekIndex: 2 });
+                        }, 50);
+                        return;
+                    }
+                    // Just cap at max, don't move to next row
+                    nextWeekIndex = Math.min(maxColIndex, nextWeekIndex);
+                }
+                break;
+            default:
+                return;
+        }
+
+        // Clamp week indicator for target row
+        const targetIsAdd = flatRows[nextRowIndex].type === 'add';
+        if (targetIsAdd) {
+            nextWeekIndex = 0;
+        }
+
+        setCursor({ memberIndex: nextRowIndex, weekIndex: nextWeekIndex });
+    };
+
+    const handlePaste = async (e, startRowIndex, startWeekIndex) => {
+        e.preventDefault();
+        const clipboardData = e.clipboardData.getData('text');
+        if (!clipboardData) return;
+
+        const rows = clipboardData.split(/\r\n|\n|\r/).filter(row => row.trim() !== '');
+        if (rows.length === 0) return;
+
+        const flatRows = getFlatRows();
+        const newData = JSON.parse(JSON.stringify(data));
+        const updates = [];
+
+        const assignmentMap = {};
+        newData.forEach(p => {
+            p.members.forEach(m => {
+                assignmentMap[m.id] = m;
+            });
+        });
+
+        rows.forEach((row, rIdx) => {
+            const cells = row.split('\t');
+            const targetRowIndex = startRowIndex + rIdx;
+
+            if (targetRowIndex >= flatRows.length) return;
+            const targetRow = flatRows[targetRowIndex];
+            if (targetRow.type !== 'member') return; // Can't paste into add row for now
+
+            const memberId = targetRow.member.id;
+
+            cells.forEach((value, cIdx) => {
+                const absoluteColIdx = startWeekIndex + cIdx;
+                if (absoluteColIdx < 2) return; // Skip Start/End Date columns for now
+
+                const weekIdxInArray = absoluteColIdx - 2;
+                if (weekIdxInArray >= weeks.length) return;
+
+                const date = weeks[weekIdxInArray];
+                const dateStr = format(date, 'yyyy-MM-dd');
+                const cleanValue = value.trim();
+
+                if (assignmentMap[memberId]) {
+                    if (!assignmentMap[memberId].allocations) assignmentMap[memberId].allocations = {};
+                    assignmentMap[memberId].allocations[dateStr] = cleanValue;
+                }
+
+                updates.push({
+                    assignment_id: memberId,
+                    date: dateStr,
+                    value: cleanValue
+                });
+            });
+        });
+
+        setData(newData);
+
+        if (updates.length > 0) {
+            try {
+                await projectsAPI.updateAllocationBatch(updates);
+            } catch (err) {
+                console.error('Batch update failed', err);
+                alert('저장 중 오류가 발생했습니다.');
+                loadData();
+            }
+        }
+    };
+
+    const handleAddProject = async (formData) => {
+        try {
+            await projectsAPI.create(formData);
+            setShowProjectModal(false);
+            loadData();
+        } catch (err) {
+            alert('Failed to create project');
+        }
+    };
+
+    const handleAssignMember = async (employeeId) => {
+        if (!selectedProject) return;
+        try {
+            await projectsAPI.assignMember(selectedProject.id, { employee_id: employeeId });
+            setShowMemberModal(false);
+            setSearchTerm('');
+            loadData();
+        } catch (err) {
+            alert('Failed to assign member');
+        }
+    };
+
+    const handleInlineAssign = async (projectId, employeeId) => {
+        try {
+            await projectsAPI.assignMember(projectId, { employee_id: employeeId });
+            setSearchTerm('');
+            setAutoCompleteIdx(-1);
+            loadData();
+            // Optional: Move focus back to the same add cell after reload
+        } catch (err) {
+            alert('Failed to assign member');
+        }
+    };
+
+    const handleReorderProject = async (projectId, direction) => {
+        const index = data.findIndex(p => p.id === projectId);
+        if (index === -1) return;
+
+        const newData = [...data];
+        const newIndex = direction === 'up' ? index - 1 : index + 1;
+        if (newIndex < 0 || newIndex >= data.length) return;
+
+        // Swap in local state
+        [newData[index], newData[newIndex]] = [newData[newIndex], newData[index]];
+        setData(newData);
+
+        try {
+            const newDataIds = newData.map(p => p.id);
+            await projectsAPI.reorderProjects(newDataIds);
+        } catch (err) {
+            console.error('Reorder failed', err);
+            loadData(); // Revert on error
+        }
+    };
+
+    const handleReorderMember = async (projectId, assignmentId, direction) => {
+        const projectIndex = data.findIndex(p => p.id === projectId);
+        if (projectIndex === -1) return;
+
+        const project = data[projectIndex];
+        const memberIndex = project.members.findIndex(m => m.id === assignmentId);
+        if (memberIndex === -1) return;
+
+        const newIndex = direction === 'up' ? memberIndex - 1 : memberIndex + 1;
+        if (newIndex < 0 || newIndex >= project.members.length) return;
+
+        // Clone and swap
+        const newData = [...data];
+        const updatedProject = { ...project, members: [...project.members] };
+        [updatedProject.members[memberIndex], updatedProject.members[newIndex]] =
+            [updatedProject.members[newIndex], updatedProject.members[memberIndex]];
+
+        newData[projectIndex] = updatedProject;
+        setData(newData);
+
+        try {
+            const newMemberIds = updatedProject.members.map(m => m.id);
+            await projectsAPI.reorderMembers(newMemberIds);
+        } catch (err) {
+            console.error('Reorder failed', err);
+            loadData(); // Revert on error
+        }
+    };
+
+    const handleRemoveMember = async (projectId, assignmentId, memberName) => {
+        setConfirmConfig({
+            isOpen: true,
+            title: '배정 해제',
+            message: `${memberName}님을 이 프로젝트에서 제외하시겠습니까?`,
+            type: 'danger',
+            onConfirm: async () => {
+                // Optimistic update
+                const newData = [...data];
+                const projectIndex = newData.findIndex(p => p.id === projectId);
+                if (projectIndex !== -1) {
+                    newData[projectIndex] = {
+                        ...newData[projectIndex],
+                        members: newData[projectIndex].members.filter(m => m.id !== assignmentId)
+                    };
+                    setData(newData);
+                }
+
+                try {
+                    await projectsAPI.removeMember(assignmentId);
+                } catch (err) {
+                    console.error('Remove member failed', err);
+                    loadData();
+                }
+                setConfirmConfig(prev => ({ ...prev, isOpen: false }));
+            }
+        });
+    };
+
+    const handleDeleteProject = async (projectId, projectName) => {
+        setConfirmConfig({
+            isOpen: true,
+            title: '프로젝트 삭제',
+            message: `프로젝트 "${projectName}" 및 모든 투입 데이터를 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`,
+            type: 'danger',
+            onConfirm: async () => {
+                // Optimistic update
+                setData(data.filter(p => p.id !== projectId));
+
+                try {
+                    await projectsAPI.delete(projectId);
+                } catch (err) {
+                    console.error('Delete project failed', err);
+                    loadData();
+                }
+                setConfirmConfig(prev => ({ ...prev, isOpen: false }));
+            }
+        });
+    };
+
+    // Calculate row index for focus management
+    let globalRowIndex = 0;
+
+    // Group weeks by month for the header
+    const monthGroups = [];
+    if (weeks.length > 0) {
+        let currentMonth = format(weeks[0], 'M월');
+        let count = 0;
+        weeks.forEach((w, i) => {
+            const m = format(w, 'M월');
+            if (m === currentMonth) {
+                count++;
+            } else {
+                monthGroups.push({ month: currentMonth, count });
+                currentMonth = m;
+                count = 1;
+            }
+            if (i === weeks.length - 1) {
+                monthGroups.push({ month: currentMonth, count });
+            }
+        });
+    }
+
+    const isDateInRange = (date, start, end) => {
+        if (!start || !end) return false;
+        try {
+            const d = new Date(date).getTime();
+            const s = new Date(start).setHours(0, 0, 0, 0);
+            const e = new Date(end).setHours(23, 59, 59, 999);
+            return d >= (s - (3 * 24 * 60 * 60 * 1000)) && d <= e; // A bit of leeway to catch the week
+        } catch {
+            return false;
+        }
+    };
+
+    // Check if a week contains today
+    const isCurrentWeek = (weekStart) => {
+        try {
+            const today = new Date();
+            const weekEnd = addDays(weekStart, 6);
+            const todayTime = today.setHours(0, 0, 0, 0);
+            const weekStartTime = new Date(weekStart).setHours(0, 0, 0, 0);
+            const weekEndTime = new Date(weekEnd).setHours(23, 59, 59, 999);
+            return todayTime >= weekStartTime && todayTime <= weekEndTime;
+        } catch {
+            return false;
+        }
+    };
+
+    return (
+        <div className="container page" style={{ maxWidth: '100%', overflowX: 'hidden' }}>
+            <div className="flex justify-between items-center mb-lg">
+                <h1>프로젝트 투입 현황</h1>
+                <div className="flex gap-md">
+                    <button onClick={() => setStartDate(addWeeks(startDate, -4))} className="btn btn-secondary">← 4주 전</button>
+                    <button onClick={() => setStartDate(startOfWeek(new Date(), { weekStartsOn: 1 }))} className="btn btn-secondary">오늘</button>
+                    <button onClick={() => setStartDate(addWeeks(startDate, 4))} className="btn btn-secondary">4주 후 →</button>
+                    <button onClick={() => setShowProjectModal(true)} className="btn btn-primary">➕ 프로젝트 추가</button>
+                </div>
+            </div>
+
+            {/* View Mode Tabs */}
+            <div style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '1rem', borderBottom: '2px solid var(--border)', paddingBottom: '0.5rem' }}>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button
+                        onClick={() => setViewMode('project')}
+                        className={`btn ${viewMode === 'project' ? 'btn-primary' : 'btn-secondary'}`}
+                        style={{ padding: '0.5rem 1.5rem' }}
+                    >
+                        프로젝트별 보기
+                    </button>
+                    <button
+                        onClick={() => setViewMode('group')}
+                        className={`btn ${viewMode === 'group' ? 'btn-primary' : 'btn-secondary'}`}
+                        style={{ padding: '0.5rem 1.5rem' }}
+                    >
+                        그룹별 보기
+                    </button>
+                </div>
+
+                {/* Group Filter (only in group view) */}
+                {viewMode === 'group' && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginLeft: 'auto' }}>
+                        <label style={{ fontSize: '0.9em', color: 'var(--text-muted)' }}>그룹 필터:</label>
+                        <select
+                            value={selectedGroup || ''}
+                            onChange={(e) => setSelectedGroup(e.target.value || null)}
+                            className="form-input"
+                            style={{ padding: '0.4rem 0.8rem', minWidth: '150px' }}
+                        >
+                            <option value="">전체 그룹</option>
+                            {[...new Set(employees.map(e => e.group_name).filter(Boolean))].sort().map(group => (
+                                <option key={group} value={group}>{group}</option>
+                            ))}
+                        </select>
+                    </div>
+                )}
+            </div>
+
+            {/* Week Navigation Slider */}
+            <div style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <label style={{ fontSize: '0.9em', color: 'var(--text-muted)', minWidth: '80px' }}>기간 이동</label>
+                <input
+                    type="range"
+                    min="-52"
+                    max="52"
+                    value={(() => {
+                        try {
+                            const today = startOfWeek(new Date(), { weekStartsOn: 1 });
+                            const diff = startDate.getTime() - today.getTime();
+                            const weeks = Math.round(diff / (7 * 24 * 60 * 60 * 1000));
+                            return isNaN(weeks) ? 0 : weeks;
+                        } catch {
+                            return 0;
+                        }
+                    })()}
+                    onChange={(e) => {
+                        const weeksOffset = parseInt(e.target.value);
+                        const today = startOfWeek(new Date(), { weekStartsOn: 1 });
+                        setStartDate(addWeeks(today, weeksOffset));
+                    }}
+                    style={{ flex: 1, cursor: 'pointer' }}
+                />
+                <span style={{ fontSize: '0.85em', color: 'var(--text-secondary)', minWidth: '220px' }}>
+                    {weeks.length > 0 ? `${format(weeks[0], 'yyyy년 M월 d일')} ~ ${format(weeks[weeks.length - 1], 'M월 d일')}` : '로딩 중...'}
+                </span>
+            </div>
+
+            <div className="table-container" style={{ overflowX: 'auto', maxHeight: '80vh' }}>
+                <table className="table project-grid" style={{ minWidth: '1500px', borderCollapse: 'separate', borderSpacing: 0 }}>
+                    <thead style={{ position: 'sticky', top: 0, zIndex: 200, backgroundColor: 'var(--bg-tertiary)' }}>
+                        {/* Month Group Header Row */}
+                        <tr>
+                            <th colSpan={6} style={{ position: 'sticky', left: 0, zIndex: 201, backgroundColor: 'var(--bg-tertiary)', borderBottom: '1px solid var(--border)' }}></th>
+                            {monthGroups.map((group, idx) => (
+                                <th
+                                    key={`month-${idx}`}
+                                    colSpan={group.count}
+                                    style={{
+                                        textAlign: 'center',
+                                        borderLeft: '1px solid var(--border)',
+                                        borderBottom: '1px solid var(--border)',
+                                        fontSize: '0.9em',
+                                        padding: '4px 0'
+                                    }}
+                                >
+                                    {group.month}
+                                </th>
+                            ))}
+                        </tr>
+                        {/* Weekly Range Header Row */}
+                        <tr>
+                            <th style={{ position: 'sticky', left: 0, zIndex: 201, minWidth: '200px', backgroundColor: 'var(--bg-tertiary)' }}>프로젝트명</th>
+                            <th style={{ position: 'sticky', left: 200, zIndex: 201, minWidth: '70px', backgroundColor: 'var(--bg-tertiary)' }}>소속</th>
+                            <th style={{ position: 'sticky', left: 270, zIndex: 201, minWidth: '70px', backgroundColor: 'var(--bg-tertiary)' }}>직급</th>
+                            <th style={{ position: 'sticky', left: 340, zIndex: 201, minWidth: '120px', backgroundColor: 'var(--bg-tertiary)' }}>이름</th>
+                            <th style={{ position: 'sticky', left: 460, zIndex: 201, minWidth: '90px', backgroundColor: 'var(--bg-tertiary)', fontSize: '0.8em', borderLeft: '1px solid var(--border)' }}>투입일</th>
+                            <th style={{ position: 'sticky', left: 550, zIndex: 201, minWidth: '90px', backgroundColor: 'var(--bg-tertiary)', fontSize: '0.8em' }}>종료일</th>
+
+                            {weeks.map(week => {
+                                const isCurrent = isCurrentWeek(week);
+                                return (
+                                    <th key={week.toString()} style={{
+                                        minWidth: '40px',
+                                        maxWidth: '40px',
+                                        textAlign: 'center',
+                                        borderLeft: '1px solid var(--border)',
+                                        padding: '2px 0',
+                                        backgroundColor: isCurrent ? 'rgba(239, 68, 68, 0.1)' : 'transparent'
+                                    }}>
+                                        <div style={{
+                                            fontSize: '10px',
+                                            color: isCurrent ? '#ef4444' : 'var(--text-muted)',
+                                            lineHeight: 1.1,
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            alignItems: 'center',
+                                            fontWeight: isCurrent ? 'bold' : 'normal'
+                                        }}>
+                                            <span>{format(week, 'd')}</span>
+                                            <span style={{ fontSize: '8px', opacity: 0.7 }}>~</span>
+                                            <span>{format(addDays(week, 4), 'd')}</span>
+                                        </div>
+                                    </th>
+                                )
+                            })}
+                        </tr>
+                    </thead>
+                    <tbody>
+                                            disabled={pIdx === 0}
+                                            className="reorder-btn"
+                                            title="위로 이동"
+                                        >▲</button>
+                                        <button
+                                            onClick={() => handleReorderProject(project.id, 'down')}
+                                            disabled={pIdx === data.length - 1}
+                                            className="reorder-btn"
+                                            title="아래로 이동"
+                                        >▼</button>
+                                    </div>
+                                    {project.name}
+                                </div>
+                                <button
+                                    onClick={() => handleDeleteProject(project.id, project.name)}
+                                    className="reorder-btn hover-danger"
+                                    title="프로젝트 삭제"
+                                    style={{ marginRight: '8px' }}
+                                >🗑️</button>
+                            </div >
+                        </td >
+        <td colSpan={5 + weeks.length} style={{ backgroundColor: 'var(--bg-secondary)' }}></td>
+                    </tr >
+
+        {/* Member Rows */ }
+    {
+        project.members.map((member, mIdx) => {
+            const currentMemberIndex = globalRowIndex++;
+            return (
+                <tr key={`mem-${member.id}`}>
+                    <td style={{ position: 'sticky', left: 0, zIndex: 10, backgroundColor: 'var(--bg-primary)' }}></td>
+                    <td style={{ position: 'sticky', left: 200, zIndex: 10, backgroundColor: 'var(--bg-primary)' }}>
+                        <span className="badge" style={{ backgroundColor: member.group_color, fontSize: '0.7em' }}>{member.group_name}</span>
+                    </td>
+                    <td style={{ position: 'sticky', left: 270, zIndex: 10, backgroundColor: 'var(--bg-primary)' }}>{member.employee_position}</td>
+                    <td style={{ position: 'sticky', left: 340, zIndex: 10, backgroundColor: 'var(--bg-primary)' }}>
+                        <div className="flex items-center justify-between w-full">
+                            <div className="flex items-center gap-sm">
+                                <div className="flex flex-col" style={{ fontSize: '0.8em', color: 'var(--text-muted)', lineHeight: 1 }}>
+                                    <button
+                                        onClick={() => handleReorderMember(project.id, member.id, 'up')}
+                                        disabled={mIdx === 0}
+                                        className="reorder-btn"
+                                        title="위로 이동"
+                                    >▲</button>
+                                    <button
+                                        onClick={() => handleReorderMember(project.id, member.id, 'down')}
+                                        disabled={mIdx === project.members.length - 1}
+                                        className="reorder-btn"
+                                        title="아래로 이동"
+                                    >▼</button>
+                                </div>
+                                {member.employee_name}
+                            </div>
+                            <button
+                                onClick={() => handleRemoveMember(project.id, member.id, member.employee_name)}
+                                className="reorder-btn hover-danger"
+                                style={{ fontSize: '1.2em', paddingBottom: '2px' }}
+                                title="배정 해제"
+                            >×</button>
+                        </div>
+                    </td>
+                    <td style={{ position: 'sticky', left: 460, zIndex: 10, backgroundColor: 'var(--bg-primary)', padding: 0, borderLeft: '1px solid var(--border)' }}>
+                        <input
+                            ref={(el) => (cellRefs.current[`${currentMemberIndex}-0`] = el)}
+                            type="text"
+                            className="grid-input"
+                            placeholder="YYYY-MM-DD"
+                            style={{
+                                border: cursor.memberIndex === currentMemberIndex && cursor.weekIndex === 0 ? '2px solid var(--primary)' : 'none',
+                                fontSize: '0.85em',
+                                textAlign: 'center'
+                            }}
+                            value={member.input_start_date || ''}
+                            onChange={(e) => handleAssignmentUpdate(member.id, 'input_start_date', e.target.value)}
+                            onFocus={() => setCursor({ memberIndex: currentMemberIndex, weekIndex: 0 })}
+                            onKeyDown={(e) => handleKeyDown(e, currentMemberIndex, 0)}
+                        />
+                    </td>
+                    <td style={{ position: 'sticky', left: 550, zIndex: 10, backgroundColor: 'var(--bg-primary)', padding: 0 }}>
+                        <input
+                            ref={(el) => (cellRefs.current[`${currentMemberIndex}-1`] = el)}
+                            type="text"
+                            className="grid-input"
+                            placeholder="YYYY-MM-DD"
+                            style={{
+                                border: cursor.memberIndex === currentMemberIndex && cursor.weekIndex === 1 ? '2px solid var(--primary)' : 'none',
+                                fontSize: '0.85em',
+                                textAlign: 'center'
+                            }}
+                            value={member.input_end_date || ''}
+                            onChange={(e) => handleAssignmentUpdate(member.id, 'input_end_date', e.target.value)}
+                            onFocus={() => setCursor({ memberIndex: currentMemberIndex, weekIndex: 1 })}
+                            onKeyDown={(e) => handleKeyDown(e, currentMemberIndex, 1)}
+                        />
+                    </td>
+
+                    {weeks.map((week, weekIndex) => {
+                        const dateStr = format(week, 'yyyy-MM-dd');
+                        const val = member.allocations?.[dateStr] || '';
+                        const globalWeekIdx = weekIndex + 2;
+                        const isFocused = cursor.memberIndex === currentMemberIndex && cursor.weekIndex === globalWeekIdx;
+                        const inRange = isDateInRange(week, member.input_start_date, member.input_end_date);
+                        const isCurrent = isCurrentWeek(week);
+
+                        return (
+                            <td key={dateStr} style={{
+                                padding: '0',
+                                borderLeft: '1px solid var(--border)',
+                                backgroundColor: isCurrent ? 'rgba(239, 68, 68, 0.05)' : (inRange ? 'rgba(59, 130, 246, 0.08)' : 'transparent'),
+                                borderRight: isCurrent ? '2px solid #ef4444' : 'none'
+                            }}>
+                                <input
+                                    ref={(el) => (cellRefs.current[`${currentMemberIndex}-${globalWeekIdx}`] = el)}
+                                    type="text"
+                                    className={`grid-input ${inRange ? 'in-range' : ''} ${isCurrent ? 'current-week' : ''}`}
+                                    style={{
+                                        border: isFocused ? '2px solid var(--primary)' : 'none',
+                                        backgroundColor: val ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
+                                        fontWeight: val ? 'bold' : 'normal',
+                                        color: isCurrent ? '#ef4444' : (inRange ? 'var(--text-primary)' : 'var(--text-muted)')
+                                    }}
+                                    value={val}
+                                    onChange={(e) => handleAllocationChange(member.id, week, e.target.value)}
+                                    onFocus={() => setCursor({ memberIndex: currentMemberIndex, weekIndex: globalWeekIdx })}
+                                    onKeyDown={(e) => handleKeyDown(e, currentMemberIndex, globalWeekIdx)}
+                                    onPaste={(e) => handlePaste(e, currentMemberIndex, globalWeekIdx)}
+                                />
+                            </td>
+                        );
+                    })}
+                </tr>
+            );
+        })
+    }
+
+    {/* Total Row */ }
+    <tr style={{ backgroundColor: 'var(--bg-secondary)', borderTop: '2px solid var(--border)', fontWeight: 'bold' }}>
+        <td style={{ position: 'sticky', left: 0, zIndex: 10, backgroundColor: 'var(--bg-secondary)' }}></td>
+        <td style={{ position: 'sticky', left: 200, zIndex: 10, backgroundColor: 'var(--bg-secondary)' }}></td>
+        <td style={{ position: 'sticky', left: 270, zIndex: 10, backgroundColor: 'var(--bg-secondary)' }}></td>
+        <td style={{ position: 'sticky', left: 340, zIndex: 10, backgroundColor: 'var(--bg-secondary)', textAlign: 'right', paddingRight: '8px', fontSize: '0.85em' }}>Total MM</td>
+        <td style={{ position: 'sticky', left: 460, zIndex: 10, backgroundColor: 'var(--bg-secondary)', borderLeft: '1px solid var(--border)' }}></td>
+        <td style={{ position: 'sticky', left: 550, zIndex: 10, backgroundColor: 'var(--bg-secondary)' }}></td>
+        {weeks.map(week => {
+            const dateStr = format(week, 'yyyy-MM-dd');
+            const isCurrent = isCurrentWeek(week);
+            let total = 0;
+            project.members.forEach(member => {
+                const val = parseFloat(member.allocations?.[dateStr] || 0);
+                total += val;
+            });
+            const displayTotal = total > 0 ? total.toFixed(2) : '';
+            return (
+                <td key={dateStr} style={{
+                    padding: '4px 0',
+                    textAlign: 'center',
+                    borderLeft: '1px solid var(--border)',
+                    backgroundColor: isCurrent ? 'rgba(239, 68, 68, 0.1)' : 'var(--bg-secondary)',
+                    fontSize: '0.75rem',
+                    color: isCurrent ? '#ef4444' : (total > 0 ? 'var(--primary)' : 'var(--text-muted)'),
+                    fontWeight: isCurrent ? 'bold' : 'normal',
+                    borderRight: isCurrent ? '2px solid #ef4444' : 'none'
+                }}>
+                    {displayTotal}
+                </td>
+            );
+        })}
+    </tr>
+
+
+    {/* Inline Add Row */ }
+    {
+        (() => {
+            const addRowIndex = globalRowIndex++;
+            const isNameCellFocused = cursor.memberIndex === addRowIndex && cursor.weekIndex === 0;
+
+            const filteredEmployees = searchTerm ? employees.filter(emp => {
+                const isAlreadyAssigned = project.members.some(m => m.employee_id === emp.id);
+                return !isAlreadyAssigned && emp.name.toLowerCase().includes(searchTerm.toLowerCase());
+            }) : [];
+
+            return (
+                <tr key={`add-${project.id}`}>
+                    <td style={{ position: 'sticky', left: 0, zIndex: 10, backgroundColor: 'var(--bg-primary)' }}></td>
+                    <td style={{ position: 'sticky', left: 200, zIndex: 10, backgroundColor: 'var(--bg-primary)' }}></td>
+                    <td style={{ position: 'sticky', left: 270, zIndex: 10, backgroundColor: 'var(--bg-primary)' }}></td>
+                    <td style={{ position: 'sticky', left: 340, zIndex: 100, backgroundColor: 'var(--bg-primary)', padding: 0 }}>
+                        <div className="inline-search-wrapper">
+                            <input
+                                ref={(el) => (cellRefs.current[`${addRowIndex}-0`] = el)}
+                                type="text"
+                                className="grid-input"
+                                placeholder="+ 인원 추가"
+                                style={{
+                                    border: isNameCellFocused ? '2px solid var(--primary)' : 'none',
+                                    fontStyle: 'italic',
+                                    color: 'var(--text-muted)'
+                                }}
+                                value={activeInlineIdx === project.id ? searchTerm : ''}
+                                onChange={(e) => {
+                                    setActiveInlineIdx(project.id);
+                                    setSearchTerm(e.target.value);
+                                    setAutoCompleteIdx(-1);
+                                    const rect = e.target.getBoundingClientRect();
+                                    setInlineInputRect(rect);
+                                }}
+                                onFocus={(e) => {
+                                    setCursor({ memberIndex: addRowIndex, weekIndex: 0 });
+                                    setActiveInlineIdx(project.id);
+                                    const rect = e.target.getBoundingClientRect();
+                                    setInlineInputRect(rect);
+                                }}
+                                onKeyDown={(e) => handleKeyDown(e, addRowIndex, 0, true)}
+                            />
+                            {activeInlineIdx === project.id && searchTerm && inlineInputRect && createPortal(
+                                <div
+                                    className="inline-search-results"
+                                    style={{
+                                        position: 'fixed',
+                                        left: `${inlineInputRect.left}px`,
+                                        top: `${inlineInputRect.bottom + 4 + 250 > window.innerHeight
+                                            ? inlineInputRect.top - (Math.min(filteredEmployees.length * 52 + 10, 250)) - 4
+                                            : inlineInputRect.bottom + 4}px`,
+                                        width: `${Math.max(inlineInputRect.width, 300)}px`,
+                                        zIndex: 9999
+                                    }}
+                                >
+                                    {filteredEmployees.map((emp, i) => (
+                                        <div
+                                            key={emp.id}
+                                            className={`inline-search-item ${autoCompleteIdx === i ? 'active' : ''}`}
+                                            onClick={() => handleInlineAssign(project.id, emp.id)}
+                                            onMouseEnter={() => setAutoCompleteIdx(i)}
+                                        >
+                                            <div className="flex justify-between">
+                                                <strong>{emp.name}</strong>
+                                                <span className="badge" style={{ backgroundColor: emp.group_color, fontSize: '0.6em' }}>{emp.group_name}</span>
+                                            </div>
+                                            <div className="text-muted" style={{ fontSize: '0.75em' }}>{emp.position}</div>
+                                        </div>
+                                    ))}
+                                    {filteredEmployees.length === 0 && (
+                                        <div className="p-sm text-center text-muted" style={{ fontSize: '0.8em' }}>결과 없음</div>
+                                    )}
+                                </div>,
+                                document.body
+                            )}
+                        </div>
+                    </td>
+                    <td colSpan={2 + weeks.length} style={{ backgroundColor: 'transparent' }}></td>
+                </tr>
+            );
+        })()
+    }
+                </>
+                );
+})}
+            </tbody >
+        </table >
+            </div >
+
+    {/* Scroll position update listener */ }
+{
+    useEffect(() => {
+        const handleScroll = () => {
+            if (activeInlineIdx !== null) {
+                const flatRows = getFlatRows();
+                const rowIdx = flatRows.findIndex(r => r.type === 'add' && r.projectId === activeInlineIdx);
+                if (rowIdx !== -1) {
+                    const el = cellRefs.current[`${rowIdx}-0`];
+                    if (el) {
+                        setInlineInputRect(el.getBoundingClientRect());
+                    }
+                }
+            }
+        };
+
+        const container = document.querySelector('.table-container');
+        if (container) {
+            container.addEventListener('scroll', handleScroll);
+        }
+        window.addEventListener('resize', handleScroll);
+
+        return () => {
+            if (container) container.removeEventListener('scroll', handleScroll);
+            window.removeEventListener('resize', handleScroll);
+        };
+    }, [activeInlineIdx, data])
+}
+
+
+{/* Project Creation Modal */ }
+{
+    showProjectModal && (
+        <div className="modal-overlay" onClick={() => setShowProjectModal(false)}>
+            <div className="modal" onClick={(e) => e.stopPropagation()}>
+                <h2>새 프로젝트 추가</h2>
+                <form onSubmit={(e) => {
+                    e.preventDefault();
+                    const formData = new FormData(e.target);
+                    handleAddProject({
+                        name: formData.get('name'),
+                        start_date: formData.get('start_date'),
+                        end_date: formData.get('end_date')
+                    });
+                }}>
+                    <div className="form-group">
+                        <label>프로젝트명</label>
+                        <input name="name" className="form-control" required />
+                    </div>
+                    <div className="grid grid-2">
+                        <div className="form-group">
+                            <label>시작일</label>
+                            <input name="start_date" type="date" className="form-control" />
+                        </div>
+                        <div className="form-group">
+                            <label>종료일</label>
+                            <input name="end_date" type="date" className="form-control" />
+                        </div>
+                    </div>
+                    <div className="flex justify-end gap-md">
+                        <button type="button" onClick={() => setShowProjectModal(false)} className="btn btn-secondary">취소</button>
+                        <button type="submit" className="btn btn-primary">생성</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    )
+}
+
+{/* Member Assignment Modal */ }
+{
+    showMemberModal && (
+        <div className="modal-overlay" onClick={() => setShowMemberModal(false)}>
+            <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+                <div className="modal-header">
+                    <h2 className="modal-title">인원 배정 - {selectedProject?.name}</h2>
+                    <button className="modal-close" onClick={() => setShowMemberModal(false)}>✕</button>
+                </div>
+
+                <div className="p-md">
+                    <div className="form-group mb-md">
+                        <label className="form-label">이름으로 검색</label>
+                        <input
+                            autoFocus
+                            type="text"
+                            className="form-controlSearch"
+                            placeholder="이름을 입력하세요 (예: 홍길동)"
+                            onChange={(e) => {
+                                const term = e.target.value.toLowerCase();
+                                setSearchTerm(term);
+                            }}
+                        />
+                    </div>
+
+                    <div className="search-results" style={{ maxHeight: '400px', overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}>
+                        {employees
+                            .filter(emp => {
+                                if (!searchTerm) return false;
+                                const isAlreadyAssigned = selectedProject?.members?.some(m => m.employee_id === emp.id);
+                                return !isAlreadyAssigned && (
+                                    emp.name.toLowerCase().includes(searchTerm) ||
+                                    emp.group_name?.toLowerCase().includes(searchTerm) ||
+                                    emp.position?.toLowerCase().includes(searchTerm)
+                                );
+                            })
+                            .map(emp => (
+                                <div
+                                    key={emp.id}
+                                    className="search-item"
+                                    onClick={() => handleAssignMember(emp.id)}
+                                >
+                                    <div className="flex justify-between items-center w-full">
+                                        <div className="flex items-center gap-md">
+                                            <span className="badge" style={{ backgroundColor: emp.group_color }}>{emp.group_name}</span>
+                                            <div>
+                                                <strong>{emp.name}</strong>
+                                                <span className="text-muted ml-sm" style={{ fontSize: '0.85em' }}>{emp.position}</span>
+                                            </div>
+                                        </div>
+                                        <button className="btn btn-xs btn-primary">배정</button>
+                                    </div>
+                                </div>
+                            ))
+                        }
+                        {searchTerm && employees.filter(emp => {
+                            const isAlreadyAssigned = selectedProject?.members?.some(m => m.employee_id === emp.id);
+                            return !isAlreadyAssigned && (
+                                emp.name.toLowerCase().includes(searchTerm) ||
+                                emp.group_name?.toLowerCase().includes(searchTerm) ||
+                                emp.position?.toLowerCase().includes(searchTerm)
+                            );
+                        }).length === 0 && (
+                                <div className="p-lg text-center text-muted">검색 결과가 없습니다.</div>
+                            )}
+                        {!searchTerm && (
+                            <div className="p-lg text-center text-muted">이름을 입력하여 직원을 검색하세요.</div>
+                        )}
+                    </div>
+                </div>
+
+                <div className="modal-footer flex justify-end p-md">
+                    <button onClick={() => setShowMemberModal(false)} className="btn btn-secondary">닫기</button>
+                </div>
+            </div>
+        </div>
+    )
+}
+{/* Custom Confirm Modal */ }
+{
+    confirmConfig.isOpen && (
+        <div className="confirm-overlay" onClick={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))}>
+            <div className="confirm-modal" onClick={(e) => e.stopPropagation()}>
+                <div className={`confirm-header ${confirmConfig.type}`}>
+                    {confirmConfig.title}
+                </div>
+                <div className="confirm-body">
+                    {confirmConfig.message.split('\n').map((line, i) => (
+                        <p key={i}>{line}</p>
+                    ))}
+                </div>
+                <div className="confirm-footer">
+                    <button
+                        className="btn btn-secondary"
+                        onClick={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))}
+                    >취소</button>
+                    <button
+                        className={`btn ${confirmConfig.type === 'danger' ? 'btn-danger' : 'btn-primary'}`}
+                        onClick={confirmConfig.onConfirm}
+                    >확인</button>
+                </div>
+            </div>
+        </div>
+    )
+}
+        </div >
+    );
+}
+
+export default ProjectStatus;
