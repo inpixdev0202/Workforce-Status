@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { Table, TrendingUp, Search, Plus, Save, Trash2, CheckCircle2, ChevronsLeftRight, FileText, Download, Filter, Maximize2, Sun, Moon, Settings, X, ChevronUp, ChevronDown, Lock, AlignLeft } from 'lucide-react';
+import { Table, TrendingUp, Search, Plus, Save, Trash2, CheckCircle2, ChevronsLeftRight, FileText, Download, Filter, Maximize2, Sun, Moon, Settings, X, ChevronUp, ChevronDown, Lock, AlignLeft, Columns } from 'lucide-react';
+import ExcelJS from 'exceljs';
+import { saveAs } from 'file-saver';
 
 const SpreadsheetCellInput = React.memo(({ initialValue, onCommit, onFocus, isFocused, className = "", isMultilineField = false }) => {
     const [localValue, setLocalValue] = useState(initialValue || '');
@@ -205,9 +207,14 @@ const SalesDataRow = React.memo(({
                         <td key={col.key} className="border border-[var(--border)] p-0 text-center w-[60px] relative" style={{ height: rowHeight }}>
                             <button 
                                 onClick={() => onDelete(item.id)}
-                                className="relative z-10 p-1.5 text-gray-600 hover:text-red-500 transition-all opacity-0 group-hover:opacity-100"
+                                className="trash-delete-btn relative z-10 w-full h-full flex items-center justify-center cursor-pointer"
+                                title="행삭제"
+                                style={{ border: 'none', background: 'none', padding: 0 }}
                             >
-                                <Trash2 size={12} />
+                                <Trash2 
+                                    size={16} 
+                                    className="trash-delete-icon"
+                                />
                             </button>
                         </td>
                     );
@@ -579,7 +586,7 @@ const SalesStatus = () => {
                 return parsed;
             } catch (e) { console.error(e); }
         }
-        const initialHeights = salesData.reduce((acc, item) => ({ ...acc, [item.id]: 36 }), {});
+        const initialHeights = salesData.reduce((acc, item) => ({ ...acc, [item.id]: 80 }), {});
         return { ...initialHeights, header: 36 };
     });
 
@@ -603,7 +610,7 @@ const SalesStatus = () => {
 
     const handleRowMouseDown = useCallback((e, rowId) => {
         e.stopPropagation();
-        resizingRef.current = { isResizing: true, type: 'row', id: rowId, startPos: e.clientY, startSize: rowHeights[rowId] || 36 };
+        resizingRef.current = { isResizing: true, type: 'row', id: rowId, startPos: e.clientY, startSize: rowHeights[rowId] || 80 };
         document.body.style.cursor = 'row-resize';
         document.addEventListener('mousemove', handleMouseMove);
         document.addEventListener('mouseup', handleMouseUp);
@@ -694,6 +701,102 @@ const SalesStatus = () => {
             });
     }, [salesData, searchTerm]);
 
+    const handleExportExcel = async () => {
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('영업현황');
+
+        // Filter out 'manage' column for Excel
+        const exportColumns = columns.filter(col => col.key !== 'manage');
+
+        // Define columns
+        worksheet.columns = [
+            { header: 'No', key: 'no', width: 5 },
+            ...exportColumns.map(col => ({
+                header: col.label,
+                key: col.key,
+                width: Math.max(15, (columnWidths[col.key] || 100) / 7.5)
+            }))
+        ];
+
+        // Header Styling
+        const headerRow = worksheet.getRow(1);
+        headerRow.height = 25;
+        headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 };
+        headerRow.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FF1E293B' }
+        };
+        headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
+
+        // Add Data
+        filteredData.forEach((row, index) => {
+            const rowData = { no: index + 1 };
+            exportColumns.forEach(col => {
+                rowData[col.key] = row[col.key];
+            });
+            const excelRow = worksheet.addRow(rowData);
+            excelRow.height = 30;
+
+            // Styling for Category Cell
+            const categoryCell = excelRow.getCell('category');
+            const categoryValue = String(row.category || '').normalize('NFC').trim();
+            
+            let bgColor = 'FFFFFFFF';
+            let textColor = 'FF000000';
+
+            const normalize = (val) => {
+                const str = String(val || '').normalize('NFC').trim();
+                return str === '수행' ? '진행중' : (str || '진행중');
+            };
+            const cat = normalize(categoryValue);
+
+            if (cat === '진행중') {
+                bgColor = 'FFE6FFFA'; textColor = 'FF059669';
+            } else if (cat === '홀딩') {
+                bgColor = 'FFFFFAF0'; textColor = 'FFD97706';
+            } else if (cat === '수주') {
+                bgColor = 'FFEBF8FF'; textColor = 'FF2563EB';
+            } else if (cat === '드롭') {
+                bgColor = 'FFFFF5F5'; textColor = 'FFDC2626';
+            } else if (cat === '탈락') {
+                bgColor = 'FFF7FAFC'; textColor = 'FF4B5563';
+            }
+
+            categoryCell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: bgColor.replace('#', '') }
+            };
+            categoryCell.font = { color: { argb: textColor.replace('#', '') }, bold: true, size: 9 };
+            categoryCell.alignment = { vertical: 'middle', horizontal: 'center' };
+        });
+
+        // Borders and formatting
+        worksheet.eachRow((row, rowNumber) => {
+            row.eachCell((cell) => {
+                cell.border = {
+                    top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+                    left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+                    bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+                    right: { style: 'thin', color: { argb: 'FFCBD5E1' } }
+                };
+                if (rowNumber > 1) {
+                    if (cell.address.indexOf('A') !== 0) {
+                        cell.font = { size: 9 };
+                        cell.alignment = { vertical: 'middle', wrapText: true };
+                    } else {
+                        cell.font = { size: 9, color: { argb: 'FF64748B' } };
+                        cell.alignment = { vertical: 'middle', horizontal: 'center' };
+                    }
+                }
+            });
+        });
+
+        const buffer = await workbook.xlsx.writeBuffer();
+        saveAs(new Blob([buffer]), `영업현황_${new Date().toISOString().split('T')[0]}.xlsx`);
+    };
+
     return (
         <div className={`flex flex-col h-full min-h-0 animate-in fade-in duration-700 ${theme === 'light' ? 'light-theme' : ''}`}>
             <style>
@@ -742,6 +845,19 @@ const SalesStatus = () => {
                     }
                     .sales-spreadsheet-container td:not(.sticky) { overflow: hidden !important; background: var(--bg-secondary); }
                     .sales-spreadsheet-container .resize-handle { z-index: 100 !important; pointer-events: auto !important; }
+                    .trash-delete-btn { opacity: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: none !important; border: none !important; padding: 0 !important; cursor: pointer; color: #94a3b8; transition: all 0.15s ease; outline: none !important; }
+                    tr:hover .trash-delete-btn { opacity: 1; }
+                    .trash-delete-btn:hover .trash-delete-icon { stroke: #ff0000 !important; filter: drop-shadow(0 0 4px rgba(255, 0, 0, 0.4)); }
+                    .trash-delete-icon { stroke: currentColor; fill: none; pointer-events: none; transition: stroke 0.15s ease; }
+                    
+                    /* Toolbar Buttons Styles */
+                    .toolbar-btn { background: none !important; border: none !important; color: #94a3b8; transition: all 0.2s ease; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0 !important; border-radius: 10px; position: relative; }
+                    .toolbar-btn:hover { scale: 1.15; }
+                    .btn-save:hover { color: #3b82f6 !important; background: rgba(59, 130, 246, 0.15) !important; filter: drop-shadow(0 0 5px rgba(59, 130, 246, 0.5)); }
+                    .btn-add:hover { color: #10b981 !important; background: rgba(16, 185, 129, 0.15) !important; filter: drop-shadow(0 0 5px rgba(16, 185, 129, 0.5)); }
+                    .btn-cols:hover { color: #8b5cf6 !important; background: rgba(139, 92, 246, 0.15) !important; filter: drop-shadow(0 0 5px rgba(139, 92, 246, 0.5)); }
+                    .btn-theme:hover { color: #f59e0b !important; background: rgba(245, 158, 11, 0.15) !important; filter: drop-shadow(0 0 5px rgba(245, 158, 11, 0.5)); }
+                    .btn-excel:hover { color: #16a34a !important; background: rgba(22, 163, 74, 0.15) !important; filter: drop-shadow(0 0 5px rgba(22, 163, 74, 0.5)); }
                 `}
             </style>
             {showSaveToast && (
@@ -761,46 +877,66 @@ const SalesStatus = () => {
                 </div>
             )}
             <div className={`flex items-center justify-between px-4 py-1.5 bg-[var(--bg-secondary)] border-b border-[var(--border)] z-30 ${theme === 'light' ? 'shadow-sm' : ''}`}>
-                <div className="flex items-center gap-1">
-                    <div className="p-1.5 hover:bg-[var(--bg-tertiary)] rounded cursor-pointer transition-colors" title="파일"><FileText size={16} className="text-[var(--text-muted)]" /></div>
-                    <div className="w-px h-5 bg-[var(--border)] mx-1.5"></div>
-                    <div onClick={handleSave} className="flex items-center gap-1.5 px-2.5 py-1 hover:bg-[var(--bg-tertiary)] rounded cursor-pointer text-[var(--text-secondary)] font-bold text-xs"><Save size={14} className="text-blue-400" /> 저장 </div>
-                    <div onClick={addNewRow} className="flex items-center gap-1.5 px-2.5 py-1 hover:bg-[var(--bg-tertiary)] rounded cursor-pointer text-[var(--text-secondary)] font-bold text-xs"><Plus size={14} className="text-green-400" /> 행 추가 </div>
+                <div className="flex items-center gap-2">
+                    <button 
+                        onClick={handleSave} 
+                        className="toolbar-btn btn-save"
+                        title="저장 (Save)"
+                    >
+                        <Save size={16} />
+                    </button>
+                    <button 
+                        onClick={addNewRow} 
+                        className="toolbar-btn btn-add"
+                        title="행 추가 (Add Row)"
+                    >
+                        <Plus size={16} />
+                    </button>
+                    <button 
+                        onClick={() => setIsSettingsModalOpen(true)}
+                        className="toolbar-btn btn-cols"
+                        title="열 설정 (Columns)"
+                    >
+                        <Columns size={16} />
+                    </button>
                 </div>
                 <div className="flex items-center gap-3">
                     <button 
-                        onClick={() => setIsSettingsModalOpen(true)}
-                        className="p-1.5 hover:bg-[var(--bg-tertiary)] rounded cursor-pointer transition-colors flex items-center gap-2 group border border-[var(--border)]"
+                        onClick={toggleTheme}
+                        className="toolbar-btn btn-theme"
+                        title={theme === 'dark' ? '라이트 모드로 전환' : '다크 모드로 전환'}
                     >
-                        <Settings size={15} className="text-gray-400 group-hover:rotate-45 transition-transform" />
-                        <span className="text-[11px] font-bold text-gray-400 group-hover:text-gray-200 uppercase">Columns</span>
+                        {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
                     </button>
                     <div className="w-px h-5 bg-[var(--border)] mx-1"></div>
                     <button 
-                        onClick={toggleTheme}
-                        className="p-1.5 hover:bg-[var(--bg-tertiary)] rounded cursor-pointer transition-colors flex items-center gap-2 group border border-[var(--border)]"
-                        title={theme === 'dark' ? '라이트 모드로 전환' : '다크 모드로 전환'}
+                        onClick={handleExportExcel}
+                        className="toolbar-btn btn-excel"
+                        title="엑셀로 다운로드"
                     >
-                        {theme === 'dark' ? (
-                            <Sun size={15} className="text-yellow-400 group-hover:rotate-12 transition-transform" />
-                        ) : (
-                            <Moon size={15} className="text-blue-600 group-hover:-rotate-12 transition-transform" />
-                        )}
-                        <span className="text-[11px] font-bold text-gray-400 group-hover:text-gray-200 transition-colors uppercase">
-                            {theme === 'dark' ? 'Light' : 'Dark'}
-                        </span>
+                        <Download size={16} />
                     </button>
                     <div className="w-px h-5 bg-[var(--border)] mx-1"></div>
-                    <div className="relative">
-                        <Search className="absolute left-2 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" size={12} />
+                    <div className="search-input-wrapper">
                         <input 
                             type="text" 
                             value={searchTerm} 
                             onChange={(e) => setSearchTerm(e.target.value)} 
                             placeholder="시트 내 검색..." 
                             spellCheck={false}
-                            className="bg-[var(--bg-tertiary)] border border-[var(--border)] rounded px-7 py-1 text-[11px] text-[var(--text-primary)] focus:outline-none focus:border-blue-500/50 w-40 transition-all placeholder:text-[var(--text-muted)]" 
+                            className="premium-search-input"
+                            style={{ height: '30px', width: '180px', fontSize: '11px' }}
                         />
+                        <Search size={14} className="search-icon-glass" />
+                        {searchTerm && (
+                            <button
+                                onClick={() => setSearchTerm('')}
+                                className="search-clear-btn"
+                                title="검색어 지우기"
+                            >
+                                <X size={14} />
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>
@@ -839,7 +975,7 @@ const SalesStatus = () => {
                     </thead>
                     <tbody>
                         {filteredData.map((item, rowIndex) => (
-                            <SalesDataRow key={item.id} item={item} rowIndex={rowIndex} columns={columns} columnWidths={columnWidths} rowHeight={rowHeights[item.id] || 36} focusedCell={focusedCell} setFocusedCell={setFocusedCell} onCellChange={handleCellChange} onDelete={deleteRow} onRowResize={handleRowMouseDown} theme={theme} />
+                            <SalesDataRow key={item.id} item={item} rowIndex={rowIndex} columns={columns} columnWidths={columnWidths} rowHeight={rowHeights[item.id] || 80} focusedCell={focusedCell} setFocusedCell={setFocusedCell} onCellChange={handleCellChange} onDelete={deleteRow} onRowResize={handleRowMouseDown} theme={theme} />
                         ))}
                     </tbody>
                 </table>
