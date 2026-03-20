@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { Table, TrendingUp, Search, Plus, Save, Trash2, CheckCircle2, ChevronsLeftRight, FileText, Download, Filter, Maximize2, Sun, Moon, Settings, X, ChevronUp, ChevronDown, Lock, AlignLeft, Columns } from 'lucide-react';
+import { Table, TrendingUp, Search, Plus, Save, Trash2, CheckCircle2, ChevronsLeftRight, FileText, Download, Filter, Maximize2, Sun, Moon, Settings, X, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Calendar, ClipboardCopy, Lock, AlignLeft, Columns, ChevronRightSquare, LayoutList, BookOpen } from 'lucide-react';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 
@@ -17,9 +17,6 @@ const SpreadsheetCellInput = React.memo(({ initialValue, onCommit, onFocus, isFo
     useEffect(() => {
         if (isFocused && textAreaRef.current) {
             textAreaRef.current.focus();
-            // Optional: Move cursor to end on initial focus if needed, 
-            // but we usually want to maintain if already set.
-            // For now, let's just restore from selectionRef.
         }
     }, [isFocused]);
 
@@ -45,15 +42,12 @@ const SpreadsheetCellInput = React.memo(({ initialValue, onCommit, onFocus, isFo
     const handleKeyDown = (e) => {
         if (e.key === 'Enter') {
             if (e.altKey) {
-                // Insert newline at cursor
                 e.preventDefault();
                 const { selectionStart, selectionEnd } = e.target;
                 const newValue = localValue.substring(0, selectionStart) + "\n" + localValue.substring(selectionEnd);
                 setLocalValue(newValue);
-                // Update selection to be after the new newline
                 selectionRef.current = { start: selectionStart + 1, end: selectionStart + 1 };
             } else {
-                // Normal Enter blurs (commits)
                 textAreaRef.current.blur();
             }
         }
@@ -97,12 +91,13 @@ const RowResizeHandle = React.memo(({ rowId, onMouseDown }) => (
     </div>
 ));
 
-const SpreadsheetCellSelect = React.memo(({ value, options, onCommit, onFocus, isFocused, className = "" }) => {
+const SpreadsheetCellSelect = React.memo(({ value, options, onCommit, onFocus, onBlur, isFocused, className = "" }) => {
     return (
         <select
             value={value || ''}
             onChange={(e) => onCommit(e.target.value)}
             onFocus={onFocus}
+            onBlur={onBlur}
             className={`grid-input ${isFocused ? 'focused-field' : ''} ${className}`}
             style={{ 
                 appearance: 'none',
@@ -130,16 +125,15 @@ const getCategoryStyle = (category, isDark) => {
     
     if (!isDark) {
         switch (cat) {
-            case '진행중': return { bg: '#e6fffa', text: '#059669' }; // Light Emerald
-            case '홀딩': return { bg: '#fffaf0', text: '#d97706' };   // Light Amber
-            case '수주': return { bg: '#ebf8ff', text: '#2563eb' };   // Light Blue
-            case '드롭': return { bg: '#fff5f5', text: '#dc2626' };   // Light Red
-            case '탈락': return { bg: '#f7fafc', text: '#4b5563' };   // Light Gray
+            case '진행중': return { bg: '#e6fffa', text: '#059669' }; 
+            case '홀딩': return { bg: '#fffaf0', text: '#d97706' };   
+            case '수주': return { bg: '#ebf8ff', text: '#2563eb' };   
+            case '드롭': return { bg: '#fff5f5', text: '#dc2626' };   
+            case '탈락': return { bg: '#f7fafc', text: '#4b5563' };   
             default: return { bg: 'transparent', text: 'inherit' };
         }
     }
 
-    // Neon Styles for Dark Mode
     switch (cat) {
         case '진행중':
             return {
@@ -176,7 +170,271 @@ const getCategoryStyle = (category, isDark) => {
     }
 };
 
-const SalesDataRow = React.memo(({ 
+const getHealthStyle = (health, isDark) => {
+    const normalize = (val) => String(val || '').trim();
+    const h = normalize(health);
+    
+    if (!isDark) {
+        if (h.includes('🟢')) return { bg: 'transparent', text: '#059669' };
+        if (h.includes('🟡')) return { bg: 'transparent', text: '#d97706' };
+        if (h.includes('🔴')) return { bg: 'transparent', text: '#dc2626' };
+        return { bg: 'transparent', text: 'inherit' };
+    }
+
+    if (h.includes('🟢')) return { bg: 'transparent', text: '#10b981', shadow: '0 0 10px rgba(16, 185, 129, 0.5)' };
+    if (h.includes('🟡')) return { bg: 'transparent', text: '#f59e0b', shadow: '0 0 10px rgba(245, 158, 11, 0.5)' };
+    if (h.includes('🔴')) return { bg: 'transparent', text: '#ef4444', shadow: '0 0 10px rgba(239, 68, 68, 0.5)' };
+    return { bg: 'transparent', text: 'inherit', shadow: 'none' };
+};
+
+const HealthSelect = React.memo(({ value, onCommit, onFocus, onBlur, isFocused, theme }) => {
+    const options = ['🟢 정상', '🟡 주의', '🔴 위험'];
+    const hStyle = getHealthStyle(value, theme === 'dark');
+
+    return (
+        <select
+            value={value || ''}
+            onChange={(e) => onCommit(e.target.value)}
+            onFocus={onFocus}
+            onBlur={onBlur}
+            className={`w-full h-full cursor-pointer transition-all font-bold text-[11px] ${isFocused ? 'focused-field' : ''}`}
+            style={{ 
+                appearance: 'none',
+                WebkitAppearance: 'none',
+                backgroundColor: 'transparent',
+                background: 'transparent',
+                border: 'none',
+                boxShadow: 'none',
+                outline: 'none',
+                color: hStyle.text,
+                textShadow: theme === 'dark' ? hStyle.shadow : 'none',
+                padding: '0 4px',
+                textAlign: 'center',
+                textAlignLast: 'center'
+            }}
+        >
+            <option value="" disabled hidden>-</option>
+            {options.map(opt => (
+                <option key={opt} value={opt} style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>
+                    {opt}
+                </option>
+            ))}
+        </select>
+    );
+});
+
+
+const MasterProjectModal = ({ isOpen, onClose, projects, onSelect, theme }) => {
+    const [searchTerm, setSearchTerm] = useState('');
+    const modalRef = useRef(null);
+
+    const filteredProjects = useMemo(() => {
+        const cleaned = projects.map(p => ({
+            ...p,
+            displayName: (p.name || '').replace(/\s*\(.*?\)\s*/g, '').trim()
+        }));
+        if (!searchTerm) return cleaned;
+        return cleaned.filter(p => p.displayName.toLowerCase().includes(searchTerm.toLowerCase()));
+    }, [projects, searchTerm]);
+
+    if (!isOpen) return null;
+
+    return (
+        <div 
+            onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+            style={{
+                position: 'fixed',
+                top: 0, left: 0, right: 0, bottom: 0,
+                zIndex: 100000,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: 'rgba(2, 6, 15, 0.75)',
+                backdropFilter: 'blur(8px)',
+                WebkitBackdropFilter: 'blur(8px)',
+                padding: '24px',
+            }}
+        >
+            <div 
+                ref={modalRef}
+                style={{
+                    width: '100%',
+                    maxWidth: '520px',
+                    maxHeight: '80vh',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    borderRadius: '18px',
+                    border: theme === 'light' ? '1px solid rgba(0,0,0,0.1)' : '1px solid rgba(255,255,255,0.08)',
+                    backgroundColor: theme === 'light' ? '#ffffff' : 'rgba(10, 15, 26, 0.97)',
+                    overflow: 'hidden',
+                    boxShadow: theme === 'light'
+                        ? '0 20px 60px rgba(0,0,0,0.18)'
+                        : '0 0 0 1px rgba(255,255,255,0.04), 0 32px 80px rgba(0,0,0,0.9), 0 0 40px rgba(16,185,129,0.08)',
+                }}
+            >
+                {/* Header */}
+                <div style={{
+                    padding: '18px 20px',
+                    borderBottom: theme === 'light' ? '1px solid rgba(0,0,0,0.07)' : '1px solid rgba(255,255,255,0.06)',
+                    background: theme === 'light' ? 'rgba(16,185,129,0.03)' : 'rgba(16,185,129,0.04)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexShrink: 0,
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div style={{
+                            padding: '9px',
+                            borderRadius: '12px',
+                            background: 'rgba(16,185,129,0.15)',
+                            color: '#34d399',
+                            border: '1px solid rgba(16,185,129,0.2)',
+                            boxShadow: '0 0 16px rgba(16,185,129,0.15)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>
+                            <BookOpen size={18} />
+                        </div>
+                        <div>
+                            <div style={{ fontSize: '14px', fontWeight: 900, color: '#34d399', letterSpacing: '0.08em', textTransform: 'uppercase', lineHeight: 1.2 }}>
+                                Project Master Library
+                            </div>
+                            <div style={{ fontSize: '10px', color: theme === 'light' ? '#94a3b8' : '#475569', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', marginTop: '3px' }}>
+                                {filteredProjects.length} Projects Available
+                            </div>
+                        </div>
+                    </div>
+                    <button 
+                        onClick={onClose}
+                        style={{
+                            padding: '7px', borderRadius: '9px',
+                            background: 'transparent', border: 'none',
+                            color: '#64748b', cursor: 'pointer',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.background = theme === 'light' ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.07)'; e.currentTarget.style.color = theme === 'light' ? '#0f172a' : '#e2e8f0'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#64748b'; }}
+                    >
+                        <X size={17} />
+                    </button>
+                </div>
+
+                {/* Search */}
+                <div style={{ padding: '12px 14px', flexShrink: 0, borderBottom: theme === 'light' ? '1px solid rgba(0,0,0,0.06)' : '1px solid rgba(255,255,255,0.05)' }}>
+                    <div style={{ position: 'relative' }}>
+                        <div style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#475569', display: 'flex' }}>
+                            <Search size={15} />
+                        </div>
+                        <input 
+                            autoFocus
+                            type="text"
+                            placeholder="프로젝트 검색..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            style={{
+                                width: '100%',
+                                background: theme === 'light' ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.04)',
+                                border: theme === 'light' ? '1px solid rgba(0,0,0,0.1)' : '1px solid rgba(255,255,255,0.08)',
+                                borderRadius: '10px',
+                                padding: '9px 12px 9px 36px',
+                                fontSize: '13px', fontWeight: 600,
+                                color: theme === 'light' ? '#0f172a' : '#e2e8f0',
+                                outline: 'none', boxSizing: 'border-box',
+                                caretColor: '#10b981',
+                                transition: 'border-color 0.15s, box-shadow 0.15s',
+                            }}
+                            onFocus={e => { e.currentTarget.style.borderColor = 'rgba(16,185,129,0.5)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(16,185,129,0.08)'; }}
+                            onBlur={e => { e.currentTarget.style.borderColor = theme === 'light' ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.08)'; e.currentTarget.style.boxShadow = 'none'; }}
+                        />
+                    </div>
+                </div>
+
+                {/* List */}
+                <div style={{ flex: 1, overflowY: 'auto', padding: '6px' }}>
+                    {filteredProjects.length > 0 ? (
+                        filteredProjects.map((p, idx) => (
+                            <button
+                                key={`master-${idx}`}
+                                onClick={() => onSelect(p.displayName)}
+                                style={{
+                                    width: '100%', padding: '11px 14px', textAlign: 'left',
+                                    background: 'transparent', border: '1px solid transparent',
+                                    borderRadius: '10px', cursor: 'pointer',
+                                    display: 'flex', alignItems: 'center', gap: '10px',
+                                    marginBottom: '2px', transition: 'all 0.12s ease',
+                                    color: theme === 'light' ? '#334155' : '#cbd5e1',
+                                    fontSize: '13px', fontWeight: 600, outline: 'none', boxSizing: 'border-box',
+                                }}
+                                onMouseEnter={e => {
+                                    e.currentTarget.style.background = 'rgba(16,185,129,0.08)';
+                                    e.currentTarget.style.borderColor = 'rgba(16,185,129,0.2)';
+                                    e.currentTarget.style.color = theme === 'light' ? '#059669' : '#34d399';
+                                    const icon = e.currentTarget.querySelector('[data-icon]');
+                                    if (icon) icon.style.background = 'rgba(16,185,129,0.18)';
+                                }}
+                                onMouseLeave={e => {
+                                    e.currentTarget.style.background = 'transparent';
+                                    e.currentTarget.style.borderColor = 'transparent';
+                                    e.currentTarget.style.color = theme === 'light' ? '#334155' : '#cbd5e1';
+                                    const icon = e.currentTarget.querySelector('[data-icon]');
+                                    if (icon) icon.style.background = 'rgba(16,185,129,0.08)';
+                                }}
+                            >
+                                <div data-icon style={{
+                                    padding: '5px', borderRadius: '7px',
+                                    background: 'rgba(16,185,129,0.08)', color: '#10b981',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    flexShrink: 0, transition: 'background 0.12s ease',
+                                }}>
+                                    <ChevronRight size={13} />
+                                </div>
+                                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {p.displayName}
+                                </span>
+                            </button>
+                        ))
+                    ) : (
+                        <div style={{ padding: '48px 0', textAlign: 'center' }}>
+                            <Search size={32} style={{ margin: '0 auto 10px', opacity: 0.25, color: '#94a3b8' }} />
+                            <p style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.15em', opacity: 0.3, color: '#94a3b8' }}>결과 없음</p>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const ProjectAutocomplete = ({ value, onOpenLibrary, theme }) => {
+    return (
+        <div 
+            className={`relative w-full h-full group flex items-center overflow-hidden cursor-pointer transition-colors ${theme === 'light' ? 'hover:bg-emerald-50' : 'hover:bg-emerald-500/10'}`}
+            onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onOpenLibrary();
+            }}
+            title="클릭하여 마스터 라이브러리 열기"
+        >
+            <input
+                type="text"
+                value={value || ''}
+                readOnly
+                placeholder="마스터에서 선택..."
+                className={`flex-1 h-full px-3 py-1 bg-transparent border-none outline-none text-[12px] font-bold placeholder:text-muted-foreground/40 cursor-pointer pointer-events-none ${theme === 'light' ? 'text-slate-800' : 'text-slate-100'}`}
+                spellCheck={false}
+            />
+            
+            <div
+                className="flex flex-shrink-0 items-center justify-center w-6 h-6 mr-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                style={{ color: '#10b981' }}
+            >
+                <BookOpen size={15} />
+            </div>
+        </div>
+    );
+};
+
+const ReportDataRow = React.memo(({ 
     item, 
     rowIndex, 
     columns, 
@@ -185,9 +443,13 @@ const SalesDataRow = React.memo(({
     focusedCell, 
     setFocusedCell,
     onCellChange,
+    onProjectSelect,
+    onOpenLibrary,
     onDelete,
     onRowResize,
-    theme
+    theme,
+    lastWeekProjects,
+    masterProjects
 }) => {
     const catStyle = useMemo(() => getCategoryStyle(item.category, theme === 'dark'), [item.category, theme]);
 
@@ -202,6 +464,7 @@ const SalesDataRow = React.memo(({
             </td>
             
             {columns.map((col) => {
+                const cellId = `${item.id}-${col.key}`;
                 if (col.key === 'manage') {
                     return (
                         <td key={col.key} className="border border-[var(--border)] p-0 text-center w-[60px] relative" style={{ height: rowHeight }}>
@@ -211,11 +474,24 @@ const SalesDataRow = React.memo(({
                                 title="행삭제"
                                 style={{ border: 'none', background: 'none', padding: 0 }}
                             >
-                                <Trash2 
-                                    size={16} 
-                                    className="trash-delete-icon"
-                                />
+                                <Trash2 size={16} className="trash-delete-icon" />
                             </button>
+                        </td>
+                    );
+                }
+
+                if (col.key === 'projectName') {
+                    return (
+                        <td key={col.key} className="border border-[var(--border)] p-0 relative" style={{ width: columnWidths[col.key], height: rowHeight }}>
+                            <ProjectAutocomplete 
+                                value={item[col.key]}
+                                onSelect={(p, isFull) => onProjectSelect(item.id, p, isFull)}
+                                onFocus={() => setFocusedCell({ rowId: item.id, field: cellId })}
+                                isFocused={focusedCell?.field === cellId}
+                                lastWeekProjects={lastWeekProjects}
+                                onOpenLibrary={() => onOpenLibrary(item.id)}
+                                theme={theme}
+                            />
                         </td>
                     );
                 }
@@ -224,26 +500,33 @@ const SalesDataRow = React.memo(({
                     const categoryOptions = ['진행중', '홀딩', '수주', '드롭', '탈락'];
                     const displayValue = item[col.key] === '수행' ? '진행중' : item[col.key];
                     return (
-                        <td 
-                            key={col.key} 
-                            className="border border-[var(--border)] p-0 relative transition-colors duration-200" 
-                            style={{ 
-                                width: columnWidths[col.key], 
-                                height: rowHeight,
-                                backgroundColor: catStyle.bg
-                            }}
-                        >
+                        <td key={col.key} className="border border-[var(--border)] p-0 relative transition-colors duration-200" style={{ width: columnWidths[col.key], height: rowHeight, backgroundColor: catStyle.bg }}>
                             <SpreadsheetCellSelect
                                 value={displayValue}
                                 options={categoryOptions}
                                 onCommit={(v) => onCellChange(item.id, col.key, v)}
-                                onFocus={() => setFocusedCell({ rowId: item.id, field: `${item.id}-${col.key}` })}
-                                isFocused={focusedCell?.field === `${item.id}-${col.key}`}
+                                onFocus={() => setFocusedCell({ rowId: item.id, field: cellId })}
+                                onBlur={() => setFocusedCell(null)}
+                                isFocused={focusedCell?.field === cellId}
                                 className="font-bold text-center text-[11px]"
-                                style={{ 
-                                    color: catStyle.text,
-                                    textShadow: theme === 'dark' ? catStyle.shadow : 'none'
-                                }}
+                                style={{ color: catStyle.text, textShadow: theme === 'dark' ? catStyle.shadow : 'none' }}
+                            />
+                        </td>
+                    );
+                }
+
+                const isHealthCol = col.key === 'health' || ['운영 상태', '운영상태', 'Health', 'Status'].includes(col.label);
+                if (isHealthCol) {
+                    const hStyle = getHealthStyle(item[col.key], theme === 'dark');
+                    return (
+                        <td key={col.key} className="p-0 relative" style={{ width: columnWidths[col.key], height: rowHeight, backgroundColor: hStyle.bg, border: 'none' }}>
+                            <HealthSelect 
+                                value={item[col.key]}
+                                onCommit={(v) => onCellChange(item.id, col.key, v)}
+                                onFocus={() => setFocusedCell({ rowId: item.id, field: cellId })}
+                                onBlur={() => setFocusedCell(null)}
+                                isFocused={focusedCell?.field === cellId}
+                                theme={theme}
                             />
                         </td>
                     );
@@ -254,13 +537,9 @@ const SalesDataRow = React.memo(({
                         <SpreadsheetCellInput 
                             initialValue={item[col.key]}
                             onCommit={(v) => onCellChange(item.id, col.key, v)}
-                            onFocus={() => setFocusedCell({ rowId: item.id, field: `${item.id}-${col.key}` })}
-                            isFocused={focusedCell?.field === `${item.id}-${col.key}`}
-                            className={
-                                col.key === 'projectName' ? 'font-bold text-[var(--text-primary)] text-[11px]' :
-                                col.key === 'status' ? 'text-[var(--text-muted)] text-[10px]' :
-                                'text-[var(--text-muted)] text-[11px]'
-                            }
+                            onFocus={() => setFocusedCell({ rowId: item.id, field: cellId })}
+                            isFocused={focusedCell?.field === cellId}
+                            className={col.key === 'status' ? 'text-[var(--text-muted)] text-[10px]' : 'text-[var(--text-muted)] text-[11px]'}
                         />
                     </td>
                 );
@@ -318,21 +597,16 @@ const ColumnSettingsModal = ({ isOpen, onClose, columns, onUpdateColumns }) => {
 
     return (
         <div className="fixed inset-0 z-[100000] flex justify-end" style={{ pointerEvents: 'auto' }}>
-            {/* Backdrop Overlay */}
             <div 
                 className="absolute inset-0 bg-black/60 backdrop-blur-[4px] animate-in fade-in duration-300"
                 onClick={onClose}
             />
-            
-            {/* Sliding Sidebar Container */}
             <div 
                 className="relative w-[400px] h-full flex flex-col shadow-[-20px_0_60px_rgba(0,0,0,0.8)] border-l border-[#00f2ff]/30 animate-in slide-in-from-right duration-500 ease-out"
                 style={{ backgroundColor: '#0d1117' }}
             >
-                {/* Left Accent Glow Line */}
                 <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '2px', background: 'linear-gradient(to bottom, transparent, #00f2ff, transparent)', opacity: 0.5 }} />
 
-                {/* Sidebar Header */}
                 <div style={{ padding: '24px 24px 16px 24px', backgroundColor: 'rgba(22, 27, 34, 0.9)', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div className="flex items-center gap-3">
                         <div className="flex gap-1.5">
@@ -355,9 +629,7 @@ const ColumnSettingsModal = ({ isOpen, onClose, columns, onUpdateColumns }) => {
                     </button>
                 </div>
 
-                {/* Content Area - Scrollable */}
                 <div className="flex-1 overflow-y-auto custom-scrollbar" style={{ padding: '24px' }}>
-                    {/* Add Column Section */}
                     <div style={{ marginBottom: '28px' }}>
                         <label style={{ display: 'block', fontSize: '9px', fontWeight: '900', color: '#00f2ff', textTransform: 'uppercase', letterSpacing: '0.2em', marginBottom: '10px', opacity: 0.8 }}>Add New Column</label>
                         <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
@@ -389,7 +661,6 @@ const ColumnSettingsModal = ({ isOpen, onClose, columns, onUpdateColumns }) => {
                         </div>
                     </div>
 
-                    {/* Column List Section */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', padding: '0 4px' }}>
                         <span style={{ fontSize: '10px', fontWeight: '900', color: '#666', textTransform: 'uppercase', letterSpacing: '0.12em' }}>Architecture</span>
                         <div style={{ padding: '3px 8px', backgroundColor: 'rgba(0, 242, 255, 0.08)', borderRadius: '20px', border: '1px solid rgba(0, 242, 255, 0.15)' }}>
@@ -440,7 +711,6 @@ const ColumnSettingsModal = ({ isOpen, onClose, columns, onUpdateColumns }) => {
                     </div>
                 </div>
 
-                {/* Sidebar Footer - Sticky */}
                 <div style={{ padding: '20px 24px', borderTop: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(22, 27, 34, 0.95)', display: 'flex', gap: '12px' }}>
                     <button 
                         onClick={onClose} 
@@ -462,24 +732,148 @@ const ColumnSettingsModal = ({ isOpen, onClose, columns, onUpdateColumns }) => {
     );
 };
 
-const SalesStatus = () => {
-    const STORAGE_KEY = 'sales_data_v3';
-    const COLUMN_WIDTHS_KEY = 'sales_column_widths_v3';
-    const ROW_HEIGHTS_KEY = 'sales_row_heights_v3';
-    const COLUMNS_CONFIG_KEY = 'sales_columns_config_v3';
+const getReportingFriday = (date = new Date()) => {
+    const d = new Date(date);
+    const day = d.getDay(); // 0(Sun) - 6(Sat)
+    const diff = (day <= 5) ? (5 - day) : (-1); // If after Fri, go to next Fri (or stay if Fri)
+    // Actually, usually you report for the *upcoming* or *current* Friday.
+    // Let's make it simple: the most recent Friday if today is Sat/Sun/Mon, or the upcoming Friday.
+    // Professional standard: The Friday of the current week.
+    const friday = new Date(d.setDate(d.getDate() + diff));
+    return friday.toISOString().split('T')[0];
+};
+
+const ProjectReport = () => {
+    const [selectedDate, setSelectedDate] = useState(() => getReportingFriday());
+    const [reportData, setReportData] = useState([]);
+    const [isLoading, setIsLoading] = useState(false);
+    const [lastWeekProjects, setLastWeekProjects] = useState([]);
+    const [masterProjects, setMasterProjects] = useState([]);
     
-    const [salesData, setSalesData] = useState(() => {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (saved) {
-            try { return JSON.parse(saved); } catch (e) { console.error(e); }
+    const COLUMN_WIDTHS_KEY = 'project_report_column_widths_v1';
+    const ROW_HEIGHTS_KEY = 'project_report_row_heights_v1';
+    const COLUMNS_CONFIG_KEY = 'project_report_columns_config_v1';
+
+    // Fetch data from server
+    useEffect(() => {
+        const fetchData = async () => {
+            setIsLoading(true);
+            try {
+                const token = localStorage.getItem('token');
+                
+                // Fetch current report
+                const resCurrent = await fetch(`http://localhost:5000/api/project-reports/${selectedDate}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (resCurrent.ok) {
+                    const data = await resCurrent.json();
+                    setReportData(data);
+                }
+
+                // Fetch last week report for autocomplete
+                const d = new Date(selectedDate);
+                d.setDate(d.getDate() - 7);
+                const prevDate = getReportingFriday(d);
+                const resPrev = await fetch(`http://localhost:5000/api/project-reports/${prevDate}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (resPrev.ok) {
+                    setLastWeekProjects(await resPrev.json());
+                }
+
+                // Fetch master projects
+                const resMaster = await fetch(`http://localhost:5000/api/projects`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (resMaster.ok) {
+                    setMasterProjects(await resMaster.json());
+                }
+            } catch (error) {
+                console.error('Failed to fetch data:', error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchData();
+    }, [selectedDate]);
+
+    const handleSave = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch('http://localhost:5000/api/project-reports', {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    week_date: selectedDate,
+                    data: reportData
+                })
+            });
+            if (response.ok) {
+                setShowSaveToast(true);
+                setTimeout(() => setShowSaveToast(false), 3000);
+            } else {
+                alert('저장에 실패했습니다.');
+            }
+        } catch (error) {
+            console.error('Failed to save report:', error);
+            alert('서버 오류로 저장에 실패했습니다.');
         }
-        return [
-            { id: 1, category: '진행중', projectName: '20260223_경기신용보증재단 디지털채널 고도화(이지원 리뉴얼)', pd: '김시영, 이종호', mainContractor: '-', estimatedAmount: '3.5(vat포함)', progress: 'S-vat포함)', kickoff: '-', rfpInfo: '-', proposal: '-', pt: '-', status: '2026.02.23 업무 협의, 개발자 별도 UI/UX 미팅 진행, 참여 인원 파악\n2026.02.24 견적서 제출, 견적 협의\n2026.02.26 3월 10일 공고 입찰 마감 UI/UX 별도 산정\n2026.03.01 제안 준비, 3월 12일 마감, PT 진행', plan: '', clientInfo: '-' },
-            { id: 2, category: '진행중', projectName: '20260103_KB국민은행 현대화 2차', pd: 'KBDS, SKC&C', mainContractor: '-', estimatedAmount: '-', progress: 'LG CNS(바이오 날자 외주리, 설계급)', kickoff: '18개월', rfpInfo: '2026.03.13', proposal: '2026.04.03', pt: '-', status: '2025.12.09 매출 사업 파악\n2025.12.10 SI 컨셉팅 진행, 고객사측에서 파트너 곡\n2025.12.11 LG CNS 영업 연동', plan: '', clientInfo: '-' },
-            { id: 3, category: '진행중', projectName: '20260223_포스코 IWP 구축(EP)', pd: '김경환, 김현우', mainContractor: '-', estimatedAmount: '-', progress: '-', kickoff: '-', rfpInfo: '-', proposal: '-', pt: '-', status: '2025.12.23 EP 개선 프로젝트 (IWP: Intelligence Workplace)\n- 포스코와 포스코DX 동일 프로젝트 동시에 진행\n- 3월 ~ 4월 선행 파트 2 프로젝트 진행 예상\n- 7월 ~ 9월 순차 도입, 단가 850 이상 협의 중\n- 3월 기획 2명 선투입 / 기획 역량 및 정규직 투입 원함\n2026.01.03 포스코DX 사업 수주 완료, 최대 6~7명 투입 규모. 2명부터 투입 계회, 매주 1-2명 에정', plan: '', clientInfo: '-' },
-            { id: 4, category: '진행중', projectName: '20250109_신흥기업 홈페이지 리뉴얼_포스TNS', pd: '임시영', mainContractor: '-', estimatedAmount: '인픽스 외 2개사', progress: '-', kickoff: '-', rfpInfo: '-', proposal: '-', pt: '-', status: '2025.12.23 검토 지원 요청 (3개사 견적 제안 및 미팅)\n아이디 이신이 설계서 가져오셔서 인피닉스로 지원\n2025.12.24 견적 지원 (0.5억 내외)', plan: '기1 대1 퍼1 개1', clientInfo: '-' }
-        ];
-    });
+    };
+
+    const handlePrevWeek = () => {
+        const d = new Date(selectedDate);
+        d.setDate(d.getDate() - 7);
+        setSelectedDate(getReportingFriday(d));
+    };
+
+    const handleNextWeek = () => {
+        const d = new Date(selectedDate);
+        d.setDate(d.getDate() + 7);
+        setSelectedDate(getReportingFriday(d));
+    };
+
+    const handleClonePrevious = async () => {
+        const d = new Date(selectedDate);
+        d.setDate(d.getDate() - 7);
+        const prevDateStr = getReportingFriday(d);
+        
+        try {
+            const token = localStorage.getItem('token');
+            // Check server for previous week
+            const response = await fetch(`http://localhost:5000/api/project-reports/${prevDateStr}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            
+            let prevData = null;
+            if (response.ok) {
+                const data = await response.json();
+                if (data && data.length > 0) prevData = data;
+            }
+
+            const legacyData = localStorage.getItem('project_report_data_v1');
+
+            if (prevData) {
+                setReportData(prevData.map(row => ({ ...row, id: Date.now() + Math.random() })));
+                alert('지난주 데이터를 서버에서 성공적으로 가져왔습니다. [저장]을 눌러 현재 주차에 반영하세요.');
+            } else if (legacyData) {
+                if (confirm('서버에 지난주 데이터가 없습니다. 개인 PC에 저장된 기존 통합 데이터를 서버로 가져오시겠습니까?')) {
+                    try {
+                        const parsed = JSON.parse(legacyData);
+                        setReportData(parsed.map(row => ({ ...row, id: Date.now() + Math.random() })));
+                        alert('기존 데이터를 로드했습니다. [저장]을 누르면 서버에 저장되어 모든 PM이 볼 수 있습니다.');
+                    } catch (e) { console.error(e); alert('데이터 처리에 실패했습니다.'); }
+                }
+            } else {
+                alert('가져올 수 있는 이전 데이터가 서버나 로컬에 존재하지 않습니다.');
+            }
+        } catch (error) {
+            console.error('Clone failed:', error);
+            alert('데이터를 가져오는 중 오류가 발생했습니다.');
+        }
+    };
 
     const [columns, setColumns] = useState(() => {
         const saved = localStorage.getItem(COLUMNS_CONFIG_KEY);
@@ -489,48 +883,21 @@ const SalesStatus = () => {
         return [
             { key: 'category', label: '구분', width: 80 },
             { key: 'projectName', label: '프로젝트명', width: 320 },
-            { key: 'pd', label: 'PD명', width: 150 },
-            { key: 'mainContractor', label: '주사업자명', width: 150 },
-            { key: 'estimatedAmount', label: '예상금액', width: 120 },
-            { key: 'progress', label: '진행사항', width: 180 },
-            { key: 'kickoff', label: '킥오프/기간', width: 120 },
-            { key: 'rfpInfo', label: 'RFP설명회', width: 120 },
-            { key: 'proposal', label: '제안서', width: 120 },
-            { key: 'pt', label: 'PT', width: 100 },
-            { key: 'status', label: '현황 및 계획', width: 500 },
-            { key: 'plan', label: '예상인력투입계획', width: 150 },
-            { key: 'clientInfo', label: '고객사 정보', width: 200 },
+            { key: 'health', label: '운영 상태', width: 100 },
+            { key: 'pd', label: '보고자/담당', width: 150 },
+            { key: 'mainContractor', label: '주사업자', width: 150 },
+            { key: 'estimatedAmount', label: '금액(예상)', width: 120 },
+            { key: 'progress', label: '진행상황', width: 180 },
+            { key: 'kickoff', label: '기간/일정', width: 120 },
+            { key: 'rfpInfo', label: '특이사항', width: 120 },
+            { key: 'proposal', label: '비고1', width: 120 },
+            { key: 'pt', label: '비고2', width: 100 },
+            { key: 'status', label: '상세 보고 내용', width: 500 },
+            { key: 'plan', label: '투입계획', width: 150 },
+            { key: 'clientInfo', label: '고객 정보', width: 200 },
             { key: 'manage', label: '관리', width: 60 }
         ];
     });
-
-    // Data Migration for 'plan' field (object to string)
-    useEffect(() => {
-        const migrateData = () => {
-            let changed = false;
-            const migrated = salesData.map(item => {
-                if (item.plan && typeof item.plan === 'object') {
-                    changed = true;
-                    const p = item.plan;
-                    const parts = [];
-                    if (p.planning) parts.push(`기${p.planning}`);
-                    if (p.design) parts.push(`디${p.design}`);
-                    if (p.publishing) parts.push(`퍼${p.publishing}`);
-                    if (p.dev) parts.push(`개${p.dev}`);
-                    return { ...item, plan: parts.join(' ') };
-                }
-                return item;
-            });
-            if (changed) {
-                setSalesData(migrated);
-            }
-        };
-        migrateData();
-    }, []);
-
-    useEffect(() => {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(salesData));
-    }, [salesData]);
 
     useEffect(() => {
         localStorage.setItem(COLUMNS_CONFIG_KEY, JSON.stringify(columns));
@@ -540,9 +907,11 @@ const SalesStatus = () => {
     const [showSaveToast, setShowSaveToast] = useState(false);
     const [focusedCell, setFocusedCell] = useState(null);
     const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+    const [isMasterModalOpen, setIsMasterModalOpen] = useState(false);
+    const [activeMasterRowId, setActiveMasterRowId] = useState(null);
 
     const handleUpdateColumns = useCallback((newCols) => {
-        setSalesData(prevData => {
+        setReportData(prevData => {
             return prevData.map(item => {
                 const newItem = { ...item };
                 newCols.forEach(col => {
@@ -568,7 +937,7 @@ const SalesStatus = () => {
         return columns.reduce((acc, col) => ({ ...acc, [col.key]: col.width }), {});
     });
 
-    const THEME_KEY = 'sales_status_theme';
+    const THEME_KEY = 'project_report_theme';
     const [theme, setTheme] = useState(() => localStorage.getItem(THEME_KEY) || 'dark');
 
     useEffect(() => {
@@ -586,7 +955,7 @@ const SalesStatus = () => {
                 return parsed;
             } catch (e) { console.error(e); }
         }
-        const initialHeights = salesData.reduce((acc, item) => ({ ...acc, [item.id]: 80 }), {});
+        const initialHeights = reportData.reduce((acc, item) => ({ ...acc, [item.id]: 80 }), {});
         return { ...initialHeights, header: 36 };
     });
 
@@ -637,7 +1006,30 @@ const SalesStatus = () => {
     }, [handleMouseMove]);
 
     const handleCellChange = useCallback((id, field, value) => {
-        setSalesData(prev => prev.map(item => item.id === id ? { ...item, [field]: value } : item));
+        setReportData(prev => prev.map(item => item.id === id ? { ...item, [field]: value } : item));
+    }, []);
+
+    const handleProjectSelect = useCallback((id, projectData, isFullAutofill) => {
+        setReportData(prev => prev.map(item => {
+            if (item.id === id) {
+                if (isFullAutofill) {
+                    return { 
+                        ...item, 
+                        ...projectData, 
+                        id,
+                        status: ''
+                    };
+                } else {
+                    return { ...item, projectName: typeof projectData === 'string' ? projectData : projectData.projectName };
+                }
+            }
+            return item;
+        }));
+    }, []);
+
+    const handleOpenMasterLibrary = useCallback((id) => {
+        setActiveMasterRowId(id);
+        setIsMasterModalOpen(true);
     }, []);
 
     const handleHeaderChange = useCallback((key, newLabel) => {
@@ -646,33 +1038,26 @@ const SalesStatus = () => {
 
     const addNewRow = () => {
         const newRow = { id: Date.now(), category: '진행중', projectName: '', pd: '', mainContractor: '-', estimatedAmount: '-', progress: '-', kickoff: '-', rfpInfo: '-', proposal: '-', pt: '-', status: '', plan: '', clientInfo: '-' };
-        setSalesData([newRow, ...salesData]);
+        setReportData([newRow, ...reportData]);
     };
 
     const deleteRow = useCallback((id) => {
         if (window.confirm('이 행을 삭제하시겠습니까?')) {
-            setSalesData(prev => prev.filter(item => item.id !== id));
+            setReportData(prev => prev.filter(item => item.id !== id));
         }
     }, []);
 
-    const handleSave = () => { setShowSaveToast(true); setTimeout(() => setShowSaveToast(false), 3000); };
 
     const filteredData = useMemo(() => {
         const order = ['진행중', '홀딩', '수주', '드롭', '탈락'];
         
-        return salesData
+        return reportData
             .filter(item => 
                 (item.projectName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                 (item.pd || '').toLowerCase().includes(searchTerm.toLowerCase())
             )
             .sort((a, b) => {
-                const weights = {
-                    '진행중': 1,
-                    '홀딩': 2,
-                    '수주': 3,
-                    '드롭': 4,
-                    '탈락': 5
-                };
+                const weights = { '진행중': 1, '홀딩': 2, '수주': 3, '드롭': 4, '탈락': 5 };
                 
                 const normalize = (val) => {
                     const str = String(val || '').normalize('NFC').trim();
@@ -686,29 +1071,21 @@ const SalesStatus = () => {
                 const weightA = weights[catA] || 99;
                 const weightB = weights[catB] || 99;
 
-                // Log only if search is "DEBUG_SORT" to avoid spam
-                if (searchTerm === 'DEBUG_SORT') {
-                    console.log(`[SORT DEBUG] Comparing ID ${a.id} (${catA}, w:${weightA}) vs ID ${b.id} (${catB}, w:${weightB})`);
-                }
-
                 if (weightA !== weightB) return weightA - weightB;
                 
-                // Secondary sort: Stabilize with ID (numeric)
                 const idA = Number(a.id);
                 const idB = Number(b.id);
                 if (!isNaN(idA) && !isNaN(idB)) return idA - idB;
                 return String(a.id).localeCompare(String(b.id));
             });
-    }, [salesData, searchTerm]);
+    }, [reportData, searchTerm]);
 
     const handleExportExcel = async () => {
         const workbook = new ExcelJS.Workbook();
-        const worksheet = workbook.addWorksheet('영업현황');
+        const worksheet = workbook.addWorksheet('프로젝트보고');
 
-        // Filter out 'manage' column for Excel
         const exportColumns = columns.filter(col => col.key !== 'manage');
 
-        // Define columns
         worksheet.columns = [
             { header: 'No', key: 'no', width: 5 },
             ...exportColumns.map(col => ({
@@ -718,7 +1095,6 @@ const SalesStatus = () => {
             }))
         ];
 
-        // Header Styling
         const headerRow = worksheet.getRow(1);
         headerRow.height = 25;
         headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 };
@@ -729,7 +1105,6 @@ const SalesStatus = () => {
         };
         headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
 
-        // Add Data
         filteredData.forEach((row, index) => {
             const rowData = { no: index + 1 };
             exportColumns.forEach(col => {
@@ -738,7 +1113,6 @@ const SalesStatus = () => {
             const excelRow = worksheet.addRow(rowData);
             excelRow.height = 30;
 
-            // Styling for Category Cell
             const categoryCell = excelRow.getCell('category');
             const categoryValue = String(row.category || '').normalize('NFC').trim();
             
@@ -772,7 +1146,6 @@ const SalesStatus = () => {
             categoryCell.alignment = { vertical: 'middle', horizontal: 'center' };
         });
 
-        // Borders and formatting
         worksheet.eachRow((row, rowNumber) => {
             row.eachCell((cell) => {
                 cell.border = {
@@ -794,68 +1167,69 @@ const SalesStatus = () => {
         });
 
         const buffer = await workbook.xlsx.writeBuffer();
-        saveAs(new Blob([buffer]), `영업현황_${new Date().toISOString().split('T')[0]}.xlsx`);
+        saveAs(new Blob([buffer]), `프로젝트보고_${selectedDate}.xlsx`);
     };
 
     return (
         <div className={`flex flex-col h-full min-h-0 animate-in fade-in duration-700 ${theme === 'light' ? 'light-theme' : ''}`}>
             <style>
                 {`
-                    .sales-spreadsheet-container {
+                    .report-spreadsheet-container {
                         --grid-border: rgba(255, 255, 255, 0.15);
                     }
-                    .light-theme .sales-spreadsheet-container {
+                    .light-theme .report-spreadsheet-container {
                         --grid-border: rgba(0, 0, 0, 0.15);
                     }
-                    .sales-spreadsheet-container table { 
+                    .report-spreadsheet-container table { 
                         border-collapse: separate !important; 
                         border-spacing: 0 !important; 
                         table-layout: fixed !important; 
                         width: max-content !important; 
                     }
-                    .sales-spreadsheet-container td, .sales-spreadsheet-container th { 
+                    .report-spreadsheet-container td, .report-spreadsheet-container th { 
                         padding: 0 !important; 
                         margin: 0 !important; 
                         border: 1px solid var(--grid-border) !important; 
                     }
-                    .sales-spreadsheet-container td { position: relative !important; }
-                    .sales-spreadsheet-container input, .sales-spreadsheet-container textarea { box-shadow: none !important; border: none !important; outline: none !important; appearance: none !important; user-select: text !important; cursor: text !important; width: 100% !important; height: 100% !important; background: transparent; color: inherit; }
-                    .sales-spreadsheet-container .focused-field { box-shadow: inset 0 0 0 2px #3b82f6 !important; z-index: 60 !important; background: var(--bg-secondary) !important; color: var(--text-primary) !important; caret-color: #3b82f6 !important; }
-                    .sales-spreadsheet-container thead th {
+                    .report-spreadsheet-container td { position: relative !important; }
+                    .report-spreadsheet-container input, .report-spreadsheet-container textarea { box-shadow: none !important; border: none !important; outline: none !important; appearance: none !important; user-select: text !important; cursor: text !important; width: 100% !important; height: 100% !important; background: transparent; color: inherit; }
+                    .report-spreadsheet-container .focused-field { box-shadow: inset 0 0 0 2px #3b82f6 !important; z-index: 60 !important; background: var(--bg-secondary) !important; color: var(--text-primary) !important; caret-color: #3b82f6 !important; }
+                    .report-spreadsheet-container thead th {
                         position: sticky !important;
                         background: var(--bg-tertiary) !important;
                     }
-                    .sales-spreadsheet-container thead tr:nth-child(1) th {
+                    .report-spreadsheet-container thead tr:nth-child(1) th {
                         top: 0 !important;
                         z-index: 55 !important;
                     }
-                    .sales-spreadsheet-container thead tr:nth-child(2) th {
+                    .report-spreadsheet-container thead tr:nth-child(2) th {
                         top: 28px !important;
                         z-index: 55 !important;
                     }
-                    .sales-spreadsheet-container td.sticky { 
+                    .report-spreadsheet-container td.sticky { 
                         position: sticky !important;
                         left: 0 !important;
                         z-index: 40 !important;
                         background: var(--bg-tertiary) !important; 
                     }
-                    .sales-spreadsheet-container thead th:first-child {
+                    .report-spreadsheet-container thead th:first-child {
                         left: 0 !important;
                         z-index: 65 !important;
                     }
-                    .sales-spreadsheet-container td:not(.sticky) { overflow: hidden !important; background: var(--bg-secondary); }
-                    .sales-spreadsheet-container .resize-handle { z-index: 100 !important; pointer-events: auto !important; }
+                    .report-spreadsheet-container td:not(.sticky) { overflow: hidden !important; background: var(--bg-secondary); }
+                    .report-spreadsheet-container .resize-handle { z-index: 100 !important; pointer-events: auto !important; }
                     .trash-delete-btn { opacity: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: none !important; border: none !important; padding: 0 !important; cursor: pointer; color: #94a3b8; transition: all 0.15s ease; outline: none !important; }
                     tr:hover .trash-delete-btn { opacity: 1; }
                     .trash-delete-btn:hover .trash-delete-icon { stroke: #ff0000 !important; filter: drop-shadow(0 0 4px rgba(255, 0, 0, 0.4)); }
                     .trash-delete-icon { stroke: currentColor; fill: none; pointer-events: none; transition: stroke 0.15s ease; }
                     
-                    /* Toolbar Buttons Styles - Using global .premium-icon-btn */
                     .btn-save:hover { color: #3b82f6 !important; background: rgba(59, 130, 246, 0.15) !important; filter: drop-shadow(0 0 5px rgba(59, 130, 246, 0.5)); }
                     .btn-add:hover { color: #10b981 !important; background: rgba(16, 185, 129, 0.15) !important; filter: drop-shadow(0 0 5px rgba(16, 185, 129, 0.5)); }
                     .btn-cols:hover { color: #8b5cf6 !important; background: rgba(139, 92, 246, 0.15) !important; filter: drop-shadow(0 0 5px rgba(139, 92, 246, 0.5)); }
                     .btn-theme:hover { color: #f59e0b !important; background: rgba(245, 158, 11, 0.15) !important; filter: drop-shadow(0 0 5px rgba(245, 158, 11, 0.5)); }
                     .btn-excel:hover { color: #16a34a !important; background: rgba(22, 163, 74, 0.15) !important; filter: drop-shadow(0 0 5px rgba(22, 163, 74, 0.5)); }
+                    .btn-week:hover { color: #f472b6 !important; background: rgba(244, 114, 182, 0.15) !important; filter: drop-shadow(0 0 5px rgba(244, 114, 182, 0.5)); }
+                    .btn-clone:hover { color: #60a5fa !important; background: rgba(96, 165, 250, 0.15) !important; filter: drop-shadow(0 0 5px rgba(96, 165, 250, 0.5)); }
                 `}
             </style>
             {showSaveToast && (
@@ -876,68 +1250,45 @@ const SalesStatus = () => {
             )}
             <div className={`flex items-center justify-between px-4 py-1.5 bg-[var(--bg-secondary)] border-b border-[var(--border)] z-30 ${theme === 'light' ? 'shadow-sm' : ''}`}>
                 <div className="flex items-center gap-2">
+                    <button onClick={handleSave} className="premium-icon-btn btn-save" title="저장 (Save)"><Save size={16} /></button>
+                    <button onClick={addNewRow} className="premium-icon-btn btn-add" title="행 추가 (Add Row)"><Plus size={16} /></button>
+                    <button onClick={() => setIsSettingsModalOpen(true)} className="premium-icon-btn btn-cols" title="열 설정 (Columns)"><Columns size={16} /></button>
+                    
+                    <div className="w-px h-5 bg-[var(--border)] mx-1"></div>
+                    
+                    <div className="flex items-center gap-1 bg-[var(--bg-tertiary)] rounded-lg px-2 py-0.5 border border-[var(--border)]">
+                        <button onClick={handlePrevWeek} className="p-1 hover:text-blue-500 transition-colors" title="이전 주"><ChevronLeft size={14} /></button>
+                        <div className="flex items-center gap-1.5 px-1 min-w-[120px] justify-center">
+                            <Calendar size={13} className="text-muted-foreground" />
+                            <span className="text-[11px] font-bold tracking-tight">{selectedDate} 주간보고</span>
+                        </div>
+                        <button onClick={handleNextWeek} className="p-1 hover:text-blue-500 transition-colors" title="다음 주"><ChevronRight size={14} /></button>
+                    </div>
+
                     <button 
-                        onClick={handleSave} 
-                        className="premium-icon-btn btn-save"
-                        title="저장 (Save)"
+                        onClick={handleClonePrevious} 
+                        className="premium-icon-btn btn-clone flex items-center gap-1.5 px-3" 
+                        title="지난주 데이터 가져오기"
                     >
-                        <Save size={16} />
-                    </button>
-                    <button 
-                        onClick={addNewRow} 
-                        className="premium-icon-btn btn-add"
-                        title="행 추가 (Add Row)"
-                    >
-                        <Plus size={16} />
-                    </button>
-                    <button 
-                        onClick={() => setIsSettingsModalOpen(true)}
-                        className="premium-icon-btn btn-cols"
-                        title="열 설정 (Columns)"
-                    >
-                        <Columns size={16} />
+                        <ClipboardCopy size={16} />
+                        <span className="text-[11px] font-bold">지난주 복사</span>
                     </button>
                 </div>
                 <div className="flex items-center gap-3">
-                    <button 
-                        onClick={toggleTheme}
-                        className="premium-icon-btn btn-theme"
-                        title={theme === 'dark' ? '라이트 모드로 전환' : '다크 모드로 전환'}
-                    >
+                    <button onClick={toggleTheme} className="premium-icon-btn btn-theme" title={theme === 'dark' ? '라이트 모드로 전환' : '다크 모드로 전환'}>
                         {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
                     </button>
                     <div className="w-px h-5 bg-[var(--border)] mx-1"></div>
-                    <button 
-                        onClick={handleExportExcel}
-                        className="premium-icon-btn btn-excel"
-                        title="엑셀로 다운로드"
-                    >
-                        <Download size={16} />
-                    </button>
+                    <button onClick={handleExportExcel} className="premium-icon-btn btn-excel" title="엑셀로 다운로드"><Download size={16} /></button>
                     <div className="w-px h-5 bg-[var(--border)] mx-1"></div>
                     <div className="search-input-wrapper">
-                        <input 
-                            type="text" 
-                            value={searchTerm} 
-                            onChange={(e) => setSearchTerm(e.target.value)} 
-                            placeholder="시트 내 검색..." 
-                            spellCheck={false}
-                            className="premium-search-input"
-                        />
+                        <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="시트 내 검색..." spellCheck={false} className="premium-search-input" />
                         <Search size={14} className="search-icon-glass" />
-                        {searchTerm && (
-                            <button
-                                onClick={() => setSearchTerm('')}
-                                className="search-clear-btn"
-                                title="검색어 지우기"
-                            >
-                                <X size={14} />
-                            </button>
-                        )}
+                        {searchTerm && <button onClick={() => setSearchTerm('')} className="search-clear-btn" title="검색어 지우기"><X size={14} /></button>}
                     </div>
                 </div>
             </div>
-            <div className="flex-1 overflow-auto bg-[var(--bg-primary)] sales-spreadsheet-container">
+            <div className="flex-1 overflow-auto bg-[var(--bg-primary)] report-spreadsheet-container">
                 <table className="table-fixed w-max">
                     <thead className="z-40">
                         <tr className="bg-[var(--bg-tertiary)]">
@@ -971,20 +1322,45 @@ const SalesStatus = () => {
                         </tr>
                     </thead>
                     <tbody>
-                        {filteredData.map((item, rowIndex) => (
-                            <SalesDataRow key={item.id} item={item} rowIndex={rowIndex} columns={columns} columnWidths={columnWidths} rowHeight={rowHeights[item.id] || 80} focusedCell={focusedCell} setFocusedCell={setFocusedCell} onCellChange={handleCellChange} onDelete={deleteRow} onRowResize={handleRowMouseDown} theme={theme} />
-                        ))}
+                        {filteredData.length > 0 ? (
+                            filteredData.map((item, rowIndex) => (
+                                <ReportDataRow key={item.id} item={item} rowIndex={rowIndex} columns={columns} columnWidths={columnWidths} rowHeight={rowHeights[item.id] || 80} focusedCell={focusedCell} setFocusedCell={setFocusedCell} onCellChange={handleCellChange} onProjectSelect={handleProjectSelect} onOpenLibrary={handleOpenMasterLibrary} onDelete={deleteRow} onRowResize={handleRowMouseDown} theme={theme} lastWeekProjects={lastWeekProjects} masterProjects={masterProjects} />
+                            ))
+                        ) : (
+                            <tr>
+                                <td colSpan={columns.length + 1} className="py-20 text-center bg-[var(--bg-secondary)]">
+                                    <div className="flex flex-col items-center gap-4 opacity-50">
+                                        <FileText size={48} className="text-[var(--text-muted)]" />
+                                        <div className="flex flex-col gap-1">
+                                            <p className="text-sm font-bold text-[var(--text-primary)]">이번 주차 보고 데이터가 없습니다.</p>
+                                            <p className="text-xs text-[var(--text-muted)]">내용을 입력하거나 상단의 '지난주 복사' 버튼을 눌러 데이터를 가져오세요.</p>
+                                        </div>
+                                        <button onClick={addNewRow} className="mt-2 px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-full text-xs font-bold transition-all shadow-lg hover:shadow-blue-500/20 flex items-center gap-2">
+                                            <Plus size={14} /> 첫 번째 행 추가하기
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        )}
                     </tbody>
                 </table>
             </div>
-            <ColumnSettingsModal 
-                isOpen={isSettingsModalOpen} 
-                onClose={() => setIsSettingsModalOpen(false)} 
-                columns={columns}
-                onUpdateColumns={handleUpdateColumns}
+            <ColumnSettingsModal isOpen={isSettingsModalOpen} onClose={() => setIsSettingsModalOpen(false)} columns={columns} onUpdateColumns={handleUpdateColumns} />
+            
+            <MasterProjectModal 
+                isOpen={isMasterModalOpen}
+                onClose={() => setIsMasterModalOpen(false)}
+                projects={masterProjects}
+                onSelect={(name) => {
+                    if (activeMasterRowId) {
+                        handleProjectSelect(activeMasterRowId, name, false);
+                    }
+                    setIsMasterModalOpen(false);
+                }}
+                theme={theme}
             />
         </div>
     );
 };
 
-export default SalesStatus;
+export default ProjectReport;

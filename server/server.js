@@ -9,6 +9,8 @@ import attendanceRouter from './routes/attendance.js';
 import projectsRouter from './routes/projects.js';
 import authRouter from './routes/auth.js';
 import usersRouter from './routes/users.js';
+import integrationsRouter from './routes/integrations.js';
+import projectReportsRouter from './routes/projectReports.js';
 import { authenticateToken } from './middleware/auth.js';
 
 // Load environment variables
@@ -43,6 +45,8 @@ app.use('/api/groups', groupsRouter);
 app.use('/api/employees', employeesRouter);
 app.use('/api/attendance', attendanceRouter);
 app.use('/api/projects', projectsRouter);
+app.use('/api/integrations', integrationsRouter);
+app.use('/api/project-reports', projectReportsRouter);
 
 // Health check
 app.get('/api/health', (req, res) => {

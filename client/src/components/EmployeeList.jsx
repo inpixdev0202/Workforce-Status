@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { employeesAPI, groupsAPI } from '../api';
 import EmployeeForm from './EmployeeForm';
+import { Plus, Pencil, Trash2 } from 'lucide-react';
 
 function EmployeeList() {
     const [allEmployees, setAllEmployees] = useState([]);
@@ -102,14 +103,20 @@ function EmployeeList() {
     }
 
     return (
-        <div className="container page">
+        <div className="animate-in fade-in duration-700">
             <div className="flex justify-between items-center mb-lg">
                 <div>
                     <h1>직원 관리</h1>
                     <p className="text-muted">총 {filteredEmployees.length}명 / 전체 {allEmployees.length}명</p>
                 </div>
-                <button onClick={handleAdd} className="btn btn-primary">
-                    ➕ 직원 추가
+                <button 
+                    onClick={handleAdd} 
+                    className="premium-icon-btn"
+                    title="직원 추가"
+                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(16, 185, 129, 0.15)'; e.currentTarget.style.color = '#10b981'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = ''; e.currentTarget.style.color = ''; }}
+                >
+                    <Plus size={20} />
                 </button>
             </div>
 
@@ -167,7 +174,7 @@ function EmployeeList() {
                             <th>이름</th>
                             <th>직급</th>
                             <th>기술등급</th>
-                            <th>고용형태</th>
+                            <th>고용</th>
                             <th>입사일</th>
                             <th>연락처</th>
                             <th>상태</th>
@@ -221,18 +228,20 @@ function EmployeeList() {
                                         </span>
                                     </td>
                                     <td>
-                                        <div className="flex gap-sm">
+                                        <div className="flex gap-1.5">
                                             <button
                                                 onClick={() => handleEdit(employee)}
-                                                className="btn btn-sm btn-secondary"
+                                                className="premium-icon-btn"
+                                                title="수정"
                                             >
-                                                수정
+                                                <Pencil size={16} />
                                             </button>
                                             <button
                                                 onClick={() => handleDelete(employee.id)}
-                                                className="btn btn-sm btn-danger"
+                                                className="premium-icon-btn btn-delete"
+                                                title="삭제"
                                             >
-                                                삭제
+                                                <Trash2 size={16} />
                                             </button>
                                         </div>
                                     </td>

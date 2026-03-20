@@ -42,7 +42,8 @@ router.post('/login', async (req, res) => {
                 name: user.name,
                 email: user.email,
                 role: user.role,
-                group_id: user.group_id
+                group_id: user.group_id,
+                permissions: user.permissions ? JSON.parse(user.permissions) : {}
             }
         });
 

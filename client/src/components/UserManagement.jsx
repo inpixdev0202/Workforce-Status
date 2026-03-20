@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { usersAPI, groupsAPI } from '../api';
-import { Edit2, Trash2, UserPlus, Shield, Users, Mail, Lock, User as UserIcon, Check, X, Search } from 'lucide-react';
+import { Edit2, Trash2, UserPlus, Plus, Shield, Users, Mail, Lock, User as UserIcon, Check, X, Search, Briefcase, TrendingUp, Eye, EyeOff, ChevronDown } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { ROLES } from '../constants/menuConfig';
 
 export default function UserManagement() {
     const { user } = useAuth();
@@ -9,10 +10,13 @@ export default function UserManagement() {
     const [groups, setGroups] = useState([]);
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [editingUser, setEditingUser] = useState(null);
-    const [formData, setFormData] = useState({ name: '', email: '', password: '', role: 'GroupLeader', group_id: '' });
+    const [formData, setFormData] = useState({ name: '', email: '', password: '', role: 'GroupLeader', group_id: '', permissions: {} });
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const [saving, setSaving] = useState(false);
+    const [success, setSuccess] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
 
     useEffect(() => {
         if (user?.role === 'Admin') {
@@ -45,14 +49,18 @@ export default function UserManagement() {
                 email: existingUser.email,
                 password: '',
                 role: existingUser.role,
-                group_id: existingUser.group_id || ''
+                group_id: existingUser.group_id || '',
+                permissions: existingUser.permissions || {}
             });
         } else {
             setEditingUser(null);
-            setFormData({ name: '', email: '', password: '', role: 'GroupLeader', group_id: '' });
+            setFormData({ name: '', email: '', password: '', role: 'GroupLeader', group_id: '', permissions: {} });
         }
         setError('');
+        setSuccess(false);
+        setSaving(false);
         setIsFormOpen(true);
+        setShowPassword(false);
     };
 
     const handleCloseForm = () => {
@@ -64,14 +72,16 @@ export default function UserManagement() {
         e.preventDefault();
         setError('');
 
-        if (formData.role === 'GroupLeader' && !formData.group_id) {
-            return setError('그룹장은 소속 그룹을 지정해야 합니다.');
+        if (formData.role === ROLES.GROUP_LEADER && !formData.group_id) {
+            return setError('그룹장은 반드시 소속 그룹을 지정해야 합니다.');
         }
+
+        setSaving(true);
 
         try {
             const payload = {
                 ...formData,
-                group_id: formData.role === 'Admin' ? null : parseInt(formData.group_id)
+                group_id: (formData.role === ROLES.ADMIN || !formData.group_id) ? null : parseInt(formData.group_id)
             };
 
             if (editingUser) {
@@ -81,9 +91,14 @@ export default function UserManagement() {
             }
 
             await fetchData();
-            handleCloseForm();
+            setSuccess(true);
+            setTimeout(() => {
+                handleCloseForm();
+            }, 1000);
         } catch (err) {
             setError(err.response?.data?.error || '저장 중 오류가 발생했습니다.');
+        } finally {
+            setSaving(false);
         }
     };
 
@@ -114,33 +129,38 @@ export default function UserManagement() {
 
     return (
         <div className="animate-in fade-in duration-700">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-lg">
                 <div>
-                    <h2 className="text-3xl font-extrabold text-white flex items-center gap-4 tracking-tight">
-                        <div className="p-3 bg-blue-500/20 rounded-2xl text-blue-400 shadow-lg shadow-blue-500/10">
-                            <Shield size={28} />
-                        </div>
-                        사용자 권한 관리
-                    </h2>
-                    <p className="text-gray-400 mt-2 text-lg">시스템 사용자별 접근 권한 및 소속 그룹을 설정합니다.</p>
+                    <h1 className="tracking-tight">사용자 관리</h1>
                 </div>
                 <div className="flex items-center gap-4 w-full md:w-auto">
-                    <div className="relative flex-1 md:w-64">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+                    <div className="premium-input-wrapper has-icon-left has-icon-right md:w-80">
                         <input 
                             type="text" 
                             placeholder="사용자 이름 또는 이메일 검색..." 
-                            className="premium-form-input pl-12 py-3 rounded-2xl"
+                            className="premium-input"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
+                        <Search className="premium-input-icon" size={18} />
+                        {searchTerm && (
+                            <button
+                                onClick={() => setSearchTerm('')}
+                                className="premium-input-action"
+                                title="검색어 지우기"
+                            >
+                                <X size={16} />
+                            </button>
+                        )}
                     </div>
                     <button
                         onClick={() => handleOpenForm()}
-                        className="premium-btn premium-btn-primary px-8 py-3.5 rounded-2xl whitespace-nowrap"
+                        className="premium-icon-btn"
+                        title="신규 사용자 등록"
+                        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(16, 185, 129, 0.15)'; e.currentTarget.style.color = '#10b981'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = ''; e.currentTarget.style.color = ''; }}
                     >
-                        <UserPlus size={20} />
-                        <span>신규 사용자 등록</span>
+                        <Plus size={20} />
                     </button>
                 </div>
             </div>
@@ -164,87 +184,158 @@ export default function UserManagement() {
 
                     <div className="glass-card-body p-10">
                         {error && (
-                            <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-6 py-4 rounded-2xl text-md mb-10 flex items-center gap-4 animate-in shake duration-300">
+                            <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-6 py-4 rounded-2xl text-md mb-6 flex items-center gap-4 animate-in shake duration-300">
                                 <Shield size={20} />
                                 <span className="font-semibold">{error}</span>
                             </div>
                         )}
 
+                        {success && (
+                            <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-6 py-4 rounded-2xl text-md mb-6 flex items-center gap-4 animate-in slide-in-from-top duration-300">
+                                <Check size={20} />
+                                <span className="font-semibold">저장이 성공적으로 완료되었습니다!</span>
+                            </div>
+                        )}
+
                         <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                            <div className="premium-form-group">
-                                <label className="premium-form-label">사용자 이름 (Full Name)</label>
-                                <div className="relative">
-                                    <UserIcon className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-500" size={20} />
+                            <div className="premium-input-group">
+                                <label className="premium-input-label">사용자 이름 (Full Name)</label>
+                                <div className="premium-input-wrapper has-icon-left">
                                     <input
                                         type="text"
-                                        className="premium-form-input pl-14 py-4 rounded-2xl"
+                                        className="premium-input"
                                         placeholder="홍길동"
                                         value={formData.name}
                                         onChange={e => setFormData({ ...formData, name: e.target.value })}
                                         required
                                     />
+                                    <UserIcon className="premium-input-icon" size={18} />
                                 </div>
                             </div>
 
-                            <div className="premium-form-group">
-                                <label className="premium-form-label">이메일 계정 (Email Address)</label>
-                                <div className="relative">
-                                    <Mail className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-500" size={20} />
+                            <div className="premium-input-group">
+                                <label className="premium-input-label">이메일 계정 (Email Address)</label>
+                                <div className="premium-input-wrapper has-icon-left">
                                     <input
                                         type="email"
-                                        className="premium-form-input pl-14 py-4 rounded-2xl"
+                                        className="premium-input"
                                         placeholder="user@example.com"
                                         value={formData.email}
                                         onChange={e => setFormData({ ...formData, email: e.target.value })}
                                         required
                                     />
+                                    <Mail className="premium-input-icon" size={18} />
                                 </div>
                             </div>
 
-                            <div className="premium-form-group">
-                                <label className="premium-form-label">
+                            <div className="premium-input-group">
+                                <label className="premium-input-label">
                                     보안 비밀번호
                                     {editingUser && <span className="text-[10px] text-gray-500 ml-2 font-bold uppercase tracking-wider">(공란 시 기존 비밀번호 유지)</span>}
                                 </label>
-                                <div className="relative">
-                                    <Lock className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-500" size={20} />
+                                <div className="premium-input-wrapper has-icon-left has-icon-right">
+                                    <Lock className="premium-input-icon" size={18} />
                                     <input
-                                        type="password"
-                                        className="premium-form-input pl-14 py-4 rounded-2xl"
+                                        type={showPassword ? "text" : "password"}
+                                        className="premium-input"
                                         placeholder="••••••••"
                                         value={formData.password}
                                         onChange={e => setFormData({ ...formData, password: e.target.value })}
                                         required={!editingUser}
                                     />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPassword(!showPassword)}
+                                        className="premium-input-action"
+                                        title={showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
+                                    >
+                                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                    </button>
                                 </div>
                             </div>
 
-                            <div className="premium-form-group">
-                                <label className="premium-form-label">시스템 접근 역할 (Role)</label>
-                                <select
-                                    className="premium-form-input py-4 rounded-2xl"
-                                    value={formData.role}
-                                    onChange={e => setFormData({ ...formData, role: e.target.value })}
-                                >
-                                    <option value="Admin">전체 관리자 (Administrator)</option>
-                                    <option value="GroupLeader">영업 그룹장 (Group Leader)</option>
-                                </select>
+                            <div className="premium-input-group">
+                                <label className="premium-input-label">시스템 접근 역할 (Role)</label>
+                                <div className="premium-input-wrapper has-icon-left has-icon-right">
+                                    <select
+                                        className="premium-input appearance-none"
+                                        value={formData.role}
+                                        onChange={e => setFormData({ ...formData, role: e.target.value })}
+                                    >
+                                        <option value={ROLES.ADMIN}>전체 관리자 (Administrator)</option>
+                                        <option value={ROLES.GROUP_LEADER}>그룹장 (Group Leader)</option>
+                                        <option value={ROLES.TEAM_LEADER}>팀장 (Team Leader)</option>
+                                        <option value={ROLES.PD}>PD (Project Director)</option>
+                                        <option value={ROLES.GM}>GM (General Manager)</option>
+                                    </select>
+                                    <Shield className="premium-input-icon" size={18} />
+                                    <ChevronDown className="premium-input-icon right" size={16} />
+                                </div>
                             </div>
 
-                            {formData.role === 'GroupLeader' && (
-                                <div className="premium-form-group md:col-span-2">
-                                    <label className="premium-form-label">배정 그룹 (Group Assignment)</label>
-                                    <select
-                                        className="premium-form-input py-4 rounded-2xl"
-                                        value={formData.group_id}
-                                        onChange={e => setFormData({ ...formData, group_id: e.target.value })}
-                                        required
-                                    >
-                                        <option value="">그룹을 선택해 주세요</option>
-                                        {groups.map(g => (
-                                            <option key={g.id} value={g.id}>{g.name}</option>
-                                        ))}
-                                    </select>
+                            {formData.role !== ROLES.ADMIN && (
+                                <div className="premium-input-group md:col-span-2">
+                                    <label className="premium-input-label">배정 그룹 (Group Assignment)</label>
+                                    <div className="premium-input-wrapper has-icon-left has-icon-right">
+                                        <select
+                                            className="premium-input appearance-none"
+                                            value={formData.group_id}
+                                            onChange={e => setFormData({ ...formData, group_id: e.target.value })}
+                                            required={formData.role === ROLES.GROUP_LEADER}
+                                        >
+                                            <option value="">그룹을 선택해 주세요</option>
+                                            {groups.map(g => (
+                                                <option key={g.id} value={g.id}>{g.name}</option>
+                                            ))}
+                                        </select>
+                                        <Users className="premium-input-icon" size={18} />
+                                        <ChevronDown className="premium-input-icon right" size={16} />
+                                    </div>
+                                </div>
+                            )}
+
+                            {formData.role !== ROLES.ADMIN && (
+                                <div className="premium-input-group md:col-span-2">
+                                    <label className="premium-input-label">메뉴 접근 권한 설정 (Granular Permissions)</label>
+                                    <div className="bg-black/20 rounded-2xl p-6 border border-white/5">
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                            {[
+                                                { key: 'dashboard', label: '대시보드' },
+                                                { key: 'sales', label: '영업현황' },
+                                                { key: 'projects', label: '프로젝트 배정' },
+                                                { key: 'settings', label: '설정' }
+                                            ].map(opt => (
+                                                <label key={opt.key} className="flex items-center gap-3 cursor-pointer group">
+                                                    <div 
+                                                        className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
+                                                            formData.permissions[opt.key] !== false ? 'bg-blue-500/20 text-blue-400' : 'bg-white/5 text-gray-600'
+                                                        }`}
+                                                        onClick={(e) => {
+                                                            e.preventDefault();
+                                                            const current = formData.permissions[opt.key];
+                                                            // undefined -> false -> true -> undefined (or simple toggle)
+                                                            // We'll use simple toggle for checkboxes: true / false
+                                                            const next = current === false ? true : false;
+                                                            setFormData({
+                                                                ...formData,
+                                                                permissions: { ...formData.permissions, [opt.key]: next }
+                                                            });
+                                                        }}
+                                                    >
+                                                        {formData.permissions[opt.key] !== false ? <Check size={18} /> : <X size={18} />}
+                                                    </div>
+                                                    <span className={`text-sm font-semibold transition-colors ${
+                                                        formData.permissions[opt.key] !== false ? 'text-white' : 'text-gray-500'
+                                                    }`}>
+                                                        {opt.label}
+                                                    </span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                        <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-4">
+                                            * 관리자의 경우 모든 메뉴에 대한 접근 권한이 자동으로 부여됩니다.
+                                        </p>
+                                    </div>
                                 </div>
                             )}
 
@@ -258,10 +349,20 @@ export default function UserManagement() {
                                 </button>
                                 <button
                                     type="submit"
-                                    className="premium-btn premium-btn-primary px-12 py-4 rounded-2xl"
+                                    disabled={saving}
+                                    className={`premium-btn premium-btn-primary px-12 py-4 rounded-2xl ${saving ? 'opacity-50 cursor-not-allowed' : ''}`}
                                 >
-                                    <Check size={20} />
-                                    <span>{editingUser ? '정보 수정 완료' : '사용자 등록 완료'}</span>
+                                    {saving ? (
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                            <span>저장 중...</span>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <Check size={20} />
+                                            <span>{editingUser ? '정보 수정 완료' : '사용자 등록 완료'}</span>
+                                        </>
+                                    )}
                                 </button>
                             </div>
                         </form>
@@ -289,8 +390,16 @@ export default function UserManagement() {
                                             {u.name.substring(0, 1)}
                                         </div>
                                         <div>
-                                            <div className="font-extrabold text-white text-md tracking-tight">{u.name}</div>
-                                            <div className="text-[10px] text-gray-500 font-bold uppercase mt-1 tracking-widest leading-none">ID: {u.id.toString().padStart(4, '0')}</div>
+                                            <div className="font-extrabold text-white text-md tracking-tight leading-tight">{u.name || 'Unknown'}</div>
+                                            <div className="text-gray-400 text-[11px] font-medium flex items-center gap-1.5 mt-0.5 opacity-80">
+                                                <Mail size={10} className="text-blue-500/50" />
+                                                {u.email}
+                                            </div>
+                                            <div className="text-[10px] text-gray-500 font-bold uppercase mt-1 tracking-widest leading-none flex items-center gap-2">
+                                                <span>ID: {u.id.toString().padStart(4, '0')}</span>
+                                                <span className="w-1 h-1 bg-gray-700 rounded-full"></span>
+                                                <span className="text-blue-500/60 lowercase">{u.role}</span>
+                                            </div>
                                         </div>
                                     </div>
                                 </td>
@@ -301,17 +410,22 @@ export default function UserManagement() {
                                     </div>
                                 </td>
                                 <td>
-                                    <span className={`premium-badge ${u.role === 'Admin' ? 'premium-badge-admin' : 'premium-badge-leader'}`}>
-                                        {u.role === 'Admin' ? (
-                                            <><Shield size={12} className="mr-1.5" /> 관리자</>
-                                        ) : (
-                                            <><Users size={12} className="mr-1.5" /> 그룹장</>
-                                        )}
+                                    <span className={`premium-badge ${
+                                        u.role === ROLES.ADMIN ? 'premium-badge-admin' : 
+                                        u.role === ROLES.GROUP_LEADER ? 'premium-badge-leader' :
+                                        u.role === ROLES.TEAM_LEADER ? 'premium-badge-leader' :
+                                        u.role === ROLES.PD ? 'premium-badge-pd' : 'premium-badge-gm'
+                                    }`}>
+                                        {u.role === ROLES.ADMIN && <><Shield size={12} className="mr-1.5" /> 관리자</>}
+                                        {u.role === ROLES.GROUP_LEADER && <><Users size={12} className="mr-1.5" /> 그룹장</>}
+                                        {u.role === ROLES.TEAM_LEADER && <><Users size={12} className="mr-1.5" /> 팀장</>}
+                                        {u.role === ROLES.PD && <><Briefcase size={12} className="mr-1.5" /> PD</>}
+                                        {u.role === ROLES.GM && <><TrendingUp size={12} className="mr-1.5" /> GM</>}
                                     </span>
                                 </td>
                                 <td>
                                     <div className="flex items-center gap-3 text-gray-400 font-semibold">
-                                        {u.role === 'GroupLeader' ? (
+                                        {u.role !== ROLES.ADMIN ? (
                                             <div className="px-3 py-1.5 bg-white/5 rounded-xl border border-white/5 flex items-center gap-2 text-xs">
                                                 <Users size={12} className="text-blue-500/70" />
                                                 <span>{u.group_name || '미배정'}</span>

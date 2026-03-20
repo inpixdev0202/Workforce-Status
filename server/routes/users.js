@@ -13,11 +13,14 @@ router.use(requireAdmin);
 router.get('/', (req, res) => {
     try {
         const users = query(`
-            SELECT u.id, u.name, u.email, u.role, u.group_id, u.created_at, g.name as group_name 
+            SELECT u.id, u.name, u.email, u.role, u.group_id, u.permissions, u.created_at, g.name as group_name 
             FROM users u
             LEFT JOIN groups g ON u.group_id = g.id
             ORDER BY u.role, u.name
-        `);
+        `).map(u => ({
+            ...u,
+            permissions: u.permissions ? JSON.parse(u.permissions) : {}
+        }));
         res.json(users);
     } catch (error) {
         console.error('Error fetching users:', error);
@@ -28,7 +31,7 @@ router.get('/', (req, res) => {
 // POST /api/users - Create a new user
 router.post('/', async (req, res) => {
     try {
-        const { name, email, password, role, group_id } = req.body;
+        const { name, email, password, role, group_id, permissions } = req.body;
 
         if (!name || !email || !password || !role) {
             return res.status(400).json({ error: '필수 항목을 모두 입력해주세요.' });
@@ -44,8 +47,8 @@ router.post('/', async (req, res) => {
         const hash = await bcrypt.hash(password, salt);
 
         const result = run(
-            'INSERT INTO users (name, email, password_hash, role, group_id) VALUES (?, ?, ?, ?, ?)',
-            [name, email, hash, role, group_id || null]
+            'INSERT INTO users (name, email, password_hash, role, group_id, permissions) VALUES (?, ?, ?, ?, ?, ?)',
+            [name, email, hash, role, group_id || null, permissions ? JSON.stringify(permissions) : null]
         );
 
         res.status(201).json({ id: result.lastInsertRowid, message: '사용자가 성공적으로 생성되었습니다.' });
@@ -59,7 +62,7 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        const { name, email, password, role, group_id } = req.body;
+        const { name, email, password, role, group_id, permissions } = req.body;
 
         const user = get('SELECT * FROM users WHERE id = ?', [id]);
         if (!user) {
@@ -81,8 +84,8 @@ router.put('/:id', async (req, res) => {
         }
 
         run(
-            'UPDATE users SET name = ?, email = ?, password_hash = ?, role = ?, group_id = ? WHERE id = ?',
-            [name, email, hashToUpdate, role, group_id || null, id]
+            'UPDATE users SET name = ?, email = ?, password_hash = ?, role = ?, group_id = ?, permissions = ? WHERE id = ?',
+            [name, email, hashToUpdate, role, group_id || null, permissions ? JSON.stringify(permissions) : null, id]
         );
 
         res.json({ message: '사용자 정보가 업데이트되었습니다.' });

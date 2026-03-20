@@ -797,7 +797,7 @@ const ProjectItem = React.memo(({
                         Total MM
                     </td>
                     {weeks.map((week, idx) => {
-                        const total = project.members.reduce((sum, m) => sum + parseFloat(m.allocations[format(week, 'yyyy-MM-dd')] || 0), 0);
+                        const total = project.members.reduce((sum, m) => sum + parseFloat(m.allocations?.[format(week, 'yyyy-MM-dd')] || 0), 0);
                         return (
                             <td
                                 key={idx}
@@ -1266,7 +1266,7 @@ const ProjectStatus = () => {
         }
     }, [columnWidths]);
 
-    const loadData = async () => {
+    const loadData = useCallback(async () => {
         console.log('ProjectStatus: loadData called');
         try {
             setLoading(true);
@@ -1291,7 +1291,7 @@ const ProjectStatus = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
 
     useEffect(() => {
         // Restore to 156 weeks (3 years) for flawless UI
@@ -1361,12 +1361,12 @@ const ProjectStatus = () => {
     };
 
 
-    const autoFormatDate = (value) => {
+    const autoFormatDate = useCallback((value) => {
         const digits = value.replace(/\D/g, '').slice(0, 8);
         if (digits.length <= 4) return digits;
         if (digits.length <= 6) return `${digits.slice(0, 4)}-${digits.slice(4)}`;
         return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6)}`;
-    };
+    }, []);
 
 
 
@@ -2118,7 +2118,7 @@ const ProjectStatus = () => {
     };
 
     // Helper to highlight matched text
-    const highlightMatch = (text, term) => {
+    const highlightMatch = useCallback((text, term) => {
         if (!term.trim()) return text;
         const parts = text.split(new RegExp(`(${term})`, 'gi'));
         return (
@@ -2130,7 +2130,7 @@ const ProjectStatus = () => {
                 )}
             </span>
         );
-    };
+    }, []);
 
     // Calculate row index for focus management
     let globalRowIndex = 0;
@@ -2164,7 +2164,7 @@ const ProjectStatus = () => {
         }
     };
 
-    const isDateInRange = (date, startStr, endStr) => {
+    const isDateInRange = useCallback((date, startStr, endStr) => {
         if (!startStr || !endStr) return false;
         try {
             // Use simple string comparison for date ranges (YYY-MM-DD)
@@ -2176,10 +2176,10 @@ const ProjectStatus = () => {
         } catch {
             return false;
         }
-    };
+    }, []);
 
     // Check if a week contains today
-    const isCurrentWeek = (weekStart) => {
+    const isCurrentWeek = useCallback((weekStart) => {
         try {
             const today = format(new Date(), 'yyyy-MM-dd');
             const wStart = format(weekStart, 'yyyy-MM-dd');
@@ -2188,7 +2188,7 @@ const ProjectStatus = () => {
         } catch {
             return false;
         }
-    };
+    }, []);
 
 
 

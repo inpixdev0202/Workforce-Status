@@ -1,5 +1,21 @@
 import { useState, useEffect } from 'react';
 import { groupsAPI } from '../api';
+import {
+    Rocket, Zap, Target, Flame, Gem, Waves, Shield, Star,
+    Trophy, Crown, Globe, Mountain, Music, Microscope, Feather, Cpu,
+    Pencil, Trash2, Plus
+} from 'lucide-react';
+
+// 그룹마다 고유한 Lucide 아이콘을 배정
+const GROUP_ICONS = [
+    Rocket, Zap, Target, Flame, Gem, Waves, Shield, Star,
+    Trophy, Crown, Globe, Mountain, Music, Microscope, Feather, Cpu,
+];
+
+const getGroupIcon = (id) => {
+    const IconComponent = GROUP_ICONS[id % GROUP_ICONS.length];
+    return <IconComponent size={24} strokeWidth={1.75} />;
+};
 
 function GroupManager() {
     const [groups, setGroups] = useState([]);
@@ -92,14 +108,20 @@ function GroupManager() {
     }
 
     return (
-        <div className="container page">
+        <div className="animate-in fade-in duration-700">
             <div className="flex justify-between items-center mb-lg">
                 <div>
                     <h1>그룹 관리</h1>
                     <p className="text-muted">총 {groups.length}개 그룹</p>
                 </div>
-                <button onClick={handleAdd} className="btn btn-primary">
-                    ➕ 그룹 추가
+                <button 
+                    onClick={handleAdd} 
+                    className="premium-icon-btn"
+                    title="그룹 추가"
+                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(16, 185, 129, 0.15)'; e.currentTarget.style.color = '#10b981'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = ''; e.currentTarget.style.color = ''; }}
+                >
+                    <Plus size={20} />
                 </button>
             </div>
 
@@ -119,7 +141,7 @@ function GroupManager() {
                                     fontSize: '1.5rem'
                                 }}
                             >
-                                🏢
+                                {getGroupIcon(group.id)}
                             </div>
                             <div style={{ flex: 1 }}>
                                 <h3 style={{ margin: 0, fontSize: '1.25rem' }}>{group.name}</h3>
@@ -129,20 +151,20 @@ function GroupManager() {
                             </div>
                         </div>
 
-                        <div className="flex gap-sm mt-md">
+                        <div className="flex gap-1.5 mt-md" style={{ justifyContent: 'flex-end' }}>
                             <button
                                 onClick={() => handleEdit(group)}
-                                className="btn btn-sm btn-secondary"
-                                style={{ flex: 1 }}
+                                className="premium-icon-btn"
+                                title="수정"
                             >
-                                수정
+                                <Pencil size={16} />
                             </button>
                             <button
                                 onClick={() => handleDelete(group.id)}
-                                className="btn btn-sm btn-danger"
-                                style={{ flex: 1 }}
+                                className="premium-icon-btn btn-delete"
+                                title="삭제"
                             >
-                                삭제
+                                <Trash2 size={16} />
                             </button>
                         </div>
                     </div>

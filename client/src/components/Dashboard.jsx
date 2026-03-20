@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { dashboardAPI } from '../api';
+import { dashboardAPI, integrationsAPI } from '../api';
 import {
     PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
     ComposedChart, Line, LineChart, Area, Sector, Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
@@ -139,6 +139,7 @@ function Dashboard() {
     const [error, setError] = useState(null);
     const [activeIndexGroup, setActiveIndexGroup] = useState(0);
     const [activeIndexEmp, setActiveIndexEmp] = useState(0);
+    const [integrations, setIntegrations] = useState([]);
     const [hiddenSeries, setHiddenSeries] = useState([]);
     const [showGroupTable, setShowGroupTable] = useState(false);
     const [benchSort, setBenchSort] = useState({ key: 'group_name', direction: 'asc' });
@@ -194,7 +195,17 @@ function Dashboard() {
 
     useEffect(() => {
         loadStats();
+        loadIntegrations();
     }, []);
+
+    const loadIntegrations = async () => {
+        try {
+            const response = await integrationsAPI.getAll();
+            setIntegrations(response.data);
+        } catch (err) {
+            console.error('Failed to load integrations:', err);
+        }
+    };
 
     const loadStats = async () => {
         try {
@@ -777,7 +788,7 @@ function Dashboard() {
                                     <tr>
                                         <th className="text-center text-muted text-[11px] font-bold uppercase tracking-widest pb-2" style={{ width: '16%' }}>이름</th>
                                         <th className="text-center text-muted text-[11px] font-bold uppercase tracking-widest pb-2" style={{ width: '10%' }}>소속</th>
-                                        <th className="text-center text-muted text-[11px] font-bold uppercase tracking-widest pb-2" style={{ width: '10%' }}>고용형태</th>
+                                        <th className="text-center text-muted text-[11px] font-bold uppercase tracking-widest pb-2" style={{ width: '10%' }}>고용</th>
                                         <th className="text-center text-muted text-[11px] font-bold uppercase tracking-widest pb-2" style={{ width: '44%' }}>프로젝트</th>
                                         <th className="text-center text-muted text-[11px] font-bold uppercase tracking-widest pb-2" style={{ width: '20%' }}>종료일</th>
                                     </tr>
@@ -792,7 +803,7 @@ function Dashboard() {
                                         return (
                                             <tr key={index} className="hover:bg-white/5 transition-colors duration-200">
                                                 <td className="py-1 px-2 pl-4 rounded-l-lg text-center">
-                                                    <div className="font-weight-600 text-white text-sm">
+                                                    <div className="font-weight-600 text-white text-sm whitespace-nowrap">
                                                         {item.employee_name} <span className="text-xs text-muted font-normal ml-1">{item.position}</span>
                                                     </div>
                                                 </td>
@@ -801,7 +812,7 @@ function Dashboard() {
                                                         {item.group_name}
                                                     </span>
                                                 </td>
-                                                <td className="py-1 px-2 text-sm text-center">
+                                                <td className="py-1 px-2 text-sm text-center whitespace-nowrap">
                                                     <span style={{
                                                         color: item.employment_type === '정규직' ? '#60A5FA' : (item.employment_type === '계약직' ? '#FBBF24' : '#94A3B8'),
                                                         fontWeight: (item.employment_type === '정규직' || item.employment_type === '계약직') ? '600' : 'normal'
@@ -817,7 +828,7 @@ function Dashboard() {
                                                 <td className="py-1 px-2 pr-4 rounded-r-lg text-center whitespace-nowrap">
 
                                                     <div className="flex items-center justify-center" style={{ gap: '12px' }}>
-                                                        <div className="text-xs text-white font-bold">{item.input_end_date}</div>
+                                                        <div className="text-xs text-info font-bold">{item.input_end_date}</div>
                                                         <span className={`badge ${diffDays <= 7 ? 'badge-danger' : 'badge-warning'}`} style={{ fontSize: '10px', padding: '2px 6px' }}>
                                                             {diffDays <= 0 ? 'D-Day' : `D-${diffDays}`}
                                                         </span>
@@ -871,7 +882,7 @@ function Dashboard() {
                                             onClick={() => handleBenchSort('employment_type')}
                                             style={{ width: '18%' }}
                                         >
-                                            고용형태 {benchSort.key === 'employment_type' && (benchSort.direction === 'asc' ? '↑' : '↓')}
+                                            고용 {benchSort.key === 'employment_type' && (benchSort.direction === 'asc' ? '↑' : '↓')}
                                         </th>
                                         <th
                                             className="text-center text-muted text-[11px] font-bold uppercase tracking-widest pb-2 cursor-pointer hover:text-white transition-colors"
@@ -900,7 +911,7 @@ function Dashboard() {
                                             <td className="py-1 px-2 text-center">
                                                 <span className="badge" style={{ backgroundColor: `${item.group_color}15`, color: item.group_color, fontSize: '11px', padding: '4px 8px' }}>{item.group_name}</span>
                                             </td>
-                                            <td className="py-1 px-2 text-sm text-center">
+                                            <td className="py-1 px-2 text-sm text-center whitespace-nowrap">
                                                 <span style={{
                                                     color: item.employment_type === '정규직' ? '#60A5FA' : (item.employment_type === '계약직' ? '#FBBF24' : '#94A3B8'),
                                                     fontWeight: (item.employment_type === '정규직' || item.employment_type === '계약직') ? '600' : 'normal'
@@ -936,8 +947,24 @@ function Dashboard() {
                 </div>
             </div>
 
-
-
+            {/* Floating Glass Dock for Integrations */}
+            {integrations.length > 0 && (
+                <div className="floating-dock-container">
+                    <div className="dock-label">Systems</div>
+                    {integrations.map((item) => (
+                        <a 
+                            key={item.id} 
+                            href={item.url} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className="dock-item"
+                        >
+                            <span className="tooltip">{item.name}</span>
+                            {item.icon_emoji || '🔗'}
+                        </a>
+                    ))}
+                </div>
+            )}
         </div>
     );
 }

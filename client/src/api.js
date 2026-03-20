@@ -78,6 +78,14 @@ export const projectsAPI = {
     reorderMembers: (assignmentIds) => api.put('/projects/assignments/reorder', { assignmentIds }),
 };
 
+// Integrations API
+export const integrationsAPI = {
+    getAll: () => api.get('/integrations'),
+    create: (data) => api.post('/integrations', data),
+    update: (id, data) => api.put(`/integrations/${id}`, data),
+    delete: (id) => api.delete(`/integrations/${id}`),
+};
+
 // Dashboard API
 export const dashboardAPI = {
     getStats: () => api.get('/dashboard/stats'),

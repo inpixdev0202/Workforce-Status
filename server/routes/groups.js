@@ -1,7 +1,11 @@
 import express from 'express';
 import { query, run, get, saveDatabase } from '../db.js';
+import { requireRoles } from '../middleware/auth.js';
 
 const router = express.Router();
+
+// Groups can be viewed/managed by Admin, GroupLeader, PD, TeamLeader, and GM
+router.use(requireRoles(['Admin', 'GroupLeader', 'PD', 'TeamLeader', 'GM']));
 
 // Get all groups
 router.get('/', (req, res) => {

@@ -1,7 +1,11 @@
 import express from 'express';
 import { query, run, get } from '../db.js';
+import { requireRoles } from '../middleware/auth.js';
 
 const router = express.Router();
+
+// Employees can be viewed/managed by Admin, GroupLeader, PD, TeamLeader, and GM
+router.use(requireRoles(['Admin', 'GroupLeader', 'PD', 'TeamLeader', 'GM']));
 
 // Get all employees with filters
 router.get('/', (req, res) => {

@@ -3,6 +3,16 @@ import { query, run, get } from '../db.js';
 
 const router = express.Router();
 
+// Get all projects (simple list)
+router.get('/', (req, res) => {
+    try {
+        const projects = query('SELECT * FROM projects ORDER BY name ASC');
+        res.json(projects);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // Get all projects with assignments and allocations (Matrix Data)
 router.get('/matrix', (req, res) => {
     try {

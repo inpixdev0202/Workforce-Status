@@ -137,7 +137,7 @@ function EmployeeForm({ employee, groups, onSave, onCancel }) {
                 </div>
 
                 <div className="form-group">
-                    <label className="form-label">고용형태</label>
+                    <label className="form-label">고용</label>
                     <select
                         name="employment_type"
                         className="form-control"

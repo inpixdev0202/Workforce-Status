@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { UserCircle, Lock, Mail, AlertCircle, ArrowRight } from 'lucide-react';
+import { UserCircle, Lock, Mail, AlertCircle, ArrowRight, Eye, EyeOff } from 'lucide-react';
 
 export default function Login() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
 
     const { login } = useAuth();
     const navigate = useNavigate();
@@ -40,7 +41,7 @@ export default function Login() {
                         <UserCircle size={40} strokeWidth={2.5} />
                     </div>
                     <h1 className="login-title">Workforce Status</h1>
-                    <p className="login-subtitle">인력 현황 관리 시스템</p>
+                    <h2 className="login-subtitle">인력 현황 관리 시스템</h2>
                 </div>
 
                 {error && (
@@ -51,33 +52,41 @@ export default function Login() {
                 )}
 
                 <form onSubmit={handleSubmit}>
-                    <div className="login-field">
-                        <label className="login-label">이메일 주소</label>
-                        <div className="login-input-wrapper">
+                    <div className="premium-input-group">
+                        <label className="premium-input-label">이메일 주소</label>
+                        <div className="premium-input-wrapper has-icon-left">
                             <input
                                 type="email"
-                                className="login-input"
+                                className="premium-input"
                                 placeholder="name@company.com"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                                 required
                             />
-                            <Mail className="login-input-icon" size={18} />
+                            <Mail className="premium-input-icon" size={18} />
                         </div>
                     </div>
 
-                    <div className="login-field">
-                        <label className="login-label">비밀번호</label>
-                        <div className="login-input-wrapper">
+                    <div className="premium-input-group">
+                        <label className="premium-input-label">비밀번호</label>
+                        <div className="premium-input-wrapper has-icon-left has-icon-right">
+                            <Lock className="premium-input-icon" size={18} />
                             <input
-                                type="password"
-                                className="login-input"
+                                type={showPassword ? "text" : "password"}
+                                className="premium-input"
                                 placeholder="••••••••"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 required
                             />
-                            <Lock className="login-input-icon" size={18} />
+                            <button
+                                type="button"
+                                onClick={() => setShowPassword(!showPassword)}
+                                className="premium-input-action"
+                                title={showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
+                            >
+                                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                            </button>
                         </div>
                     </div>
 
@@ -96,9 +105,6 @@ export default function Login() {
                         )}
                     </button>
 
-                    <div className="login-footer">
-                        초기 관리자 계정: admin@admin.com / admin123
-                    </div>
                 </form>
             </div>
         </div>

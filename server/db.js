@@ -233,6 +233,13 @@ export async function initializeDatabase() {
     )
   `);
 
+  // Migration: Add permissions to users if missing
+  try {
+    db.exec('ALTER TABLE users ADD COLUMN permissions TEXT');
+  } catch (e) {
+    // Column likely exists
+  }
+
   // Default Admin User Check
   const userCountRow = db.prepare('SELECT COUNT(*) as count FROM users').get();
   const userCount = userCountRow?.count || 0;
@@ -249,6 +256,44 @@ export async function initializeDatabase() {
       console.log('✅ Default admin user created (admin@admin.com / admin123)');
     }).catch(err => console.error('Failed to seed admin', err));
   }
+
+  // Integrations table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS integrations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name VARCHAR(100) NOT NULL,
+      description TEXT,
+      url TEXT,
+      icon_emoji VARCHAR(10) DEFAULT '🔗',
+      display_order INTEGER,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  // Default Integrations check
+  const integrationCountRow = db.prepare('SELECT COUNT(*) as count FROM integrations').get();
+  const integrationCount = integrationCountRow?.count || 0;
+
+  if (integrationCount === 0) {
+    const defaultIntegrations = [
+      ['Career System', '전사 통합 인재 관리 및 경력 개발 시스템', 'https://career.inpix.com', '🎓', 1],
+      ['Technical Support', 'IT 지원 및 기술 문의 접수 채널', 'https://support.inpix.com', '🛡️', 2],
+      ['Internal Docs', '프로젝트 가이드 및 전사 표준 문서함', 'https://docs.inpix.com', '📚', 3]
+    ];
+
+    const insertIntegration = db.prepare('INSERT INTO integrations (name, description, url, icon_emoji, display_order) VALUES (?, ?, ?, ?, ?)');
+    for (const item of defaultIntegrations) {
+      insertIntegration.run(item);
+    }
+  }
+
+  // Project Reports table for shared weekly reporting
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS project_reports (
+      week_date DATE PRIMARY KEY,
+      data_json TEXT NOT NULL,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
 
   console.log('✅ Database initialized successfully');
 }
