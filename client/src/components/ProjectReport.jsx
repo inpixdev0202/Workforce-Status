@@ -778,10 +778,16 @@ const mergeReportData = (current, previous) => {
 
         if (existingIdx !== -1) {
             const currRow = merged[existingIdx];
+            
+            // ALWAYS sync rowHeight if project matches, to ensure layout consistency
+            if (prevRow.rowHeight) {
+                merged[existingIdx] = { ...merged[existingIdx], rowHeight: prevRow.rowHeight };
+            }
+
             const hasCurrentDetails = (currRow.progress && currRow.progress !== '-') || (currRow.plan && currRow.plan !== '-');
             
             if (!hasCurrentDetails) {
-                // Carry over rowHeight too
+                // If current row is empty, carry over content too
                 merged[existingIdx] = { ...prevRow, id: currRow.id };
             }
         } else {
@@ -831,10 +837,12 @@ const ProjectReport = () => {
                     currentRows.every(row => !row.projectName || row.projectName.toLowerCase().includes('shared project') || row.projectName.toLowerCase().includes('test project'));
 
                 if (currentRows && currentRows.length > 0 && !isPlaceholderOnly) {
+                    // IF current week has data, STILL check immediate previous week for missing projects
                     const prevDateStr = offsetDate(selectedDate, -7);
                     const resPrevImm = await projectReportsAPI.getByDate(prevDateStr);
                     const prevLoaded = resPrevImm.data;
                     const prevRows = Array.isArray(prevLoaded) ? prevLoaded : (prevLoaded?.rows || []);
+                    const prevLayout = (!Array.isArray(prevLoaded) && prevLoaded?.columnWidths) ? prevLoaded : null;
 
                     if (prevRows.length > 0) {
                         const merged = mergeReportData(currentRows, prevRows);
@@ -848,10 +856,15 @@ const ProjectReport = () => {
                         setReportData(currentRows);
                     }
                     
-                    // Also sync layout if present
+                    // Also sync layout
                     if (currentLayout) {
+                        // Use current week's layout if it exists
                         if (currentLayout.columnWidths) setColumnWidths(currentLayout.columnWidths);
                         if (currentLayout.rowHeights) setRowHeights(currentLayout.rowHeights);
+                    } else if (prevLayout) {
+                        // INHERIT layout from previous week if current week has NO layout metadata
+                        if (prevLayout.columnWidths) setColumnWidths(prevLayout.columnWidths);
+                        if (prevLayout.rowHeights) setRowHeights(prevLayout.rowHeights);
                     }
                 } else {
                     let foundRows = [];
