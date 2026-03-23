@@ -977,13 +977,24 @@ const ProjectReport = () => {
         
         try {
             const resPrev = await projectReportsAPI.getByDate(prevDateStr);
-            const prevData = resPrev.data;
+            const prevDataRaw = resPrev.data;
+            
+            // Handle both Legacy Array and New Object formats
+            const prevRows = Array.isArray(prevDataRaw) ? prevDataRaw : (prevDataRaw?.rows || []);
+            const prevColWidths = (!Array.isArray(prevDataRaw) && prevDataRaw?.columnWidths) ? prevDataRaw.columnWidths : null;
+
             const legacyData = localStorage.getItem('project_report_data_v1');
 
-            if (prevData && prevData.length > 0) {
-                const merged = mergeReportData(reportData, prevData);
+            if (prevRows.length > 0) {
+                const merged = mergeReportData(reportData, prevRows);
                 setReportData(merged);
-                alert('지난주 데이터를 스마트 병합했습니다. 프로젝트 정보는 업데이트되고, 이번 주에 새로 추가한 프로젝트는 그대로 유지됩니다.');
+                
+                // Also migrate column widths if available
+                if (prevColWidths) {
+                    setColumnWidths(prevColWidths);
+                }
+                
+                alert('지난주 데이터를 스마트 병합했습니다. 프로젝트 정보와 셀 크기가 업데이트되고, 이번 주에 새로 추가한 내용은 유지됩니다.');
             } else if (legacyData) {
                 if (confirm('서버에 지난주 데이터가 없습니다. 개인 PC에 저장된 기존 통합 데이터를 서버로 가져오시겠습니까?')) {
                     try {
