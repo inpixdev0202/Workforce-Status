@@ -805,9 +805,15 @@ const ProjectReport = () => {
                 // Fetch current report
                 const resCurrent = await projectReportsAPI.getByDate(selectedDate);
                 
-                if (resCurrent.data && resCurrent.data.length > 0) {
+                // Heuristic: If current report has data but it looks like boilerplate/placeholders
+                // we merge it with previous week automatically.
+                const isPlaceholderOnly = resCurrent.data && resCurrent.data.length > 0 && 
+                    resCurrent.data.every(row => !row.projectName || row.projectName.toLowerCase().includes('shared project') || row.projectName.toLowerCase().includes('test project'));
+
+                if (resCurrent.data && resCurrent.data.length > 0 && !isPlaceholderOnly) {
                     setReportData(resCurrent.data);
                 } else {
+                    // IF current week is empty OR only has placeholders, search for ANY previous data to migrate
                     let foundData = [];
                     for (let i = 1; i <= 8; i++) {
                         const checkDateStr = offsetDate(selectedDate, -7 * i);
@@ -819,9 +825,10 @@ const ProjectReport = () => {
                     }
 
                     if (foundData.length > 0) {
-                        setReportData(mergeReportData([], foundData));
+                        // Merge found data with any existing placeholder rows
+                        setReportData(mergeReportData(resCurrent.data || [], foundData));
                     } else {
-                        setReportData([]);
+                        setReportData(resCurrent.data || []);
                     }
                 }
                 
