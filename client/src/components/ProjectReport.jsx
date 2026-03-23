@@ -1158,24 +1158,6 @@ const ProjectReport = () => {
 
     const resizingRef = useRef({ isResizing: false, type: null, id: null, startPos: 0, startSize: 0 });
 
-    const handleColumnMouseDown = useCallback((e, column) => {
-        e.stopPropagation();
-        const startWidth = Number(columnWidths[column]) || Number(columns.find(c => c.key === column)?.width) || 120;
-        resizingRef.current = { isResizing: true, type: 'col', id: column, startPos: e.clientX, startSize: startWidth };
-        document.body.style.cursor = 'col-resize';
-        document.addEventListener('mousemove', handleMouseMove);
-        document.addEventListener('mouseup', handleMouseUp);
-    }, [columnWidths, columns, handleMouseMove, handleMouseUp]);
-
-    const handleRowMouseDown = useCallback((e, rowId) => {
-        e.stopPropagation();
-        const startHeight = rowId === 'header' ? (rowHeights.header || 36) : (reportData.find(item => item.id === rowId)?.rowHeight || 80);
-        resizingRef.current = { isResizing: true, type: 'row', id: rowId, startPos: e.clientY, startSize: startHeight };
-        document.body.style.cursor = 'row-resize';
-        document.addEventListener('mousemove', handleMouseMove);
-        document.addEventListener('mouseup', handleMouseUp);
-    }, [rowHeights, reportData, handleMouseMove, handleMouseUp]);
-
     const handleMouseMove = useCallback((e) => {
         if (!resizingRef.current.isResizing) return;
         if (resizingRef.current.type === 'col') {
@@ -1194,7 +1176,7 @@ const ProjectReport = () => {
                 ));
             }
         }
-    }, []);
+    }, [handleSave]); // Added handleSave to ensure it can be triggered optionally
 
     const handleMouseUp = useCallback(() => {
         resizingRef.current.isResizing = false;
@@ -1202,6 +1184,24 @@ const ProjectReport = () => {
         document.removeEventListener('mousemove', handleMouseMove);
         document.removeEventListener('mouseup', handleMouseUp);
     }, [handleMouseMove]);
+
+    const handleColumnMouseDown = useCallback((e, column) => {
+        e.stopPropagation();
+        const startWidth = Number(columnWidths[column]) || Number(columns.find(c => c.key === column)?.width) || 120;
+        resizingRef.current = { isResizing: true, type: 'col', id: column, startPos: e.clientX, startSize: startWidth };
+        document.body.style.cursor = 'col-resize';
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+    }, [columnWidths, columns, handleMouseMove, handleMouseUp]);
+
+    const handleRowMouseDown = useCallback((e, rowId) => {
+        e.stopPropagation();
+        const startHeight = rowId === 'header' ? (rowHeights.header || 36) : (reportData.find(item => item.id === rowId)?.rowHeight || 80);
+        resizingRef.current = { isResizing: true, type: 'row', id: rowId, startPos: e.clientY, startSize: startHeight };
+        document.body.style.cursor = 'row-resize';
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+    }, [rowHeights, reportData, handleMouseMove, handleMouseUp]);
 
     const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
     const handleResetLayout = () => {
