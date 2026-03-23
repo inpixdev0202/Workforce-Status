@@ -730,15 +730,60 @@ const ColumnSettingsModal = ({ isOpen, onClose, columns, onUpdateColumns }) => {
     );
 };
 
-const getReportingFriday = (date = new Date()) => {
-    const d = new Date(date);
+const getReportingFriday = (dateInput = new Date()) => {
+    let d;
+    if (typeof dateInput === 'string') {
+        const [y, m, d_] = dateInput.split('-').map(Number);
+        d = new Date(y, m - 1, d_);
+    } else {
+        d = new Date(dateInput);
+    }
     const day = d.getDay(); // 0(Sun) - 6(Sat)
     const diff = (day <= 5) ? (5 - day) : (-1); // If after Fri, go to next Fri (or stay if Fri)
-    // Actually, usually you report for the *upcoming* or *current* Friday.
-    // Let's make it simple: the most recent Friday if today is Sat/Sun/Mon, or the upcoming Friday.
-    // Professional standard: The Friday of the current week.
     const friday = new Date(d.setDate(d.getDate() + diff));
-    return friday.toISOString().split('T')[0];
+    const yr = friday.getFullYear();
+    const mo = String(friday.getMonth() + 1).padStart(2, '0');
+    const da = String(friday.getDate()).padStart(2, '0');
+    return `${yr}-${mo}-${da}`;
+};
+
+const offsetDate = (dateStr, days) => {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const date = new Date(y, m - 1, d);
+    date.setDate(date.getDate() + days);
+    const yr = date.getFullYear();
+    const mo = String(date.getMonth() + 1).padStart(2, '0');
+    const da = String(date.getDate()).padStart(2, '0');
+    return `${yr}-${mo}-${da}`;
+};
+
+const mergeReportData = (current, previous) => {
+    if (!previous || previous.length === 0) return current;
+    if (!current || current.length === 0) return previous.map(p => ({ ...p, id: Date.now() + Math.random() + Math.random() }));
+
+    const merged = [...current];
+    previous.forEach(prevRow => {
+        if (!prevRow.projectName || prevRow.projectName.trim() === '') return;
+        
+        const existingIdx = merged.findIndex(curr => 
+            curr.projectName && curr.projectName.trim() === prevRow.projectName.trim()
+        );
+
+        if (existingIdx !== -1) {
+            // If project already exists, we update the details from previous week 
+            // EXCEPT if current progress/plan is already filled (user might have started typing)
+            const currRow = merged[existingIdx];
+            const hasCurrentDetails = (currRow.progress && currRow.progress !== '-') || (currRow.plan && currRow.plan !== '-');
+            
+            if (!hasCurrentDetails) {
+                merged[existingIdx] = { ...prevRow, id: currRow.id };
+            }
+        } else {
+            // Project doesn't exist, add it
+            merged.push({ ...prevRow, id: Date.now() + Math.random() + Math.random() });
+        }
+    });
+    return merged;
 };
 
 const ProjectReport = () => {
@@ -763,19 +808,18 @@ const ProjectReport = () => {
                 if (resCurrent.data && resCurrent.data.length > 0) {
                     setReportData(resCurrent.data);
                 } else {
-                    // IF current week is empty, automatically try to pull FROM the previous week
-                    const d = new Date(selectedDate);
-                    d.setDate(d.getDate() - 7);
-                    const prevDate = getReportingFriday(d);
-                    const resPrev = await projectReportsAPI.getByDate(prevDate);
-                    
-                    if (resPrev.data && resPrev.data.length > 0) {
-                        // Clone data but assign new IDs for local state
-                        const migratedData = resPrev.data.map(row => ({ 
-                            ...row, 
-                            id: Date.now() + Math.random() 
-                        }));
-                        setReportData(migratedData);
+                    let foundData = [];
+                    for (let i = 1; i <= 8; i++) {
+                        const checkDateStr = offsetDate(selectedDate, -7 * i);
+                        const resPrev = await projectReportsAPI.getByDate(checkDateStr);
+                        if (resPrev.data && resPrev.data.length > 0) {
+                            foundData = resPrev.data;
+                            break;
+                        }
+                    }
+
+                    if (foundData.length > 0) {
+                        setReportData(mergeReportData([], foundData));
                     } else {
                         setReportData([]);
                     }
@@ -835,36 +879,36 @@ const ProjectReport = () => {
         return () => clearTimeout(timer);
     }, [reportData, selectedDate]);
 
-    const handleSave = async () => {
+    const handleSave = async (silent = false) => {
         try {
             await projectReportsAPI.save({
                 week_date: selectedDate,
                 data: reportData
             });
-            setShowSaveToast(true);
-            setTimeout(() => setShowSaveToast(false), 3000);
+            if (!silent) {
+                setShowSaveToast(true);
+                setTimeout(() => setShowSaveToast(false), 3000);
+            }
+            return true;
         } catch (error) {
             console.error('Failed to save report:', error);
-            alert('서버 오류로 저장에 실패했습니다.');
+            if (!silent) alert('서버 오류로 저장에 실패했습니다.');
+            return false;
         }
     };
 
-    const handlePrevWeek = () => {
-        const d = new Date(selectedDate);
-        d.setDate(d.getDate() - 7);
-        setSelectedDate(getReportingFriday(d));
+    const handlePrevWeek = async () => {
+        if (reportData.length > 0) await handleSave(true);
+        setSelectedDate(offsetDate(selectedDate, -7));
     };
 
-    const handleNextWeek = () => {
-        const d = new Date(selectedDate);
-        d.setDate(d.getDate() + 7);
-        setSelectedDate(getReportingFriday(d));
+    const handleNextWeek = async () => {
+        if (reportData.length > 0) await handleSave(true);
+        setSelectedDate(offsetDate(selectedDate, 7));
     };
 
     const handleClonePrevious = async () => {
-        const d = new Date(selectedDate);
-        d.setDate(d.getDate() - 7);
-        const prevDateStr = getReportingFriday(d);
+        const prevDateStr = offsetDate(selectedDate, -7);
         
         try {
             const resPrev = await projectReportsAPI.getByDate(prevDateStr);
@@ -872,8 +916,9 @@ const ProjectReport = () => {
             const legacyData = localStorage.getItem('project_report_data_v1');
 
             if (prevData && prevData.length > 0) {
-                setReportData(prevData.map(row => ({ ...row, id: Date.now() + Math.random() })));
-                alert('지난주 데이터를 서버에서 성공적으로 가져왔습니다. [저장]을 눌러 현재 주차에 반영하세요.');
+                const merged = mergeReportData(reportData, prevData);
+                setReportData(merged);
+                alert('지난주 데이터를 스마트 병합했습니다. 프로젝트 정보는 업데이트되고, 이번 주에 새로 추가한 프로젝트는 그대로 유지됩니다.');
             } else if (legacyData) {
                 if (confirm('서버에 지난주 데이터가 없습니다. 개인 PC에 저장된 기존 통합 데이터를 서버로 가져오시겠습니까?')) {
                     try {
