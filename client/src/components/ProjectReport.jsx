@@ -1115,13 +1115,17 @@ const ProjectReport = () => {
         return DEFAULT_COLUMN_WIDTHS;
     });
 
+    const getSafeWidth = useCallback((key) => {
+        const w = Number(columnWidths[key]);
+        if (!isNaN(w) && w > 0) return w;
+        const colDef = columns.find(c => c.key === key);
+        return Number(colDef?.width) || 120;
+    }, [columnWidths, columns]);
+
     const totalWidth = useMemo(() => {
-        const colTotal = columns.reduce((acc, col) => {
-            const w = Number(columnWidths[col.key]) || Number(col.width) || 120;
-            return acc + w;
-        }, 0);
+        const colTotal = columns.reduce((acc, col) => acc + getSafeWidth(col.key), 0);
         return 40 + colTotal; 
-    }, [columns, columnWidths]);
+    }, [columns, getSafeWidth]);
 
     const THEME_KEY = 'project_report_theme';
     const [theme, setTheme] = useState(() => localStorage.getItem(THEME_KEY) || 'dark');
@@ -1199,15 +1203,16 @@ const ProjectReport = () => {
         document.removeEventListener('mouseup', handleMouseUp);
     }, [handleMouseMove]);
 
+    const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
     const handleResetLayout = () => {
-        if (window.confirm('모든 셀 크기(너비, 높이)를 기본값으로 초기화하시겠습니까?')) {
-            localStorage.removeItem(COLUMN_WIDTHS_KEY);
-            localStorage.removeItem(ROW_HEIGHTS_KEY);
-            setColumnWidths(DEFAULT_COLUMN_WIDTHS);
-            setRowHeights({ header: 36 });
-            setReportData(prev => prev.map(row => ({ ...row, rowHeight: 80 })));
-            alert('레이아웃이 초기화되었습니다. [저장]을 누르면 모든 PM에게 서버 설정으로 반영됩니다.');
-        }
+        localStorage.removeItem(COLUMN_WIDTHS_KEY);
+        localStorage.removeItem(ROW_HEIGHTS_KEY);
+        setColumnWidths(DEFAULT_COLUMN_WIDTHS);
+        setRowHeights({ header: 36 });
+        setReportData(prevData => prevData.map(row => ({ ...row, rowHeight: 80 })));
+        setIsResetConfirmOpen(false);
+        // Save automatically to persist the reset
+        setTimeout(() => handleSave(true), 100);
     };
 
     const handleCellChange = useCallback((id, field, value) => {
@@ -1461,7 +1466,7 @@ const ProjectReport = () => {
                     <button onClick={handleSave} className="premium-icon-btn btn-save" title="저장 (Save)"><Save size={16} /></button>
                     <button onClick={addNewRow} className="premium-icon-btn btn-add" title="행 추가 (Add Row)"><Plus size={16} /></button>
                     <button onClick={() => setIsSettingsModalOpen(true)} className="premium-icon-btn btn-cols" title="열 설정 (Columns)"><Columns size={16} /></button>
-                    <button onClick={handleResetLayout} className="premium-icon-btn btn-reset" title="레이아웃 초기화 (Reset Layout)"><RotateCcw size={16} /></button>
+                    <button onClick={() => setIsResetConfirmOpen(true)} className="premium-icon-btn btn-reset" title="레이아웃 초기화 (Reset Layout)"><RotateCcw size={16} /></button>
                     
                     <div className="w-px h-5 bg-[var(--border)] mx-1"></div>
                     
@@ -1544,16 +1549,16 @@ const ProjectReport = () => {
                     <colgroup>
                         <col style={{ width: 40 }} />
                         {columns.map(col => (
-                            <col key={col.key} style={{ width: columnWidths[col.key] || col.width }} />
+                            <col key={col.key} style={{ width: getSafeWidth(col.key) }} />
                         ))}
                     </colgroup>
                     <thead className="z-40">
                         <tr className="bg-[var(--bg-tertiary)]">
                             <th className="w-10 h-7 border border-[var(--border)] bg-[var(--bg-tertiary)] flex items-center justify-center text-[9px] font-bold text-[var(--text-muted)] select-none">#</th>
                             {columnLetters.map((le, idx) => (
-                                <th key={idx} className="border border-[var(--border)] text-[9px] font-bold text-[var(--text-muted)] text-center h-7 relative p-0 select-none" style={{ width: columnWidths[columns[idx].key] }}>
+                                <th key={idx} className="border border-[var(--border)] text-[9px] font-bold text-[var(--text-muted)] text-center h-7 relative p-0 select-none" style={{ width: getSafeWidth(columns[idx]?.key) }}>
                                     {le}
-                                    <ColumnResizeHandle column={columns[idx].key} onMouseDown={handleColumnMouseDown} />
+                                    <ColumnResizeHandle column={columns[idx]?.key} onMouseDown={handleColumnMouseDown} />
                                 </th>
                             ))}
                         </tr>
@@ -1562,7 +1567,7 @@ const ProjectReport = () => {
                                 <RowResizeHandle rowId="header" onMouseDown={handleRowMouseDown} />
                             </th>
                             {columns.map((col, idx) => (
-                                <th key={idx} className={`border border-[var(--border)] p-0 text-[10px] font-bold uppercase tracking-tight text-[var(--text-primary)] text-center relative truncate select-none ${col.key === 'plan' ? 'bg-blue-500/5' : ''}`} style={{ width: columnWidths[col.key], height: rowHeights.header || 36 }}>
+                                <th key={idx} className={`border border-[var(--border)] p-0 text-[10px] font-bold uppercase tracking-tight text-[var(--text-primary)] text-center relative truncate select-none ${col.key === 'plan' ? 'bg-blue-500/5' : ''}`} style={{ width: getSafeWidth(col.key), height: rowHeights.header || 36 }}>
                                     {col.key === 'manage' ? (
                                         <span className="p-1.5 inline-block">{col.label}</span>
                                     ) : (
@@ -1620,6 +1625,28 @@ const ProjectReport = () => {
                 </table>
             </div>
             <ColumnSettingsModal isOpen={isSettingsModalOpen} onClose={() => setIsSettingsModalOpen(false)} columns={columns} onUpdateColumns={handleUpdateColumns} />
+
+            {/* Custom confirmation for layout reset to avoid blocking browser dialogs */}
+            {isResetConfirmOpen && createPortal(
+                <div className="fixed inset-0 z-[100001] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsResetConfirmOpen(false)} />
+                    <div className="relative bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl shadow-2xl p-6 max-w-sm w-full animate-in zoom-in-95 duration-200">
+                        <div className="flex items-center gap-3 mb-4 text-emerald-500">
+                            <RotateCcw size={24} />
+                            <h3 className="text-lg font-bold">레이아웃 초기화</h3>
+                        </div>
+                        <p className="text-sm text-[var(--text-muted)] mb-6 leading-relaxed">
+                            모든 셀의 너비와 높이를 기본값으로 되돌리시겠습니까?<br/>
+                            <span className="text-[10px] opacity-70 mt-1 block">* 확인 후 자동 저장되어 즉시 반영됩니다.</span>
+                        </p>
+                        <div className="flex gap-3 justify-end">
+                            <button onClick={() => setIsResetConfirmOpen(false)} className="px-4 py-2 rounded-lg text-sm font-bold hover:bg-[var(--bg-tertiary)] transition-colors">취소</button>
+                            <button onClick={handleResetLayout} className="px-5 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-bold shadow-lg shadow-emerald-500/20 transition-all">확인</button>
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
             
             <MasterProjectModal 
                 isOpen={isMasterModalOpen}
