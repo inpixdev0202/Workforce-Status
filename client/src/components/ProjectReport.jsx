@@ -759,10 +759,17 @@ const offsetDate = (dateStr, days) => {
 
 const mergeReportData = (current, previous) => {
     if (!previous || previous.length === 0) return current;
-    if (!current || current.length === 0) return previous.map(p => ({ ...p, id: Date.now() + Math.random() + Math.random() }));
+    
+    // Support new object format in merge source
+    const prevRows = Array.isArray(previous) ? previous : (previous.rows || []);
+    const prevColWidths = (!Array.isArray(previous) && previous.columnWidths) ? previous.columnWidths : null;
+
+    if (!current || current.length === 0) {
+        return prevRows.map(p => ({ ...p, id: Date.now() + Math.random() + Math.random() }));
+    }
 
     const merged = [...current];
-    previous.forEach(prevRow => {
+    prevRows.forEach(prevRow => {
         if (!prevRow.projectName || prevRow.projectName.trim() === '') return;
         
         const existingIdx = merged.findIndex(curr => 
@@ -770,19 +777,20 @@ const mergeReportData = (current, previous) => {
         );
 
         if (existingIdx !== -1) {
-            // If project already exists, we update the details from previous week 
-            // EXCEPT if current progress/plan is already filled (user might have started typing)
             const currRow = merged[existingIdx];
             const hasCurrentDetails = (currRow.progress && currRow.progress !== '-') || (currRow.plan && currRow.plan !== '-');
             
             if (!hasCurrentDetails) {
+                // Carry over rowHeight too
                 merged[existingIdx] = { ...prevRow, id: currRow.id };
             }
         } else {
-            // Project doesn't exist, add it
             merged.push({ ...prevRow, id: Date.now() + Math.random() + Math.random() });
         }
     });
+
+    // If source had columnWidths, we could optionally return them too, 
+    // but the calling function usually handles state sync.
     return merged;
 };
 
@@ -802,46 +810,79 @@ const ProjectReport = () => {
         const fetchData = async () => {
             setIsLoading(true);
             try {
-                // Fetch current report
                 const resCurrent = await projectReportsAPI.getByDate(selectedDate);
+                const loaded = resCurrent.data;
                 
-                // Heuristic: If current report has data but it looks like boilerplate/placeholders
-                // we merge it with previous week automatically.
-                const isPlaceholderOnly = resCurrent.data && resCurrent.data.length > 0 && 
-                    resCurrent.data.every(row => !row.projectName || row.projectName.toLowerCase().includes('shared project') || row.projectName.toLowerCase().includes('test project'));
+                let currentRows = [];
+                let currentLayout = null;
+                
+                // Handle both Legacy Array format and New Object format
+                if (Array.isArray(loaded)) {
+                    currentRows = loaded;
+                } else if (loaded && loaded.rows) {
+                    currentRows = loaded.rows;
+                    currentLayout = { 
+                        columnWidths: loaded.columnWidths, 
+                        rowHeights: loaded.rowHeights 
+                    };
+                }
 
-                if (resCurrent.data && resCurrent.data.length > 0 && !isPlaceholderOnly) {
-                    // IF current week has data, STILL check immediate previous week for missing projects
+                const isPlaceholderOnly = currentRows && currentRows.length > 0 && 
+                    currentRows.every(row => !row.projectName || row.projectName.toLowerCase().includes('shared project') || row.projectName.toLowerCase().includes('test project'));
+
+                if (currentRows && currentRows.length > 0 && !isPlaceholderOnly) {
                     const prevDateStr = offsetDate(selectedDate, -7);
                     const resPrevImm = await projectReportsAPI.getByDate(prevDateStr);
-                    if (resPrevImm.data && resPrevImm.data.length > 0) {
-                        const merged = mergeReportData(resCurrent.data, resPrevImm.data);
-                        // Only update if merging actually added or changed something
-                        if (JSON.stringify(merged) !== JSON.stringify(resCurrent.data)) {
+                    const prevLoaded = resPrevImm.data;
+                    const prevRows = Array.isArray(prevLoaded) ? prevLoaded : (prevLoaded?.rows || []);
+
+                    if (prevRows.length > 0) {
+                        const merged = mergeReportData(currentRows, prevRows);
+                        if (JSON.stringify(merged) !== JSON.stringify(currentRows)) {
                             console.log('🔄 Aggressive Smart Merge: Added missing ongoing projects from previous week.');
                             setReportData(merged);
                         } else {
-                            setReportData(resCurrent.data);
+                            setReportData(currentRows);
                         }
                     } else {
-                        setReportData(resCurrent.data);
+                        setReportData(currentRows);
+                    }
+                    
+                    // Also sync layout if present
+                    if (currentLayout) {
+                        if (currentLayout.columnWidths) setColumnWidths(currentLayout.columnWidths);
+                        if (currentLayout.rowHeights) setRowHeights(currentLayout.rowHeights);
                     }
                 } else {
-                    // IF current week is empty OR only has placeholders, search for ANY previous data (up to 8 weeks)
-                    let foundData = [];
+                    let foundRows = [];
+                    let foundLayout = null;
+
                     for (let i = 1; i <= 8; i++) {
                         const checkDateStr = offsetDate(selectedDate, -7 * i);
                         const resPrev = await projectReportsAPI.getByDate(checkDateStr);
-                        if (resPrev.data && resPrev.data.length > 0) {
-                            foundData = resPrev.data;
+                        const prevLoaded = resPrev.data;
+                        const prevRows = Array.isArray(prevLoaded) ? prevLoaded : (prevLoaded?.rows || []);
+
+                        if (prevRows.length > 0) {
+                            foundRows = prevRows;
+                            if (!Array.isArray(prevLoaded)) {
+                                foundLayout = { 
+                                    columnWidths: prevLoaded.columnWidths, 
+                                    headerHeight: prevLoaded.rowHeights?.header 
+                                };
+                            }
                             break;
                         }
                     }
 
-                    if (foundData.length > 0) {
-                        setReportData(mergeReportData(resCurrent.data || [], foundData));
+                    if (foundRows.length > 0) {
+                        setReportData(mergeReportData(currentRows || [], foundRows));
+                        // Propagate column widths from the source week
+                        if (foundLayout && foundLayout.columnWidths) {
+                            setColumnWidths(foundLayout.columnWidths);
+                        }
                     } else {
-                        setReportData(resCurrent.data || []);
+                        setReportData(currentRows || []);
                     }
                 }
                 
@@ -903,7 +944,11 @@ const ProjectReport = () => {
         try {
             await projectReportsAPI.save({
                 week_date: selectedDate,
-                data: reportData
+                data: {
+                    rows: reportData,
+                    columnWidths: columnWidths,
+                    rowHeights: { header: rowHeights.header }
+                }
             });
             if (!silent) {
                 setShowSaveToast(true);
@@ -1041,8 +1086,7 @@ const ProjectReport = () => {
                 return parsed;
             } catch (e) { console.error(e); }
         }
-        const initialHeights = reportData.reduce((acc, item) => ({ ...acc, [item.id]: 80 }), {});
-        return { ...initialHeights, header: 36 };
+        return { header: 36 };
     });
 
     useEffect(() => {
@@ -1080,7 +1124,14 @@ const ProjectReport = () => {
         } else if (resizingRef.current.type === 'row') {
             const deltaY = e.clientY - resizingRef.current.startPos;
             const newHeight = Math.max(24, resizingRef.current.startSize + deltaY);
-            setRowHeights(prev => ({ ...prev, [resizingRef.current.id]: newHeight }));
+            if (resizingRef.current.id === 'header') {
+                setRowHeights(prev => ({ ...prev, header: newHeight }));
+            } else {
+                // Update specific row item in reportData
+                setReportData(prevData => prevData.map(item => 
+                    item.id === resizingRef.current.id ? { ...item, rowHeight: newHeight } : item
+                ));
+            }
         }
     }, []);
 
@@ -1123,7 +1174,7 @@ const ProjectReport = () => {
     }, []);
 
     const addNewRow = () => {
-        const newRow = { id: Date.now(), category: '진행중', projectName: '', pd: '', mainContractor: '-', estimatedAmount: '-', progress: '-', kickoff: '-', rfpInfo: '-', proposal: '-', pt: '-', status: '', plan: '', clientInfo: '-' };
+        const newRow = { id: Date.now(), category: '진행중', projectName: '', pd: '', mainContractor: '-', estimatedAmount: '-', progress: '-', kickoff: '-', rfpInfo: '-', proposal: '-', pt: '-', status: '', plan: '', clientInfo: '-', rowHeight: 80 };
         setReportData([newRow, ...reportData]);
     };
 
@@ -1454,7 +1505,24 @@ const ProjectReport = () => {
                     <tbody>
                         {filteredData.length > 0 ? (
                             filteredData.map((item, rowIndex) => (
-                                <ReportDataRow key={item.id} item={item} rowIndex={rowIndex} columns={columns} columnWidths={columnWidths} rowHeight={rowHeights[item.id] || 80} focusedCell={focusedCell} setFocusedCell={setFocusedCell} onCellChange={handleCellChange} onProjectSelect={handleProjectSelect} onOpenLibrary={handleOpenMasterLibrary} onDelete={deleteRow} onRowResize={handleRowMouseDown} theme={theme} lastWeekProjects={lastWeekProjects} masterProjects={masterProjects} />
+                                <ReportDataRow 
+                                    key={item.id} 
+                                    item={item} 
+                                    rowIndex={rowIndex} 
+                                    columns={columns} 
+                                    columnWidths={columnWidths} 
+                                    rowHeight={item.rowHeight || 80} 
+                                    focusedCell={focusedCell} 
+                                    setFocusedCell={setFocusedCell} 
+                                    onCellChange={handleCellChange} 
+                                    onProjectSelect={handleProjectSelect} 
+                                    onOpenLibrary={handleOpenMasterLibrary} 
+                                    onDelete={deleteRow} 
+                                    onRowResize={handleRowMouseDown} 
+                                    theme={theme} 
+                                    lastWeekProjects={lastWeekProjects} 
+                                    masterProjects={masterProjects} 
+                                />
                             ))
                         ) : (
                             <tr>
