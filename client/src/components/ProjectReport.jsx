@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { Table, TrendingUp, Search, Plus, Save, Trash2, CheckCircle2, ChevronsLeftRight, FileText, Download, Filter, Maximize2, Sun, Moon, Settings, X, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Calendar, ClipboardCopy, Lock, AlignLeft, Columns, ChevronRightSquare, LayoutList, BookOpen } from 'lucide-react';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
@@ -228,7 +229,7 @@ const MasterProjectModal = ({ isOpen, onClose, projects, onSelect, theme }) => {
 
     if (!isOpen) return null;
 
-    return (
+    return createPortal(
         <div 
             onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
             style={{
@@ -389,7 +390,8 @@ const MasterProjectModal = ({ isOpen, onClose, projects, onSelect, theme }) => {
                     )}
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 };
 
@@ -590,7 +592,7 @@ const ColumnSettingsModal = ({ isOpen, onClose, columns, onUpdateColumns }) => {
 
     if (!isOpen) return null;
 
-    return (
+    return createPortal(
         <div className="fixed inset-0 z-[100000] flex justify-end" style={{ pointerEvents: 'auto' }}>
             <div 
                 className="absolute inset-0 bg-black/60 backdrop-blur-[4px] animate-in fade-in duration-300"
@@ -723,7 +725,8 @@ const ColumnSettingsModal = ({ isOpen, onClose, columns, onUpdateColumns }) => {
                     </button>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 };
 
