@@ -811,6 +811,21 @@ const ProjectReport = () => {
     const ROW_HEIGHTS_KEY = 'project_report_row_heights_v1';
     const COLUMNS_CONFIG_KEY = 'project_report_columns_config_v1';
 
+    const DEFAULT_COLUMN_WIDTHS = {
+        projectName: 320,
+        pd: 120,
+        mainContractor: 120,
+        estimatedAmount: 120,
+        progress: 120,
+        kickoff: 100,
+        rfpInfo: 150,
+        proposal: 100,
+        pt: 100,
+        status: 120,
+        plan: 300,
+        clientInfo: 150
+    };
+
     // Fetch data from server
     useEffect(() => {
         const fetchData = async () => {
@@ -858,11 +873,19 @@ const ProjectReport = () => {
                     
                     // Also sync layout
                     if (currentLayout) {
-                        // Use current week's layout if it exists
-                        if (currentLayout.columnWidths) setColumnWidths(currentLayout.columnWidths);
+                        const isCurrentDefault = JSON.stringify(currentLayout.columnWidths) === JSON.stringify(DEFAULT_COLUMN_WIDTHS);
+                        
+                        if (!isCurrentDefault) {
+                            // If current week has a CUSTOM layout, use it
+                            if (currentLayout.columnWidths) setColumnWidths(currentLayout.columnWidths);
+                        } else if (prevLayout) {
+                            // If current is default, inherit from previous week's layout
+                            if (prevLayout.columnWidths) setColumnWidths(prevLayout.columnWidths);
+                        }
+                        
                         if (currentLayout.rowHeights) setRowHeights(currentLayout.rowHeights);
                     } else if (prevLayout) {
-                        // INHERIT layout from previous week if current week has NO layout metadata
+                        // Legacy data or no layout: inherit from previous
                         if (prevLayout.columnWidths) setColumnWidths(prevLayout.columnWidths);
                         if (prevLayout.rowHeights) setRowHeights(prevLayout.rowHeights);
                     }
@@ -1089,7 +1112,7 @@ const ProjectReport = () => {
         if (saved) {
             try { return JSON.parse(saved); } catch (e) { console.error(e); }
         }
-        return columns.reduce((acc, col) => ({ ...acc, [col.key]: col.width }), {});
+        return DEFAULT_COLUMN_WIDTHS;
     });
 
     const THEME_KEY = 'project_report_theme';
