@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Table, TrendingUp, Search, Plus, Save, Trash2, CheckCircle2, ChevronsLeftRight, FileText, Download, Filter, Maximize2, Sun, Moon, Settings, X, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Calendar, ClipboardCopy, Lock, AlignLeft, Columns, ChevronRightSquare, LayoutList, BookOpen } from 'lucide-react';
+import { Table, TrendingUp, Search, Plus, Save, Trash2, CheckCircle2, ChevronsLeftRight, FileText, Download, Filter, Maximize2, Sun, Moon, Settings, X, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Calendar, ClipboardCopy, Lock, AlignLeft, Columns, ChevronRightSquare, LayoutList, BookOpen, RotateCcw } from 'lucide-react';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import { projectsAPI, projectReportsAPI } from '../api';
@@ -1115,6 +1115,14 @@ const ProjectReport = () => {
         return DEFAULT_COLUMN_WIDTHS;
     });
 
+    const totalWidth = useMemo(() => {
+        const colTotal = columns.reduce((acc, col) => {
+            const w = Number(columnWidths[col.key]) || Number(col.width) || 120;
+            return acc + w;
+        }, 0);
+        return 40 + colTotal; 
+    }, [columns, columnWidths]);
+
     const THEME_KEY = 'project_report_theme';
     const [theme, setTheme] = useState(() => localStorage.getItem(THEME_KEY) || 'dark');
 
@@ -1148,19 +1156,21 @@ const ProjectReport = () => {
 
     const handleColumnMouseDown = useCallback((e, column) => {
         e.stopPropagation();
-        resizingRef.current = { isResizing: true, type: 'col', id: column, startPos: e.clientX, startSize: columnWidths[column] };
+        const startWidth = Number(columnWidths[column]) || Number(columns.find(c => c.key === column)?.width) || 120;
+        resizingRef.current = { isResizing: true, type: 'col', id: column, startPos: e.clientX, startSize: startWidth };
         document.body.style.cursor = 'col-resize';
         document.addEventListener('mousemove', handleMouseMove);
         document.addEventListener('mouseup', handleMouseUp);
-    }, [columnWidths]);
+    }, [columnWidths, columns, handleMouseMove, handleMouseUp]);
 
     const handleRowMouseDown = useCallback((e, rowId) => {
         e.stopPropagation();
-        resizingRef.current = { isResizing: true, type: 'row', id: rowId, startPos: e.clientY, startSize: rowHeights[rowId] || 80 };
+        const startHeight = rowId === 'header' ? (rowHeights.header || 36) : (reportData.find(item => item.id === rowId)?.rowHeight || 80);
+        resizingRef.current = { isResizing: true, type: 'row', id: rowId, startPos: e.clientY, startSize: startHeight };
         document.body.style.cursor = 'row-resize';
         document.addEventListener('mousemove', handleMouseMove);
         document.addEventListener('mouseup', handleMouseUp);
-    }, [rowHeights]);
+    }, [rowHeights, reportData, handleMouseMove, handleMouseUp]);
 
     const handleMouseMove = useCallback((e) => {
         if (!resizingRef.current.isResizing) return;
@@ -1188,6 +1198,17 @@ const ProjectReport = () => {
         document.removeEventListener('mousemove', handleMouseMove);
         document.removeEventListener('mouseup', handleMouseUp);
     }, [handleMouseMove]);
+
+    const handleResetLayout = () => {
+        if (window.confirm('모든 셀 크기(너비, 높이)를 기본값으로 초기화하시겠습니까?')) {
+            localStorage.removeItem(COLUMN_WIDTHS_KEY);
+            localStorage.removeItem(ROW_HEIGHTS_KEY);
+            setColumnWidths(DEFAULT_COLUMN_WIDTHS);
+            setRowHeights({ header: 36 });
+            setReportData(prev => prev.map(row => ({ ...row, rowHeight: 80 })));
+            alert('레이아웃이 초기화되었습니다. [저장]을 누르면 모든 PM에게 서버 설정으로 반영됩니다.');
+        }
+    };
 
     const handleCellChange = useCallback((id, field, value) => {
         setReportData(prev => prev.map(item => item.id === id ? { ...item, [field]: value } : item));
@@ -1416,6 +1437,7 @@ const ProjectReport = () => {
                     .btn-excel:hover { color: #16a34a !important; background: rgba(22, 163, 74, 0.15) !important; filter: drop-shadow(0 0 5px rgba(22, 163, 74, 0.5)); }
                     .btn-week:hover { color: #f472b6 !important; background: rgba(244, 114, 182, 0.15) !important; filter: drop-shadow(0 0 5px rgba(244, 114, 182, 0.5)); }
                     .btn-clone:hover { color: #60a5fa !important; background: rgba(96, 165, 250, 0.15) !important; filter: drop-shadow(0 0 5px rgba(96, 165, 250, 0.5)); }
+                    .btn-reset:hover { color: #f43f5e !important; background: rgba(244, 63, 94, 0.15) !important; filter: drop-shadow(0 0 5px rgba(244, 63, 94, 0.5)); }
                 `}
             </style>
             {showSaveToast && (
@@ -1439,6 +1461,7 @@ const ProjectReport = () => {
                     <button onClick={handleSave} className="premium-icon-btn btn-save" title="저장 (Save)"><Save size={16} /></button>
                     <button onClick={addNewRow} className="premium-icon-btn btn-add" title="행 추가 (Add Row)"><Plus size={16} /></button>
                     <button onClick={() => setIsSettingsModalOpen(true)} className="premium-icon-btn btn-cols" title="열 설정 (Columns)"><Columns size={16} /></button>
+                    <button onClick={handleResetLayout} className="premium-icon-btn btn-reset" title="레이아웃 초기화 (Reset Layout)"><RotateCcw size={16} /></button>
                     
                     <div className="w-px h-5 bg-[var(--border)] mx-1"></div>
                     
@@ -1517,7 +1540,13 @@ const ProjectReport = () => {
                 </div>
             </div>
             <div className="flex-1 overflow-auto bg-[var(--bg-primary)] report-spreadsheet-container">
-                <table className="table-fixed w-max">
+                <table className="table-fixed shadow-sm" style={{ width: totalWidth, minWidth: '100%' }}>
+                    <colgroup>
+                        <col style={{ width: 40 }} />
+                        {columns.map(col => (
+                            <col key={col.key} style={{ width: columnWidths[col.key] || col.width }} />
+                        ))}
+                    </colgroup>
                     <thead className="z-40">
                         <tr className="bg-[var(--bg-tertiary)]">
                             <th className="w-10 h-7 border border-[var(--border)] bg-[var(--bg-tertiary)] flex items-center justify-center text-[9px] font-bold text-[var(--text-muted)] select-none">#</th>
