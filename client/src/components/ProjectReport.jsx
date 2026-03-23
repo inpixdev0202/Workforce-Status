@@ -811,9 +811,23 @@ const ProjectReport = () => {
                     resCurrent.data.every(row => !row.projectName || row.projectName.toLowerCase().includes('shared project') || row.projectName.toLowerCase().includes('test project'));
 
                 if (resCurrent.data && resCurrent.data.length > 0 && !isPlaceholderOnly) {
-                    setReportData(resCurrent.data);
+                    // IF current week has data, STILL check immediate previous week for missing projects
+                    const prevDateStr = offsetDate(selectedDate, -7);
+                    const resPrevImm = await projectReportsAPI.getByDate(prevDateStr);
+                    if (resPrevImm.data && resPrevImm.data.length > 0) {
+                        const merged = mergeReportData(resCurrent.data, resPrevImm.data);
+                        // Only update if merging actually added or changed something
+                        if (JSON.stringify(merged) !== JSON.stringify(resCurrent.data)) {
+                            console.log('🔄 Aggressive Smart Merge: Added missing ongoing projects from previous week.');
+                            setReportData(merged);
+                        } else {
+                            setReportData(resCurrent.data);
+                        }
+                    } else {
+                        setReportData(resCurrent.data);
+                    }
                 } else {
-                    // IF current week is empty OR only has placeholders, search for ANY previous data to migrate
+                    // IF current week is empty OR only has placeholders, search for ANY previous data (up to 8 weeks)
                     let foundData = [];
                     for (let i = 1; i <= 8; i++) {
                         const checkDateStr = offsetDate(selectedDate, -7 * i);
@@ -825,7 +839,6 @@ const ProjectReport = () => {
                     }
 
                     if (foundData.length > 0) {
-                        // Merge found data with any existing placeholder rows
                         setReportData(mergeReportData(resCurrent.data || [], foundData));
                     } else {
                         setReportData(resCurrent.data || []);
