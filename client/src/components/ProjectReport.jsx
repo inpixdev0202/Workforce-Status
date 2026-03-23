@@ -759,15 +759,36 @@ const ProjectReport = () => {
             try {
                 // Fetch current report
                 const resCurrent = await projectReportsAPI.getByDate(selectedDate);
-                setReportData(resCurrent.data);
+                
+                if (resCurrent.data && resCurrent.data.length > 0) {
+                    setReportData(resCurrent.data);
+                } else {
+                    // IF current week is empty, automatically try to pull FROM the previous week
+                    const d = new Date(selectedDate);
+                    d.setDate(d.getDate() - 7);
+                    const prevDate = getReportingFriday(d);
+                    const resPrev = await projectReportsAPI.getByDate(prevDate);
+                    
+                    if (resPrev.data && resPrev.data.length > 0) {
+                        // Clone data but assign new IDs for local state
+                        const migratedData = resPrev.data.map(row => ({ 
+                            ...row, 
+                            id: Date.now() + Math.random() 
+                        }));
+                        setReportData(migratedData);
+                    } else {
+                        setReportData([]);
+                    }
+                }
+                
                 dataLoaded.current = true;
 
-                // Fetch last week report for autocomplete
+                // Sync last week projects for autocomplete suggestions
                 const d = new Date(selectedDate);
                 d.setDate(d.getDate() - 7);
                 const prevDate = getReportingFriday(d);
-                const resPrev = await projectReportsAPI.getByDate(prevDate);
-                setLastWeekProjects(resPrev.data);
+                const resPrevForSync = await projectReportsAPI.getByDate(prevDate);
+                setLastWeekProjects(resPrevForSync.data);
 
                 // Fetch master projects
                 const resMaster = await projectsAPI.getAll();
