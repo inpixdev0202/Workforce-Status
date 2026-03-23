@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { Table, TrendingUp, Search, Plus, Save, Trash2, CheckCircle2, ChevronsLeftRight, FileText, Download, Filter, Maximize2, Sun, Moon, Settings, X, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Calendar, ClipboardCopy, Lock, AlignLeft, Columns, ChevronRightSquare, LayoutList, BookOpen } from 'lucide-react';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
+import { projectsAPI, projectReportsAPI } from '../api';
 
 const SpreadsheetCellInput = React.memo(({ initialValue, onCommit, onFocus, isFocused, className = "", isMultilineField = false }) => {
     const [localValue, setLocalValue] = useState(initialValue || '');
@@ -118,7 +119,9 @@ const SpreadsheetCellSelect = React.memo(({ value, options, onCommit, onFocus, o
 const getCategoryStyle = (category, isDark) => {
     const normalize = (val) => {
         const str = String(val || '').normalize('NFC').trim();
-        return str === '수행' ? '진행중' : (str || '진행중');
+        if (str === '수행') return '진행중';
+        if (['수주', '드롭', '탈락'].includes(str)) return '종료';
+        return str || '진행중';
     };
     
     const cat = normalize(category);
@@ -127,9 +130,7 @@ const getCategoryStyle = (category, isDark) => {
         switch (cat) {
             case '진행중': return { bg: '#e6fffa', text: '#059669' }; 
             case '홀딩': return { bg: '#fffaf0', text: '#d97706' };   
-            case '수주': return { bg: '#ebf8ff', text: '#2563eb' };   
-            case '드롭': return { bg: '#fff5f5', text: '#dc2626' };   
-            case '탈락': return { bg: '#f7fafc', text: '#4b5563' };   
+            case '종료': return { bg: '#f1f5f9', text: '#475569' };   
             default: return { bg: 'transparent', text: 'inherit' };
         }
     }
@@ -147,22 +148,10 @@ const getCategoryStyle = (category, isDark) => {
                 text: '#ffd700',
                 shadow: '0 0 8px rgba(255, 215, 0, 0.5)'
             };
-        case '수주':
+        case '종료':
             return {
-                bg: 'rgba(0, 242, 255, 0.12)',
-                text: '#00f2ff',
-                shadow: '0 0 8px rgba(0, 242, 255, 0.8)'
-            };
-        case '드롭':
-            return {
-                bg: 'rgba(255, 49, 49, 0.12)',
-                text: '#ff3131',
-                shadow: '0 0 8px rgba(255, 49, 49, 0.6)'
-            };
-        case '탈락':
-            return {
-                bg: 'rgba(211, 211, 211, 0.1)',
-                text: '#d3d3d3',
+                bg: 'rgba(148, 163, 184, 0.12)',
+                text: '#94a3b8',
                 shadow: 'none'
             };
         default:
@@ -497,8 +486,14 @@ const ReportDataRow = React.memo(({
                 }
 
                 if (col.key === 'category') {
-                    const categoryOptions = ['진행중', '홀딩', '수주', '드롭', '탈락'];
-                    const displayValue = item[col.key] === '수행' ? '진행중' : item[col.key];
+                    const categoryOptions = ['진행중', '홀딩', '종료'];
+                    const normalize = (val) => {
+                        const str = String(val || '').normalize('NFC').trim();
+                        if (str === '수행') return '진행중';
+                        if (['수주', '드롭', '탈락'].includes(str)) return '종료';
+                        return str || '진행중';
+                    };
+                    const displayValue = normalize(item[col.key]);
                     return (
                         <td key={col.key} className="border border-[var(--border)] p-0 relative transition-colors duration-200" style={{ width: columnWidths[col.key], height: rowHeight, backgroundColor: catStyle.bg }}>
                             <SpreadsheetCellSelect
@@ -759,35 +754,21 @@ const ProjectReport = () => {
         const fetchData = async () => {
             setIsLoading(true);
             try {
-                const token = localStorage.getItem('token');
-                
                 // Fetch current report
-                const resCurrent = await fetch(`http://localhost:5000/api/project-reports/${selectedDate}`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                if (resCurrent.ok) {
-                    const data = await resCurrent.json();
-                    setReportData(data);
-                }
+                const resCurrent = await projectReportsAPI.getByDate(selectedDate);
+                setReportData(resCurrent.data);
+                dataLoaded.current = true;
 
                 // Fetch last week report for autocomplete
                 const d = new Date(selectedDate);
                 d.setDate(d.getDate() - 7);
                 const prevDate = getReportingFriday(d);
-                const resPrev = await fetch(`http://localhost:5000/api/project-reports/${prevDate}`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                if (resPrev.ok) {
-                    setLastWeekProjects(await resPrev.json());
-                }
+                const resPrev = await projectReportsAPI.getByDate(prevDate);
+                setLastWeekProjects(resPrev.data);
 
                 // Fetch master projects
-                const resMaster = await fetch(`http://localhost:5000/api/projects`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                if (resMaster.ok) {
-                    setMasterProjects(await resMaster.json());
-                }
+                const resMaster = await projectsAPI.getAll();
+                setMasterProjects(resMaster.data);
             } catch (error) {
                 console.error('Failed to fetch data:', error);
             } finally {
@@ -797,26 +778,47 @@ const ProjectReport = () => {
         fetchData();
     }, [selectedDate]);
 
-    const handleSave = async () => {
-        try {
-            const token = localStorage.getItem('token');
-            const response = await fetch('http://localhost:5000/api/project-reports', {
-                method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({
+    // AUTO-SAVE LOGIC: Debounce manual changes
+    useEffect(() => {
+        // Prevent auto-save on initial load or if no data yet
+        if (isInitialMount.current) {
+            isInitialMount.current = false;
+            return;
+        }
+        
+        // If data hasn't finished loading first time, don't try to "save back" an empty state
+        if (!dataLoaded.current || reportData.length === 0) return;
+
+        setAutoSaveStatus('Saving...');
+        setIsAutoSaving(true);
+
+        const timer = setTimeout(async () => {
+            try {
+                await projectReportsAPI.save({
                     week_date: selectedDate,
                     data: reportData
-                })
-            });
-            if (response.ok) {
-                setShowSaveToast(true);
-                setTimeout(() => setShowSaveToast(false), 3000);
-            } else {
-                alert('저장에 실패했습니다.');
+                });
+                setAutoSaveStatus('Saved');
+                setTimeout(() => setAutoSaveStatus(''), 2000);
+            } catch (error) {
+                console.error('Auto-save failed:', error);
+                setAutoSaveStatus('Error');
+            } finally {
+                setIsAutoSaving(false);
             }
+        }, 2000); // 2 second debounce
+
+        return () => clearTimeout(timer);
+    }, [reportData, selectedDate]);
+
+    const handleSave = async () => {
+        try {
+            await projectReportsAPI.save({
+                week_date: selectedDate,
+                data: reportData
+            });
+            setShowSaveToast(true);
+            setTimeout(() => setShowSaveToast(false), 3000);
         } catch (error) {
             console.error('Failed to save report:', error);
             alert('서버 오류로 저장에 실패했습니다.');
@@ -841,21 +843,11 @@ const ProjectReport = () => {
         const prevDateStr = getReportingFriday(d);
         
         try {
-            const token = localStorage.getItem('token');
-            // Check server for previous week
-            const response = await fetch(`http://localhost:5000/api/project-reports/${prevDateStr}`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            
-            let prevData = null;
-            if (response.ok) {
-                const data = await response.json();
-                if (data && data.length > 0) prevData = data;
-            }
-
+            const resPrev = await projectReportsAPI.getByDate(prevDateStr);
+            const prevData = resPrev.data;
             const legacyData = localStorage.getItem('project_report_data_v1');
 
-            if (prevData) {
+            if (prevData && prevData.length > 0) {
                 setReportData(prevData.map(row => ({ ...row, id: Date.now() + Math.random() })));
                 alert('지난주 데이터를 서버에서 성공적으로 가져왔습니다. [저장]을 눌러 현재 주차에 반영하세요.');
             } else if (legacyData) {
@@ -904,11 +896,16 @@ const ProjectReport = () => {
     }, [columns]);
 
     const [searchTerm, setSearchTerm] = useState('');
+    const [selectedCategories, setSelectedCategories] = useState(['진행중', '홀딩', '종료']);
     const [showSaveToast, setShowSaveToast] = useState(false);
     const [focusedCell, setFocusedCell] = useState(null);
     const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
     const [isMasterModalOpen, setIsMasterModalOpen] = useState(false);
     const [activeMasterRowId, setActiveMasterRowId] = useState(null);
+    const [isAutoSaving, setIsAutoSaving] = useState(false);
+    const [autoSaveStatus, setAutoSaveStatus] = useState(''); // 'Saving...', 'Saved', ''
+    const isInitialMount = useRef(true);
+    const dataLoaded = useRef(false);
 
     const handleUpdateColumns = useCallback((newCols) => {
         setReportData(prevData => {
@@ -1049,21 +1046,25 @@ const ProjectReport = () => {
 
 
     const filteredData = useMemo(() => {
-        const order = ['진행중', '홀딩', '수주', '드롭', '탈락'];
+        const orderArr = ['진행중', '홀딩', '종료'];
         
+        const normalize = (val) => {
+            const str = String(val || '').normalize('NFC').trim();
+            if (str === '수행') return '진행중';
+            if (['수주', '드롭', '탈락'].includes(str)) return '종료';
+            return str || '진행중';
+        };
+
         return reportData
-            .filter(item => 
-                (item.projectName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                (item.pd || '').toLowerCase().includes(searchTerm.toLowerCase())
-            )
+            .filter(item => {
+                const cat = normalize(item.category);
+                const matchesCategory = selectedCategories.includes(cat);
+                const matchesSearch = (item.projectName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                      (item.pd || '').toLowerCase().includes(searchTerm.toLowerCase());
+                return matchesCategory && matchesSearch;
+            })
             .sort((a, b) => {
-                const weights = { '진행중': 1, '홀딩': 2, '수주': 3, '드롭': 4, '탈락': 5 };
-                
-                const normalize = (val) => {
-                    const str = String(val || '').normalize('NFC').trim();
-                    if (str === '수행') return '진행중';
-                    return str || '진행중';
-                };
+                const weights = { '진행중': 1, '홀딩': 2, '종료': 3 };
                 
                 const catA = normalize(a.category);
                 const catB = normalize(b.category);
@@ -1078,7 +1079,7 @@ const ProjectReport = () => {
                 if (!isNaN(idA) && !isNaN(idB)) return idA - idB;
                 return String(a.id).localeCompare(String(b.id));
             });
-    }, [reportData, searchTerm]);
+    }, [reportData, searchTerm, selectedCategories]);
 
     const handleExportExcel = async () => {
         const workbook = new ExcelJS.Workbook();
@@ -1121,7 +1122,9 @@ const ProjectReport = () => {
 
             const normalize = (val) => {
                 const str = String(val || '').normalize('NFC').trim();
-                return str === '수행' ? '진행중' : (str || '진행중');
+                if (str === '수행') return '진행중';
+                if (['수주', '드롭', '탈락'].includes(str)) return '종료';
+                return str || '진행중';
             };
             const cat = normalize(categoryValue);
 
@@ -1129,12 +1132,8 @@ const ProjectReport = () => {
                 bgColor = 'FFE6FFFA'; textColor = 'FF059669';
             } else if (cat === '홀딩') {
                 bgColor = 'FFFFFAF0'; textColor = 'FFD97706';
-            } else if (cat === '수주') {
-                bgColor = 'FFEBF8FF'; textColor = 'FF2563EB';
-            } else if (cat === '드롭') {
-                bgColor = 'FFFFF5F5'; textColor = 'FFDC2626';
-            } else if (cat === '탈락') {
-                bgColor = 'FFF7FAFC'; textColor = 'FF4B5563';
+            } else if (cat === '종료') {
+                bgColor = 'FFF1F5F9'; textColor = 'FF475569';
             }
 
             categoryCell.fill = {
@@ -1278,9 +1277,51 @@ const ProjectReport = () => {
                     <button onClick={toggleTheme} className="premium-icon-btn btn-theme" title={theme === 'dark' ? '라이트 모드로 전환' : '다크 모드로 전환'}>
                         {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
                     </button>
+                    {autoSaveStatus && (
+                        <div className={`text-[10px] font-bold px-2 py-1 rounded-md transition-all animate-pulse ${
+                            autoSaveStatus === 'Saving...' ? 'text-blue-400 bg-blue-500/10' : 
+                            autoSaveStatus === 'Saved' ? 'text-emerald-400 bg-emerald-500/10' : 
+                            'text-red-400 bg-red-500/10'
+                        }`}>
+                            {autoSaveStatus === 'Saving...' ? '⚡ 자동 저장 중...' : 
+                             autoSaveStatus === 'Saved' ? '✅ 저장됨' : '❌ 저장 실패'}
+                        </div>
+                    )}
                     <div className="w-px h-5 bg-[var(--border)] mx-1"></div>
                     <button onClick={handleExportExcel} className="premium-icon-btn btn-excel" title="엑셀로 다운로드"><Download size={16} /></button>
                     <div className="w-px h-5 bg-[var(--border)] mx-1"></div>
+                    <div className="flex items-center gap-1.5 p-1 bg-[var(--bg-tertiary)] border border-[var(--border)] rounded-lg mr-1 scale-95 origin-right">
+                        {['진행중', '홀딩', '종료'].map(cat => {
+                            const isActive = selectedCategories.includes(cat);
+                            const style = getCategoryStyle(cat, theme === 'dark');
+                            return (
+                                <button
+                                    key={cat}
+                                    onClick={() => {
+                                        setSelectedCategories(prev => 
+                                            prev.includes(cat) 
+                                                ? prev.filter(c => c !== cat) 
+                                                : [...prev, cat]
+                                        );
+                                    }}
+                                    className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all duration-200 border-none ${
+                                        isActive 
+                                            ? 'scale-100' 
+                                            : 'opacity-40 grayscale scale-95 hover:opacity-100 hover:grayscale-0'
+                                    }`}
+                                    style={{
+                                        backgroundColor: isActive ? style.bg : 'transparent',
+                                        color: isActive ? style.text : 'var(--text-muted)',
+                                        boxShadow: isActive && theme === 'dark' ? style.shadow : 'none',
+                                        border: 'none',
+                                        outline: 'none'
+                                    }}
+                                >
+                                    {cat}
+                                </button>
+                            );
+                        })}
+                    </div>
                     <div className="search-input-wrapper">
                         <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="시트 내 검색..." spellCheck={false} className="premium-search-input" />
                         <Search size={14} className="search-icon-glass" />

@@ -65,6 +65,7 @@ export const attendanceAPI = {
 
 // Projects API
 export const projectsAPI = {
+    getAll: () => api.get('/projects'),
     getMatrix: () => api.get(`/projects/matrix?_t=${Date.now()}`),
     create: (data) => api.post('/projects', data),
     update: (id, data) => api.put(`/projects/${id}`, data),
@@ -76,6 +77,12 @@ export const projectsAPI = {
     updateAllocationBatch: (updates) => api.post('/projects/allocations/batch', { updates }),
     reorderProjects: (projectIds) => api.put('/projects/reorder', { projectIds }),
     reorderMembers: (assignmentIds) => api.put('/projects/assignments/reorder', { assignmentIds }),
+};
+
+// Project Reports API
+export const projectReportsAPI = {
+    getByDate: (date) => api.get(`/project-reports/${date}`),
+    save: (data) => api.post('/project-reports', data),
 };
 
 // Integrations API
