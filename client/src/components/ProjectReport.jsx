@@ -547,14 +547,15 @@ const ReportDataRow = React.memo(({
                                         e.stopPropagation();
                                         onRowCopyPrevious(item.id, item.projectName);
                                     }}
-                                    className="w-full h-full flex flex-col items-center justify-center gap-1 rounded-md bg-transparent hover:bg-blue-500 text-blue-500 hover:text-white transition-all duration-200 font-bold text-[10px] shadow-none hover:shadow-[0_4px_12px_rgba(59,130,246,0.3)] group/btn"
+                                    className="w-full h-full flex flex-col items-center justify-center gap-1 rounded-md !bg-transparent hover:!bg-blue-500 text-blue-500 hover:text-white transition-all duration-200 font-bold text-[10px] shadow-none hover:shadow-[0_4px_12px_rgba(59,130,246,0.3)] group/btn !border-none !outline-none appearance-none"
                                     title="이 프로젝트의 지난주 보고 전체 복사"
+                                    style={{ WebkitAppearance: 'none', MozAppearance: 'none' }}
                                 >
                                     <ClipboardCopy size={16} className="group-hover/btn:scale-110 transition-transform opacity-90 group-hover/btn:opacity-100" />
                                     <span style={{ fontSize: '9px', letterSpacing: '-0.05em' }}>지난주 복사</span>
                                 </button>
                             ) : (
-                                <div className="w-full h-full flex flex-col items-center justify-center gap-1 text-[9px] text-[var(--text-muted)] opacity-30 select-none bg-transparent">
+                                <div className="w-full h-full flex flex-col items-center justify-center gap-1 text-[9px] text-[var(--text-muted)] opacity-30 select-none !bg-transparent !border-none">
                                     <ClipboardCopy size={14} className="opacity-50 grayscale" />
                                     <span>데이터 없음</span>
                                 </div>
