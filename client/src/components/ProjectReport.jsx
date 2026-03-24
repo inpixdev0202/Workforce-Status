@@ -530,34 +530,48 @@ const ReportDataRow = React.memo(({
                     );
                 }
 
-                const isProgressCol = col.key === 'progress';
-                let hasPrevData = false;
-                if (isProgressCol && item.projectName && lastWeekProjects) {
-                    const prevRows = Array.isArray(lastWeekProjects) ? lastWeekProjects : (lastWeekProjects?.rows || []);
-                    hasPrevData = prevRows.some(p => p.projectName === item.projectName && (p.progress || p.status || p.plan));
+                const isCopyCol = col.label && col.label.includes('복사');
+                
+                if (isCopyCol) {
+                    let hasPrevData = false;
+                    if (item.projectName && lastWeekProjects) {
+                        const prevRows = Array.isArray(lastWeekProjects) ? lastWeekProjects : (lastWeekProjects?.rows || []);
+                        hasPrevData = prevRows.some(p => p.projectName === item.projectName && (p.progress || p.status || p.plan));
+                    }
+
+                    return (
+                        <td key={col.key} className="border border-[var(--border)] p-1.5 relative align-middle" style={{ width: columnWidths[col.key], height: rowHeight }}>
+                            {hasPrevData ? (
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onRowCopyPrevious(item.id, item.projectName);
+                                    }}
+                                    className="w-full h-full flex flex-col items-center justify-center gap-1 rounded-md bg-[var(--bg-tertiary)] hover:bg-blue-500 text-blue-500 hover:text-white border border-[var(--border)] hover:border-transparent transition-all duration-200 font-bold text-[10px] shadow-sm hover:shadow-[0_4px_12px_rgba(59,130,246,0.3)] group/btn"
+                                    title="이 프로젝트의 지난주 보고 전체 복사"
+                                >
+                                    <ClipboardCopy size={16} className="group-hover/btn:scale-110 transition-transform opacity-90 group-hover/btn:opacity-100" />
+                                    <span style={{ fontSize: '9px', letterSpacing: '-0.05em' }}>지난주 복사</span>
+                                </button>
+                            ) : (
+                                <div className="w-full h-full flex flex-col items-center justify-center gap-1 text-[9px] text-[var(--text-muted)] opacity-30 select-none bg-[var(--bg-tertiary)]/30 rounded-md border border-dashed border-[var(--border)]">
+                                    <ClipboardCopy size={14} className="opacity-50 grayscale" />
+                                    <span>데이터 없음</span>
+                                </div>
+                            )}
+                        </td>
+                    );
                 }
 
                 return (
-                    <td key={col.key} className={`border border-[var(--border)] p-0 relative ${isProgressCol ? 'group/col-progress' : ''}`} style={{ width: columnWidths[col.key], height: rowHeight }}>
+                    <td key={col.key} className="border border-[var(--border)] p-0 relative" style={{ width: columnWidths[col.key], height: rowHeight }}>
                         <SpreadsheetCellInput 
                             initialValue={item[col.key]}
                             onCommit={(v) => onCellChange(item.id, col.key, v)}
                             onFocus={() => setFocusedCell({ rowId: item.id, field: cellId })}
                             isFocused={focusedCell?.field === cellId}
-                            className={`text-[var(--text-muted)] ${col.key === 'status' ? 'text-[10px]' : 'text-[11px]'} ${hasPrevData ? 'pr-8' : ''}`}
+                            className={`text-[var(--text-muted)] ${col.key === 'status' ? 'text-[10px]' : 'text-[11px]'}`}
                         />
-                        {hasPrevData && (
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    onRowCopyPrevious(item.id, item.projectName);
-                                }}
-                                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-blue-500 bg-[var(--bg-secondary)] border border-blue-500/20 hover:bg-blue-500 hover:text-white rounded-md p-1.5 opacity-0 group-hover/col-progress:opacity-100 transition-all z-10 shadow-sm flex items-center gap-1"
-                                title="이 프로젝트의 지난주 보고 가져오기"
-                            >
-                                <ClipboardCopy size={12} />
-                            </button>
-                        )}
                     </td>
                 );
             })}
