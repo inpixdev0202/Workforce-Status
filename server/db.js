@@ -73,6 +73,13 @@ export async function initializeDatabase() {
     // Column likely exists
   }
 
+  // Migration: Add job_role if missing
+  try {
+    db.exec('ALTER TABLE employees ADD COLUMN job_role VARCHAR(50)');
+  } catch (e) {
+    // Column likely exists
+  }
+
   // Cleanup: Remove duplicate employees (keep lowest ID)
   // SQLite doesn't support DELETE with JOIN/Subquery easily in one go for some versions,
   // so we'll do it in steps or use a specific syntax if supported.
@@ -138,6 +145,14 @@ export async function initializeDatabase() {
   // Migration: Add type to projects if missing
   try {
     db.exec("ALTER TABLE projects ADD COLUMN type VARCHAR(20) DEFAULT 'Client'");
+  } catch (e) { }
+
+  // Migration: Add pd and pm to projects if missing
+  try {
+    db.exec('ALTER TABLE projects ADD COLUMN pd VARCHAR(100)');
+  } catch (e) { }
+  try {
+    db.exec('ALTER TABLE projects ADD COLUMN pm VARCHAR(100)');
   } catch (e) { }
 
   // Project Assignments table (Employee <-> Project)

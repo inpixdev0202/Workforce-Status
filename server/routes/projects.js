@@ -76,7 +76,7 @@ router.get('/matrix', (req, res) => {
 // Create Project
 router.post('/', (req, res) => {
     try {
-        const { name, start_date, end_date, status, note, type } = req.body;
+        const { name, start_date, end_date, status, note, type, pd, pm } = req.body;
 
         if (!name) {
             return res.status(400).json({ error: 'Project name is required' });
@@ -86,9 +86,9 @@ router.post('/', (req, res) => {
         const maxOrder = get('SELECT MAX(display_order) as max_order FROM projects')?.max_order || 0;
 
         const result = run(`
-      INSERT INTO projects (name, start_date, end_date, status, note, type, display_order)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `, [name, start_date || null, end_date || null, status || 'active', note || '', type || 'Client', maxOrder + 1]);
+      INSERT INTO projects (name, start_date, end_date, status, note, type, display_order, pd, pm)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [name, start_date || null, end_date || null, status || 'active', note || '', type || 'Client', maxOrder + 1, pd || '', pm || '']);
 
         const newProject = get('SELECT * FROM projects WHERE id = ?', [result.lastInsertRowid]);
         res.status(201).json(newProject);
@@ -144,13 +144,13 @@ router.put('/assignments/reorder', (req, res) => {
 // Update Project
 router.put('/:id', (req, res) => {
     try {
-        const { name, start_date, end_date, status, note, type } = req.body;
+        const { name, start_date, end_date, status, note, type, pd, pm } = req.body;
 
         run(`
       UPDATE projects 
-      SET name = ?, start_date = ?, end_date = ?, status = ?, note = ?, type = ?
+      SET name = ?, start_date = ?, end_date = ?, status = ?, note = ?, type = ?, pd = ?, pm = ?
       WHERE id = ?
-    `, [name, start_date || null, end_date || null, status || 'active', note || '', type || 'Client', req.params.id]);
+    `, [name, start_date || null, end_date || null, status || 'active', note || '', type || 'Client', pd || '', pm || '', req.params.id]);
 
         const updated = get('SELECT * FROM projects WHERE id = ?', [req.params.id]);
         res.json(updated);

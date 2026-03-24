@@ -10,7 +10,7 @@ router.use(requireRoles(['Admin', 'GroupLeader', 'PD', 'TeamLeader', 'GM']));
 // Get all employees with filters
 router.get('/', (req, res) => {
     try {
-        const { group_id, status, search } = req.query;
+        const { group_id, status, search, job_role } = req.query;
         let sql = `
       SELECT e.*, g.name as group_name, g.color as group_color
       FROM employees e
@@ -30,8 +30,13 @@ router.get('/', (req, res) => {
         }
 
         if (search) {
-            sql += ' AND (e.name LIKE ? OR e.position LIKE ?)';
-            params.push(`%${search}%`, `%${search}%`);
+            sql += ' AND (e.name LIKE ? OR e.position LIKE ? OR e.job_role LIKE ?)';
+            params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+        }
+
+        if (job_role) {
+            sql += ' AND e.job_role = ?';
+            params.push(job_role);
         }
 
         sql += ' ORDER BY g.display_order, e.name';
@@ -78,18 +83,18 @@ router.post('/', (req, res) => {
             contact_phone,
             status,
             notes,
-            exclude_from_stats
+            exclude_from_stats,
+            job_role
         } = req.body;
 
         if (!name) {
             return res.status(400).json({ error: 'Employee name is required' });
         }
-
         const result = run(`
       INSERT INTO employees (
         group_id, name, position, skill_level, employment_type, join_date, retirement_date,
-        contact_email, contact_phone, status, notes, exclude_from_stats
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        contact_email, contact_phone, status, notes, exclude_from_stats, job_role
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
             group_id || null,
             name,
@@ -102,7 +107,8 @@ router.post('/', (req, res) => {
             contact_phone || null,
             status || 'active',
             notes || null,
-            exclude_from_stats || 0
+            exclude_from_stats || 0,
+            job_role || null
         ]);
 
         const newEmployee = get(`
@@ -123,7 +129,7 @@ router.put('/:id', (req, res) => {
     try {
         const allowedFields = [
             'group_id', 'name', 'position', 'skill_level', 'employment_type', 'join_date', 'retirement_date',
-            'contact_email', 'contact_phone', 'status', 'notes', 'exclude_from_stats'
+            'contact_email', 'contact_phone', 'status', 'notes', 'exclude_from_stats', 'job_role'
         ];
 
         const updates = [];

@@ -3,11 +3,11 @@ import { createPortal } from 'react-dom';
 import { Table, TrendingUp, Search, Plus, Save, Trash2, CheckCircle2, ChevronsLeftRight, FileText, Download, Filter, Maximize2, Sun, Moon, Settings, X, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Calendar, ClipboardCopy, Lock, AlignLeft, Columns, ChevronRightSquare, LayoutList, BookOpen, RotateCcw } from 'lucide-react';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
-import { projectsAPI, projectReportsAPI } from '../api';
+import { projectsAPI, projectReportsAPI, employeesAPI } from '../api';
 
-const SpreadsheetCellInput = React.memo(({ initialValue, onCommit, onFocus, isFocused, className = "", isMultilineField = false }) => {
+const SpreadsheetCellInput = React.memo(({ initialValue, onCommit, onFocus, isFocused, className = "", isMultilineField = false, type = "text", align = "left" }) => {
     const [localValue, setLocalValue] = useState(initialValue || '');
-    const textAreaRef = useRef(null);
+    const inputRef = useRef(null);
     const selectionRef = useRef({ start: 0, end: 0 });
 
     useEffect(() => {
@@ -17,21 +17,25 @@ const SpreadsheetCellInput = React.memo(({ initialValue, onCommit, onFocus, isFo
     }, [initialValue, isFocused]);
 
     useEffect(() => {
-        if (isFocused && textAreaRef.current) {
-            textAreaRef.current.focus();
+        if (isFocused && inputRef.current) {
+            inputRef.current.focus();
         }
     }, [isFocused]);
 
     useEffect(() => {
-        if (isFocused && textAreaRef.current) {
+        if (isFocused && inputRef.current && type !== 'date') {
             const { start, end } = selectionRef.current;
-            textAreaRef.current.setSelectionRange(start, end);
+            try {
+                inputRef.current.setSelectionRange(start, end);
+            } catch (e) {}
         }
     });
 
     const handleChange = (e) => {
         const { value, selectionStart, selectionEnd } = e.target;
-        selectionRef.current = { start: selectionStart, end: selectionEnd };
+        if (type !== 'date') {
+            selectionRef.current = { start: selectionStart || 0, end: selectionEnd || 0 };
+        }
         setLocalValue(value);
     };
 
@@ -43,35 +47,63 @@ const SpreadsheetCellInput = React.memo(({ initialValue, onCommit, onFocus, isFo
 
     const handleKeyDown = (e) => {
         if (e.key === 'Enter') {
-            if (e.altKey) {
+            if (e.altKey && type !== 'date') {
                 e.preventDefault();
                 const { selectionStart, selectionEnd } = e.target;
                 const newValue = localValue.substring(0, selectionStart) + "\n" + localValue.substring(selectionEnd);
                 setLocalValue(newValue);
                 selectionRef.current = { start: selectionStart + 1, end: selectionStart + 1 };
             } else {
-                textAreaRef.current.blur();
+                inputRef.current.blur();
             }
         }
     };
 
+    const inputClasses = `w-full bg-transparent border-none outline-none px-2 text-inherit m-0 p-0 block pointer-events-auto`;
+    const inputStyle = { 
+        textAlign: align,
+        fontSize: 'inherit',
+        fontWeight: 'inherit',
+        lineHeight: '1.2'
+    };
+
     return (
-        <textarea 
-            ref={textAreaRef}
-            value={localValue}
-            onChange={handleChange}
-            onFocus={onFocus}
-            onBlur={handleBlur}
-            onKeyDown={handleKeyDown}
-            spellCheck={false}
-            className={`absolute inset-0 w-full h-full px-2 py-1 transition-none leading-snug overflow-hidden block m-0 pointer-events-auto z-10 ${isFocused ? 'focused-field overflow-y-auto' : 'bg-transparent text-inherit'} ${className}`}
-            rows={1}
-            style={{ 
-                resize: 'none',
-                whiteSpace: 'pre-wrap',
-                wordBreak: 'break-all'
-            }}
-        />
+        <div 
+            className={`absolute inset-0 w-full h-full flex items-center ${align === 'center' ? 'justify-center' : 'justify-start'} ${isFocused ? 'focused-field overflow-hidden' : 'bg-transparent'} ${className}`}
+            onClick={() => inputRef.current?.focus()}
+        >
+            {type === 'date' || !isMultilineField ? (
+                <input 
+                    ref={inputRef}
+                    type={type}
+                    value={localValue}
+                    onChange={handleChange}
+                    onBlur={handleBlur}
+                    onFocus={onFocus}
+                    onKeyDown={handleKeyDown}
+                    className={`${inputClasses} h-auto`}
+                    style={inputStyle}
+                />
+            ) : (
+                <textarea 
+                    ref={inputRef}
+                    value={localValue}
+                    onChange={handleChange}
+                    onBlur={handleBlur}
+                    onFocus={onFocus}
+                    onKeyDown={handleKeyDown}
+                    rows={1}
+                    spellCheck={false}
+                    className={`${inputClasses} h-auto resize-none overflow-hidden`}
+                    style={{ 
+                        ...inputStyle,
+                        whiteSpace: 'pre-wrap',
+                        wordBreak: 'break-all',
+                        padding: '4px 0'
+                    }}
+                />
+            )}
+        </div>
     );
 });
 
@@ -344,7 +376,7 @@ const MasterProjectModal = ({ isOpen, onClose, projects, onSelect, theme }) => {
                         filteredProjects.map((p, idx) => (
                             <button
                                 key={`master-${idx}`}
-                                onClick={() => onSelect(p.displayName)}
+                                onClick={() => onSelect(p)}
                                 style={{
                                     width: '100%', padding: '11px 14px', textAlign: 'left',
                                     background: 'transparent', border: '1px solid transparent',
@@ -441,7 +473,9 @@ const ReportDataRow = React.memo(({
     onRowCopyPrevious,
     theme,
     lastWeekProjects,
-    masterProjects
+    masterProjects,
+    pmList = [],
+    pdList = []
 }) => {
     const catStyle = useMemo(() => getCategoryStyle(item.category, theme === 'dark'), [item.category, theme]);
 
@@ -532,6 +566,38 @@ const ReportDataRow = React.memo(({
 
                 const isCopyCol = col.label && col.label.includes('복사');
                 
+                const isPDPM = col.label && (
+                    col.label.toUpperCase().includes('PD') || 
+                    col.label.toUpperCase().includes('PM') || 
+                    col.label.includes('담당') || 
+                    col.label.includes('보고자') ||
+                    (col.key && (col.key.toLowerCase().includes('pd') || col.key.toLowerCase().includes('pm')))
+                );
+
+                const isPD = col.label && (col.label.toUpperCase().includes('PD') || (col.key && col.key.toLowerCase().includes('pd')));
+                const isPM = col.label && (col.label.toUpperCase().includes('PM') || (col.key && col.key.toLowerCase().includes('pm')));
+
+                if (isPDPM && (isPD || isPM)) {
+                    const options = isPM ? pmList : pdList;
+                    if (options.length > 0) {
+                        return (
+                            <td key={col.key} className={`border border-[var(--border)] p-0 relative align-middle`} style={{ width: columnWidths[col.key], height: rowHeight }}>
+                                <SpreadsheetCellSelect
+                                    value={item[col.key]}
+                                    options={options}
+                                    onCommit={(v) => onCellChange(item.id, col.key, v)}
+                                    onFocus={() => setFocusedCell({ rowId: item.id, field: cellId })}
+                                    onBlur={() => setFocusedCell(null)}
+                                    isFocused={focusedCell?.field === cellId}
+                                    className="text-center text-[13px] font-bold"
+                                />
+                            </td>
+                        );
+                    }
+                }
+                const isDate = col.label && (col.label.includes('시작') || col.label.includes('종료') || col.label.includes('날짜') || (col.key && col.key.toLowerCase().includes('date')));
+                const isMultiline = !isPDPM && (['progress', 'status', 'plan', 'rfpInfo', 'proposal'].includes(col.key) || (col.label && (col.label.includes('상세') || col.label.includes('내용'))));
+
                 if (isCopyCol) {
                     let hasPrevData = false;
                     if (item.projectName && lastWeekProjects) {
@@ -540,24 +606,42 @@ const ReportDataRow = React.memo(({
                     }
 
                     return (
-                        <td key={col.key} className="border border-[var(--border)] p-1.5 relative align-middle" style={{ width: columnWidths[col.key], height: rowHeight }}>
+                        <td key={col.key} className="border border-[var(--border)] p-1 relative align-middle" style={{ width: columnWidths[col.key], height: rowHeight }}>
+                            <style>{`
+                                .sync-row-btn {
+                                    background: transparent !important;
+                                    background-color: transparent !important;
+                                    border: none !important;
+                                    outline: none !important;
+                                    box-shadow: none !important;
+                                    appearance: none !important;
+                                    -webkit-appearance: none !important;
+                                    display: flex !important;
+                                    padding: 0 !important;
+                                    margin: 0 !important;
+                                    width: 100% !important;
+                                    height: 100% !important;
+                                }
+                                .sync-row-btn:hover {
+                                    background: rgba(59, 130, 246, 0.1) !important;
+                                }
+                            `}</style>
                             {hasPrevData ? (
                                 <button
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         onRowCopyPrevious(item.id, item.projectName);
                                     }}
-                                    className="w-full h-full flex flex-col items-center justify-center gap-1 rounded-md !bg-transparent hover:!bg-blue-500 text-blue-500 hover:text-white transition-all duration-200 font-bold text-[10px] shadow-none hover:shadow-[0_4px_12px_rgba(59,130,246,0.3)] group/btn !border-none !outline-none appearance-none"
+                                    className="sync-row-btn flex-row items-center justify-center gap-2 group/btn"
                                     title="이 프로젝트의 지난주 보고 전체 복사"
-                                    style={{ WebkitAppearance: 'none', MozAppearance: 'none' }}
                                 >
-                                    <ClipboardCopy size={16} className="group-hover/btn:scale-110 transition-transform opacity-90 group-hover/btn:opacity-100" />
-                                    <span style={{ fontSize: '9px', letterSpacing: '-0.05em' }}>지난주 복사</span>
+                                    <ClipboardCopy size={16} className="text-blue-500 group-hover/btn:scale-110 transition-transform" />
+                                    <span className="font-bold text-blue-500" style={{ fontSize: '10px' }}>지난주 복사</span>
                                 </button>
                             ) : (
-                                <div className="w-full h-full flex flex-col items-center justify-center gap-1 text-[9px] text-[var(--text-muted)] opacity-30 select-none !bg-transparent !border-none">
-                                    <ClipboardCopy size={14} className="opacity-50 grayscale" />
-                                    <span>데이터 없음</span>
+                                <div className="w-full h-full flex items-center justify-center gap-1 text-[10px] text-[var(--text-muted)] opacity-30 select-none">
+                                    <ClipboardCopy size={13} className="opacity-50 grayscale" />
+                                    <span className="whitespace-nowrap">데이터 없음</span>
                                 </div>
                             )}
                         </td>
@@ -565,13 +649,16 @@ const ReportDataRow = React.memo(({
                 }
 
                 return (
-                    <td key={col.key} className="border border-[var(--border)] p-0 relative" style={{ width: columnWidths[col.key], height: rowHeight }}>
+                    <td key={col.key} className={`border border-[var(--border)] p-0 relative ${isPDPM ? 'align-middle' : ''}`} style={{ width: columnWidths[col.key], height: rowHeight }}>
                         <SpreadsheetCellInput 
                             initialValue={item[col.key]}
                             onCommit={(v) => onCellChange(item.id, col.key, v)}
                             onFocus={() => setFocusedCell({ rowId: item.id, field: cellId })}
                             isFocused={focusedCell?.field === cellId}
-                            className={`text-[var(--text-muted)] ${col.key === 'status' ? 'text-[10px]' : 'text-[11px]'}`}
+                            className={`text-[var(--text-muted)] ${col.key === 'status' ? 'text-[10px]' : (isPDPM ? 'text-[13px] font-bold text-[var(--text-primary)]' : 'text-[11px]')}`}
+                            align={isPDPM ? 'center' : 'left'}
+                            type={isDate ? 'date' : 'text'}
+                            isMultilineField={isMultiline}
                         />
                     </td>
                 );
@@ -580,7 +667,7 @@ const ReportDataRow = React.memo(({
     );
 });
 
-const ColumnSettingsModal = ({ isOpen, onClose, columns, onUpdateColumns }) => {
+const ColumnSettingsModal = ({ isOpen, onClose, columns, onUpdateColumns, onSyncAllWidths, isSyncing }) => {
     const [localColumns, setLocalColumns] = useState(columns);
     const [newColLabel, setNewColLabel] = useState('');
 
@@ -741,6 +828,30 @@ const ColumnSettingsModal = ({ isOpen, onClose, columns, onUpdateColumns }) => {
                             );
                         })}
                     </div>
+
+                    <div style={{ marginTop: '32px', padding: '16px', backgroundColor: 'rgba(0, 242, 255, 0.03)', borderRadius: '16px', border: '1px dashed rgba(0, 242, 255, 0.2)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                            <Settings size={14} className="text-[#00f2ff]" />
+                            <span style={{ fontSize: '11px', fontWeight: '900', color: '#00f2ff', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Global Sync</span>
+                        </div>
+                        <p style={{ fontSize: '11px', color: '#888', lineHeight: '1.5', marginBottom: '12px' }}>
+                            현재 설정된 모든 컬럼의 너비를 일괄 적용합니다.<br/>
+                            <span style={{ color: '#aaa' }}>※ 과거와 미래의 모든 주간보고 레이아웃이 통일됩니다. (데이터는 보존됨)</span>
+                        </p>
+                        <button
+                            onClick={() => {
+                                if (window.confirm('모든 주간보고의 컬럼 너비를 현재 설정으로 동기화하시겠습니까?')) {
+                                    onSyncAllWidths();
+                                }
+                            }}
+                            disabled={isSyncing}
+                            className={`w-full py-2.5 rounded-xl text-[11px] font-900 uppercase tracking-wider transition-all border ${isSyncing 
+                                ? 'bg-white/5 border-white/10 text-white/30 cursor-not-allowed' 
+                                : 'bg-transparent border-[#00f2ff]/30 text-[#00f2ff] hover:bg-[#00f2ff]/10 hover:border-[#00f2ff]/50'}`}
+                        >
+                            {isSyncing ? 'Syncing...' : '모든 주간보고에 너비 적용'}
+                        </button>
+                    </div>
                 </div>
 
                 <div style={{ padding: '20px 24px', borderTop: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(22, 27, 34, 0.95)', display: 'flex', gap: '12px' }}>
@@ -840,6 +951,8 @@ const ProjectReport = () => {
     const [reportData, setReportData] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
     const [lastWeekProjects, setLastWeekProjects] = useState([]);
+    const [pmList, setPmList] = useState([]);
+    const [pdList, setPdList] = useState([]);
     const [masterProjects, setMasterProjects] = useState([]);
     
     const COLUMN_WIDTHS_KEY = 'project_report_column_widths_v1';
@@ -865,6 +978,8 @@ const ProjectReport = () => {
     useEffect(() => {
         const fetchData = async () => {
             setIsLoading(true);
+            dataLoaded.current = false; // Reset to prevent auto-save of old data to new date
+            setReportData([]); // Clear UI state immediately before fetch
             try {
                 const resCurrent = await projectReportsAPI.getByDate(selectedDate);
                 const loaded = resCurrent.data;
@@ -883,92 +998,49 @@ const ProjectReport = () => {
                     };
                 }
 
-                const isPlaceholderOnly = currentRows && currentRows.length > 0 && 
-                    currentRows.every(row => !row.projectName || row.projectName.toLowerCase().includes('shared project') || row.projectName.toLowerCase().includes('test project'));
-
-                if (currentRows && currentRows.length > 0 && !isPlaceholderOnly) {
-                    // IF current week has data, STILL check immediate previous week for missing projects
-                    const prevDateStr = offsetDate(selectedDate, -7);
-                    const resPrevImm = await projectReportsAPI.getByDate(prevDateStr);
-                    const prevLoaded = resPrevImm.data;
-                    const prevRows = Array.isArray(prevLoaded) ? prevLoaded : (prevLoaded?.rows || []);
-                    const prevLayout = (!Array.isArray(prevLoaded) && prevLoaded?.columnWidths) ? prevLoaded : null;
-
-                    if (prevRows.length > 0) {
-                        const merged = mergeReportData(currentRows, prevRows);
-                        if (JSON.stringify(merged) !== JSON.stringify(currentRows)) {
-                            console.log('🔄 Aggressive Smart Merge: Added missing ongoing projects from previous week.');
-                            setReportData(merged);
-                        } else {
-                            setReportData(currentRows);
-                        }
-                    } else {
-                        setReportData(currentRows);
-                    }
-                    
-                    // Also sync layout
-                    if (currentLayout) {
-                        const isCurrentDefault = JSON.stringify(currentLayout.columnWidths) === JSON.stringify(DEFAULT_COLUMN_WIDTHS);
-                        
-                        if (!isCurrentDefault) {
-                            // If current week has a CUSTOM layout, use it
-                            if (currentLayout.columnWidths) setColumnWidths(currentLayout.columnWidths);
-                        } else if (prevLayout) {
-                            // If current is default, inherit from previous week's layout
-                            if (prevLayout.columnWidths) setColumnWidths(prevLayout.columnWidths);
-                        }
-                        
-                        if (currentLayout.rowHeights) setRowHeights(currentLayout.rowHeights);
-                    } else if (prevLayout) {
-                        // Legacy data or no layout: inherit from previous
-                        if (prevLayout.columnWidths) setColumnWidths(prevLayout.columnWidths);
-                        if (prevLayout.rowHeights) setRowHeights(prevLayout.rowHeights);
-                    }
-                } else {
-                    let foundRows = [];
-                    let foundLayout = null;
-
-                    for (let i = 1; i <= 8; i++) {
-                        const checkDateStr = offsetDate(selectedDate, -7 * i);
-                        const resPrev = await projectReportsAPI.getByDate(checkDateStr);
-                        const prevLoaded = resPrev.data;
-                        const prevRows = Array.isArray(prevLoaded) ? prevLoaded : (prevLoaded?.rows || []);
-
-                        if (prevRows.length > 0) {
-                            foundRows = prevRows;
-                            if (!Array.isArray(prevLoaded)) {
-                                foundLayout = { 
-                                    columnWidths: prevLoaded.columnWidths, 
-                                    headerHeight: prevLoaded.rowHeights?.header 
-                                };
-                            }
-                            break;
-                        }
-                    }
-
-                    if (foundRows.length > 0) {
-                        setReportData(mergeReportData(currentRows || [], foundRows));
-                        // Propagate column widths from the source week
-                        if (foundLayout && foundLayout.columnWidths) {
-                            setColumnWidths(foundLayout.columnWidths);
-                        }
-                    } else {
-                        setReportData(currentRows || []);
-                    }
-                }
+                // 2026-03-24: Only set data if the selected date hasn't changed since the request started
+                setReportData(currentRows || []);
                 
-                dataLoaded.current = true;
+                // 2026-03-24: Inherit layout from previous week if current is default
+                const prevDateStr = offsetDate(selectedDate, -7);
+                const resPrev = await projectReportsAPI.getByDate(prevDateStr);
+                const prevLoaded = resPrev.data;
+                const prevLayout = (!Array.isArray(prevLoaded) && prevLoaded?.columnWidths) ? prevLoaded : null;
 
-                // Sync last week projects for autocomplete suggestions
+                if (currentLayout) {
+                    const isCurrentDefault = JSON.stringify(currentLayout.columnWidths) === JSON.stringify(DEFAULT_COLUMN_WIDTHS);
+                    if (!isCurrentDefault) {
+                        if (currentLayout.columnWidths) setColumnWidths(currentLayout.columnWidths);
+                    } else if (prevLayout && prevLayout.columnWidths) {
+                        setColumnWidths(prevLayout.columnWidths);
+                    }
+                    if (currentLayout.rowHeights) setRowHeights(currentLayout.rowHeights);
+                } else if (prevLayout) {
+                    if (prevLayout.columnWidths) setColumnWidths(prevLayout.columnWidths);
+                    if (prevLayout.rowHeights) setRowHeights(prevLayout.rowHeights);
+                }
+
+                dataLoaded.current = true;
+                
+                // Fetch Suggestions ( suggestions only, no merging)
                 const d = new Date(selectedDate);
                 d.setDate(d.getDate() - 7);
                 const prevDate = getReportingFriday(d);
                 const resPrevForSync = await projectReportsAPI.getByDate(prevDate);
-                setLastWeekProjects(resPrevForSync.data);
+                const prevRowsSync = Array.isArray(resPrevForSync.data) ? resPrevForSync.data : (resPrevForSync.data?.rows || []);
+                setLastWeekProjects(prevRowsSync);
 
                 // Fetch master projects
                 const resMaster = await projectsAPI.getAll();
                 setMasterProjects(resMaster.data);
+
+                // Fetch PD/PM lists
+                const [pms, pds] = await Promise.all([
+                    employeesAPI.getAll({ job_role: 'PM', status: 'active' }),
+                    employeesAPI.getAll({ job_role: 'PD', status: 'active' })
+                ]);
+                setPmList(pms.data.map(e => e.name));
+                setPdList(pds.data.map(e => e.name));
             } catch (error) {
                 console.error('Failed to fetch data:', error);
             } finally {
@@ -987,16 +1059,23 @@ const ProjectReport = () => {
         }
         
         // If data hasn't finished loading first time, don't try to "save back" an empty state
-        if (!dataLoaded.current || reportData.length === 0) return;
+        if (!dataLoaded.current) return;
 
         setAutoSaveStatus('Saving...');
         setIsAutoSaving(true);
 
         const timer = setTimeout(async () => {
             try {
+                // Double check it's still the correct date and data is loaded before auto-save
+                if (!dataLoaded.current) return;
+
                 await projectReportsAPI.save({
                     week_date: selectedDate,
-                    data: reportData
+                    data: {
+                        rows: reportData,
+                        columnWidths: columnWidths,
+                        rowHeights: { header: rowHeights.header }
+                    }
                 });
                 setAutoSaveStatus('Saved');
                 setTimeout(() => setAutoSaveStatus(''), 2000);
@@ -1006,21 +1085,24 @@ const ProjectReport = () => {
             } finally {
                 setIsAutoSaving(false);
             }
-        }, 2000); // 2 second debounce
+        }, 2000); 
 
         return () => clearTimeout(timer);
     }, [reportData, selectedDate]);
 
-    const handleSave = async (silent = false) => {
+    const handleSave = async (silent = false, rowsOverride = null) => {
         try {
+            const dataToSave = {
+                rows: rowsOverride || reportData,
+                columnWidths: columnWidths,
+                rowHeights: { header: rowHeights.header }
+            };
+            
             await projectReportsAPI.save({
                 week_date: selectedDate,
-                data: {
-                    rows: reportData,
-                    columnWidths: columnWidths,
-                    rowHeights: { header: rowHeights.header }
-                }
+                data: dataToSave
             });
+            
             if (!silent) {
                 setShowSaveToast(true);
                 setTimeout(() => setShowSaveToast(false), 3000);
@@ -1034,13 +1116,26 @@ const ProjectReport = () => {
     };
 
     const handlePrevWeek = async () => {
-        if (reportData.length > 0) await handleSave(true);
-        setSelectedDate(offsetDate(selectedDate, -7));
+        await handleSave(true);
+        const prevWeekDate = offsetDate(selectedDate, -7);
+        dataLoaded.current = false;
+        setReportData([]); // Clear UI immediately
+        setSelectedDate(prevWeekDate);
     };
 
     const handleNextWeek = async () => {
-        if (reportData.length > 0) await handleSave(true);
-        setSelectedDate(offsetDate(selectedDate, 7));
+        const nextWeekDate = offsetDate(selectedDate, 7);
+        const currentFriday = getReportingFriday();
+
+        if (nextWeekDate > currentFriday) {
+            alert('미래 주차는 열리지 않습니다.');
+            return;
+        }
+
+        await handleSave(true);
+        dataLoaded.current = false;
+        setReportData([]); // Clear UI immediately
+        setSelectedDate(nextWeekDate);
     };
 
     const handleClonePrevious = async () => {
@@ -1053,16 +1148,21 @@ const ProjectReport = () => {
             // Handle both Legacy Array and New Object formats
             const prevRows = Array.isArray(prevDataRaw) ? prevDataRaw : (prevDataRaw?.rows || []);
             const prevColWidths = (!Array.isArray(prevDataRaw) && prevDataRaw?.columnWidths) ? prevDataRaw.columnWidths : null;
+            const prevRowHeights = (!Array.isArray(prevDataRaw) && prevDataRaw?.rowHeights) ? prevDataRaw.rowHeights : null;
 
             const legacyData = localStorage.getItem('project_report_data_v1');
 
             if (prevRows.length > 0) {
                 const merged = mergeReportData(reportData, prevRows);
                 setReportData(merged);
+                setFocusedCell(null); // Clear focus for full clone too
                 
                 // Also migrate column widths if available
                 if (prevColWidths) {
                     setColumnWidths(prevColWidths);
+                }
+                if (prevRowHeights) {
+                    setRowHeights(prevRowHeights);
                 }
                 
                 alert('지난주 데이터를 스마트 병합했습니다. 프로젝트 정보와 셀 크기가 업데이트되고, 이번 주에 새로 추가한 내용은 유지됩니다.');
@@ -1093,7 +1193,7 @@ const ProjectReport = () => {
         const prevData = prevRows.find(p => p.projectName === projectName);
         
         if (prevData) {
-            setReportData(prevDataArray => prevDataArray.map(item => {
+            const newRows = reportData.map(item => {
                 if (item.id === rowId) {
                     return {
                         ...item,
@@ -1103,18 +1203,22 @@ const ProjectReport = () => {
                         rfpInfo: prevData.rfpInfo || '',
                         proposal: prevData.proposal || '',
                         pt: prevData.pt || '',
-                        clientInfo: prevData.clientInfo || ''
+                        clientInfo: prevData.clientInfo || '',
+                        rowHeight: prevData.rowHeight || 80
                     };
                 }
                 return item;
-            }));
+            });
+
+            setReportData(newRows);
+            setFocusedCell(null); // Force clear focus to ensure all cells update their local state
             
             setAutoSaveStatus('Saving...');
-            setTimeout(() => handleSave(true), 300);
+            await handleSave(true, newRows);
         } else {
             alert(`지난주 데이터에 이 프로젝트(${projectName})가 존재하지 않거나 내용이 없습니다.`);
         }
-    }, [lastWeekProjects, handleSave]);
+    }, [reportData, lastWeekProjects, handleSave]);
 
     const [columns, setColumns] = useState(() => {
         const saved = localStorage.getItem(COLUMNS_CONFIG_KEY);
@@ -1152,6 +1256,7 @@ const ProjectReport = () => {
     const [isMasterModalOpen, setIsMasterModalOpen] = useState(false);
     const [activeMasterRowId, setActiveMasterRowId] = useState(null);
     const [isAutoSaving, setIsAutoSaving] = useState(false);
+    const [isSyncingAllWidths, setIsSyncingAllWidths] = useState(false);
     const [autoSaveStatus, setAutoSaveStatus] = useState(''); // 'Saving...', 'Saved', ''
     const isInitialMount = useRef(true);
     const dataLoaded = useRef(false);
@@ -1170,6 +1275,19 @@ const ProjectReport = () => {
         });
         setColumns(newCols);
     }, []);
+
+    const handleSyncAllWidths = async () => {
+        setIsSyncingAllWidths(true);
+        try {
+            const res = await projectReportsAPI.updateAllColumnWidths(columnWidths);
+            alert(res.data.message || '모든 주간보고의 컬럼 너비가 동기화되었습니다.');
+        } catch (error) {
+            console.error('Failed to sync widths:', error);
+            alert('동기화 처리 중 오류가 발생했습니다.');
+        } finally {
+            setIsSyncingAllWidths(false);
+        }
+    };
 
     const columnLetters = useMemo(() => 
         Array.from({ length: columns.length }, (_, i) => String.fromCharCode(65 + i))
@@ -1277,15 +1395,34 @@ const ProjectReport = () => {
         localStorage.removeItem(ROW_HEIGHTS_KEY);
         setColumnWidths(DEFAULT_COLUMN_WIDTHS);
         setRowHeights({ header: 36 });
-        setReportData(prevData => prevData.map(row => ({ ...row, rowHeight: 80 })));
+        const newRows = reportData.map(row => ({ ...row, rowHeight: 80 }));
+        setReportData(newRows);
         setIsResetConfirmOpen(false);
-        // Save automatically to persist the reset
-        setTimeout(() => handleSave(true), 100);
+        // Save automatically to persist the reset with overridden data to avoid stale state
+        handleSave(true, newRows);
     };
 
     const handleCellChange = useCallback((id, field, value) => {
-        setReportData(prev => prev.map(item => item.id === id ? { ...item, [field]: value } : item));
-    }, []);
+        setReportData(prev => {
+            const targetRow = prev.find(r => r.id === id);
+            if (!targetRow) return prev;
+            const pName = targetRow.projectName;
+
+            const colDef = columns.find(c => c.key === field);
+            const label = colDef?.label || '';
+            const isPDPM = label.toUpperCase().includes('PD') || label.toUpperCase().includes('PM') || label.includes('담당') || label.includes('보고자') || field.toLowerCase().includes('pd') || field.toLowerCase().includes('pm');
+            const isDate = label.includes('시작') || label.includes('종료') || label.includes('날짜') || field.toLowerCase().includes('date') || field === 'kickoff';
+
+            if ((isPDPM || isDate) && pName && pName.trim() !== '') {
+                // Background sync all reports
+                projectReportsAPI.syncProjectField(pName, field, value).catch(err => console.error('Global sync failed:', err));
+                // Update all matching rows in current view
+                return prev.map(item => (item.projectName && item.projectName.trim() === pName.trim()) ? { ...item, [field]: value } : item);
+            }
+            
+            return prev.map(item => item.id === id ? { ...item, [field]: value } : item);
+        });
+    }, [columns]);
 
     const handleProjectSelect = useCallback((id, projectData, isFullAutofill) => {
         setReportData(prev => prev.map(item => {
@@ -1298,7 +1435,15 @@ const ProjectReport = () => {
                         status: ''
                     };
                 } else {
-                    return { ...item, projectName: typeof projectData === 'string' ? projectData : projectData.projectName };
+                    const name = typeof projectData === 'string' ? projectData : (projectData.displayName || projectData.name);
+                    const pd = typeof projectData === 'object' ? (projectData.pd || '') : '';
+                    const pm = typeof projectData === 'object' ? (projectData.pm || '') : '';
+                    return { 
+                        ...item, 
+                        projectName: name,
+                        pd: pd || item.pd,
+                        pm: pm || item.pm
+                    };
                 }
             }
             return item;
@@ -1427,17 +1572,31 @@ const ProjectReport = () => {
         });
 
         worksheet.eachRow((row, rowNumber) => {
-            row.eachCell((cell) => {
+            row.eachCell((cell, colNumber) => {
                 cell.border = {
                     top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
                     left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
                     bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
                     right: { style: 'thin', color: { argb: 'FFCBD5E1' } }
                 };
+                
                 if (rowNumber > 1) {
+                    const colDef = exportColumns[colNumber - 2]; // -2 because of 'No' column at 1
+                    const isPDPMCell = colDef && (
+                        colDef.label.toUpperCase().includes('PD') || 
+                        colDef.label.toUpperCase().includes('PM') || 
+                        colDef.label.includes('담당') || 
+                        colDef.label.includes('보고자') ||
+                        (colDef.key && (colDef.key.toLowerCase().includes('pd') || colDef.key.toLowerCase().includes('pm')))
+                    );
+
                     if (cell.address.indexOf('A') !== 0) {
                         cell.font = { size: 9 };
-                        cell.alignment = { vertical: 'middle', wrapText: true };
+                        cell.alignment = { 
+                            vertical: 'middle', 
+                            horizontal: (isPDPMCell || colDef?.key === 'category') ? 'center' : 'left',
+                            wrapText: true 
+                        };
                     } else {
                         cell.font = { size: 9, color: { argb: 'FF64748B' } };
                         cell.alignment = { vertical: 'middle', horizontal: 'center' };
@@ -1511,6 +1670,27 @@ const ProjectReport = () => {
                     .btn-week:hover { color: #f472b6 !important; background: rgba(244, 114, 182, 0.15) !important; filter: drop-shadow(0 0 5px rgba(244, 114, 182, 0.5)); }
                     .btn-clone:hover { color: #60a5fa !important; background: rgba(96, 165, 250, 0.15) !important; filter: drop-shadow(0 0 5px rgba(96, 165, 250, 0.5)); }
                     .btn-reset:hover { color: #f43f5e !important; background: rgba(244, 63, 94, 0.15) !important; filter: drop-shadow(0 0 5px rgba(244, 63, 94, 0.5)); }
+
+                    @keyframes reportFadeIn {
+                        from { opacity: 0; transform: translateY(4px); }
+                        to { opacity: 1; transform: translateY(0); }
+                    }
+                    .report-transition-wrapper {
+                        animation: reportFadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+                    }
+                    .loading-overlay {
+                        position: absolute;
+                        top: 0; left: 0; right: 0; bottom: 0;
+                        background: rgba(var(--bg-primary-rgb), 0.3);
+                        backdrop-filter: blur(2px);
+                        z-index: 1000;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        opacity: 0;
+                        animation: fadeIn 0.3s forwards;
+                    }
+                    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
                 `}
             </style>
             {showSaveToast && (
@@ -1547,14 +1727,6 @@ const ProjectReport = () => {
                         <button onClick={handleNextWeek} className="p-1 hover:text-blue-500 transition-colors" title="다음 주"><ChevronRight size={14} /></button>
                     </div>
 
-                    <button 
-                        onClick={handleClonePrevious} 
-                        className="premium-icon-btn btn-clone flex items-center gap-1.5 px-3" 
-                        title="지난주 데이터 가져오기"
-                    >
-                        <ClipboardCopy size={16} />
-                        <span className="text-[11px] font-bold">지난주 복사</span>
-                    </button>
                 </div>
                 <div className="flex items-center gap-3">
                     <button onClick={toggleTheme} className="premium-icon-btn btn-theme" title={theme === 'dark' ? '라이트 모드로 전환' : '다크 모드로 전환'}>
@@ -1612,88 +1784,105 @@ const ProjectReport = () => {
                     </div>
                 </div>
             </div>
-            <div className="flex-1 overflow-auto bg-[var(--bg-primary)] report-spreadsheet-container">
-                <table className="table-fixed shadow-sm" style={{ width: totalWidth, minWidth: '100%' }}>
-                    <colgroup>
-                        <col style={{ width: 40 }} />
-                        {columns.map(col => (
-                            <col key={col.key} style={{ width: getSafeWidth(col.key) }} />
-                        ))}
-                    </colgroup>
-                    <thead className="z-40">
-                        <tr className="bg-[var(--bg-tertiary)]">
-                            <th className="w-10 h-7 border border-[var(--border)] bg-[var(--bg-tertiary)] flex items-center justify-center text-[9px] font-bold text-[var(--text-muted)] select-none">#</th>
-                            {columnLetters.map((le, idx) => (
-                                <th key={idx} className="border border-[var(--border)] text-[9px] font-bold text-[var(--text-muted)] text-center h-7 relative p-0 select-none" style={{ width: getSafeWidth(columns[idx]?.key) }}>
-                                    {le}
-                                    <ColumnResizeHandle column={columns[idx]?.key} onMouseDown={handleColumnMouseDown} />
-                                </th>
+            <div className="flex-1 overflow-auto bg-[var(--bg-primary)] report-spreadsheet-container relative">
+                {isLoading && (
+                    <div className="loading-overlay">
+                        <div className="w-8 h-8 border-2 border-blue-500/20 border-t-blue-500 rounded-full animate-spin" />
+                    </div>
+                )}
+                <div key={selectedDate} className="report-transition-wrapper">
+                    <table className="table-fixed shadow-sm" style={{ width: totalWidth, minWidth: '100%' }}>
+                        <colgroup>
+                            <col style={{ width: 40 }} />
+                            {columns.map(col => (
+                                <col key={col.key} style={{ width: getSafeWidth(col.key) }} />
                             ))}
-                        </tr>
-                        <tr className="bg-[var(--bg-tertiary)]">
-                            <th className="w-10 border border-[var(--border)] bg-[var(--bg-tertiary)] select-none relative" style={{ height: rowHeights.header || 36 }}>
-                                <RowResizeHandle rowId="header" onMouseDown={handleRowMouseDown} />
-                            </th>
-                            {columns.map((col, idx) => (
-                                <th key={idx} className={`border border-[var(--border)] p-0 text-[10px] font-bold uppercase tracking-tight text-[var(--text-primary)] text-center relative truncate select-none ${col.key === 'plan' ? 'bg-blue-500/5' : ''}`} style={{ width: getSafeWidth(col.key), height: rowHeights.header || 36 }}>
-                                    {col.key === 'manage' ? (
-                                        <span className="p-1.5 inline-block">{col.label}</span>
-                                    ) : (
-                                        <SpreadsheetCellInput 
-                                            initialValue={col.label}
-                                            onCommit={(v) => handleHeaderChange(col.key, v)}
-                                            onFocus={() => setFocusedCell({ rowId: 'header', field: col.key })}
-                                            isFocused={focusedCell?.rowId === 'header' && focusedCell?.field === col.key}
-                                            className="text-center font-bold uppercase !px-1 text-[var(--text-primary)]"
-                                        />
-                                    )}
-                                </th>
-                            ))}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {filteredData.length > 0 ? (
-                            filteredData.map((item, rowIndex) => (
-                                <ReportDataRow 
-                                    key={item.id} 
-                                    item={item} 
-                                    rowIndex={rowIndex} 
-                                    columns={columns} 
-                                    columnWidths={columnWidths} 
-                                    rowHeight={item.rowHeight || 80} 
-                                    focusedCell={focusedCell} 
-                                    setFocusedCell={setFocusedCell} 
-                                    onCellChange={handleCellChange} 
-                                    onProjectSelect={handleProjectSelect} 
-                                    onOpenLibrary={handleOpenMasterLibrary} 
-                                    onDelete={deleteRow} 
-                                    onRowResize={handleRowMouseDown} 
-                                    onRowCopyPrevious={handleRowCopyPrevious}
-                                    theme={theme} 
-                                    lastWeekProjects={lastWeekProjects} 
-                                    masterProjects={masterProjects} 
-                                />
-                            ))
-                        ) : (
-                            <tr>
-                                <td colSpan={columns.length + 1} className="py-20 text-center bg-[var(--bg-secondary)]">
-                                    <div className="flex flex-col items-center gap-4 opacity-50">
-                                        <FileText size={48} className="text-[var(--text-muted)]" />
-                                        <div className="flex flex-col gap-1">
-                                            <p className="text-sm font-bold text-[var(--text-primary)]">이번 주차 보고 데이터가 없습니다.</p>
-                                            <p className="text-xs text-[var(--text-muted)]">내용을 입력하거나 상단의 '지난주 복사' 버튼을 눌러 데이터를 가져오세요.</p>
-                                        </div>
-                                        <button onClick={addNewRow} className="mt-2 px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-full text-xs font-bold transition-all shadow-lg hover:shadow-blue-500/20 flex items-center gap-2">
-                                            <Plus size={14} /> 첫 번째 행 추가하기
-                                        </button>
-                                    </div>
-                                </td>
+                        </colgroup>
+                        <thead className="z-40">
+                            <tr className="bg-[var(--bg-tertiary)]">
+                                <th className="w-10 h-7 border border-[var(--border)] bg-[var(--bg-tertiary)] flex items-center justify-center text-[9px] font-bold text-[var(--text-muted)] select-none">#</th>
+                                {columnLetters.map((le, idx) => (
+                                    <th key={idx} className="border border-[var(--border)] text-[9px] font-bold text-[var(--text-muted)] text-center h-7 relative p-0 select-none" style={{ width: getSafeWidth(columns[idx]?.key) }}>
+                                        {le}
+                                        <ColumnResizeHandle column={columns[idx]?.key} onMouseDown={handleColumnMouseDown} />
+                                    </th>
+                                ))}
                             </tr>
-                        )}
-                    </tbody>
-                </table>
+                            <tr className="bg-[var(--bg-tertiary)]">
+                                <th className="w-10 border border-[var(--border)] bg-[var(--bg-tertiary)] select-none relative" style={{ height: rowHeights.header || 36 }}>
+                                    <RowResizeHandle rowId="header" onMouseDown={handleRowMouseDown} />
+                                </th>
+                                {columns.map((col, idx) => (
+                                    <th key={idx} className={`border border-[var(--border)] p-0 text-[10px] font-bold uppercase tracking-tight text-[var(--text-primary)] text-center relative truncate select-none ${col.key === 'plan' ? 'bg-blue-500/5' : ''}`} style={{ width: getSafeWidth(col.key), height: rowHeights.header || 36 }}>
+                                        {col.key === 'manage' ? (
+                                            <span className="p-1.5 inline-block">{col.label}</span>
+                                        ) : (
+                                            <SpreadsheetCellInput 
+                                                initialValue={col.label}
+                                                onCommit={(v) => handleHeaderChange(col.key, v)}
+                                                onFocus={() => setFocusedCell({ rowId: 'header', field: col.key })}
+                                                isFocused={focusedCell?.rowId === 'header' && focusedCell?.field === col.key}
+                                                className="text-center font-bold uppercase !px-1 text-[var(--text-primary)]"
+                                                align={(col.label && (col.label.toUpperCase().includes('PD') || col.label.toUpperCase().includes('PM') || col.label.includes('담당') || col.label.includes('보고자'))) || (col.key && (col.key.toLowerCase().includes('pd') || col.key.toLowerCase().includes('pm'))) ? 'center' : 'left'}
+                                            />
+                                        )}
+                                    </th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {filteredData.length > 0 ? (
+                                filteredData.map((item, rowIndex) => (
+                                    <ReportDataRow 
+                                        key={item.id} 
+                                        item={item} 
+                                        rowIndex={rowIndex} 
+                                        columns={columns} 
+                                        columnWidths={columnWidths} 
+                                        rowHeight={item.rowHeight || 80} 
+                                        focusedCell={focusedCell} 
+                                        setFocusedCell={setFocusedCell} 
+                                        onCellChange={handleCellChange} 
+                                        onProjectSelect={handleProjectSelect} 
+                                        onOpenLibrary={handleOpenMasterLibrary} 
+                                        onDelete={deleteRow} 
+                                        onRowResize={handleRowMouseDown} 
+                                        onRowCopyPrevious={handleRowCopyPrevious}
+                                        theme={theme} 
+                                        lastWeekProjects={lastWeekProjects} 
+                                        masterProjects={masterProjects} 
+                                        pmList={pmList}
+                                        pdList={pdList}
+                                    />
+                                ))
+                            ) : (
+                                <tr>
+                                    <td colSpan={columns.length + 1} className="py-20 text-center bg-[var(--bg-secondary)]">
+                                        <div className="flex flex-col items-center gap-4 opacity-50">
+                                            <FileText size={48} className="text-[var(--text-muted)]" />
+                                            <div className="flex flex-col gap-1">
+                                                <p className="text-sm font-bold text-[var(--text-primary)]">이번 주차 보고 데이터가 없습니다.</p>
+                                                <p className="text-xs text-[var(--text-muted)]">내용을 입력하거나 각 프로젝트별 지난주 내용을 복사해오세요.</p>
+                                            </div>
+                                            <button onClick={addNewRow} className="mt-2 px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-full text-xs font-bold transition-all shadow-lg hover:shadow-blue-500/20 flex items-center gap-2">
+                                                <Plus size={14} /> 첫 번째 행 추가하기
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
             </div>
-            <ColumnSettingsModal isOpen={isSettingsModalOpen} onClose={() => setIsSettingsModalOpen(false)} columns={columns} onUpdateColumns={handleUpdateColumns} />
+            <ColumnSettingsModal 
+                isOpen={isSettingsModalOpen} 
+                onClose={() => setIsSettingsModalOpen(false)} 
+                columns={columns} 
+                onUpdateColumns={handleUpdateColumns} 
+                onSyncAllWidths={handleSyncAllWidths}
+                isSyncing={isSyncingAllWidths}
+            />
 
             {/* Custom confirmation for layout reset to avoid blocking browser dialogs */}
             {isResetConfirmOpen && createPortal(

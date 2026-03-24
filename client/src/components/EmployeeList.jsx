@@ -59,6 +59,7 @@ function EmployeeList() {
             filtered = filtered.filter(emp =>
                 (emp.name && emp.name.toLowerCase().includes(term)) ||
                 (emp.position && emp.position.toLowerCase().includes(term)) ||
+                (emp.job_role && emp.job_role.toLowerCase().includes(term)) ||
                 (emp.contact_email && emp.contact_email.toLowerCase().includes(term)) ||
                 (emp.contact_phone && emp.contact_phone.toLowerCase().includes(term))
             );
@@ -172,6 +173,7 @@ function EmployeeList() {
                         <tr>
                             <th>그룹</th>
                             <th>이름</th>
+                            <th>직무</th>
                             <th>직급</th>
                             <th>기술등급</th>
                             <th>고용</th>
@@ -203,6 +205,15 @@ function EmployeeList() {
                                                 </span>
                                             )}
                                         </div>
+                                    </td>
+                                    <td>
+                                        {employee.job_role ? (
+                                            <span className="badge badge-primary" style={{ backgroundColor: '#10b981', color: 'white', fontSize: '0.7rem' }}>
+                                                {employee.job_role}
+                                            </span>
+                                        ) : (
+                                            <span className="text-muted" style={{ fontSize: '0.7rem' }}>일반</span>
+                                        )}
                                     </td>
                                     <td>{employee.position || '-'}</td>
                                     <td>{employee.skill_level || '-'}</td>
@@ -261,7 +272,7 @@ function EmployeeList() {
             {/* Employee Form Modal */}
             {showModal && (
                 <div className="modal-overlay" onClick={() => setShowModal(false)}>
-                    <div className="modal" onClick={(e) => e.stopPropagation()}>
+                    <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '1000px', width: '95%' }}>
                         <div className="modal-header">
                             <h2 className="modal-title">
                                 {editingEmployee ? '직원 수정' : '직원 추가'}

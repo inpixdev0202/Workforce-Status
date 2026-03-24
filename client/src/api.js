@@ -83,6 +83,8 @@ export const projectsAPI = {
 export const projectReportsAPI = {
     getByDate: (date) => api.get(`/project-reports/${date}`),
     save: (data) => api.post('/project-reports', data),
+    updateAllColumnWidths: (columnWidths) => api.post('/project-reports/update-all-column-widths', { columnWidths }),
+    syncProjectField: (projectName, field, value) => api.post('/project-reports/sync-project-field', { projectName, field, value }),
 };
 
 // Integrations API

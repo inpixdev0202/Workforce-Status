@@ -13,7 +13,8 @@ function EmployeeForm({ employee, groups, onSave, onCancel }) {
         contact_phone: '',
         status: 'active',
         notes: '',
-        exclude_from_stats: 0
+        exclude_from_stats: 0,
+        job_role: ''
     });
     const [saving, setSaving] = useState(false);
 
@@ -31,7 +32,8 @@ function EmployeeForm({ employee, groups, onSave, onCancel }) {
                 contact_phone: employee.contact_phone || '',
                 status: employee.status || 'active',
                 notes: employee.notes || '',
-                exclude_from_stats: employee.exclude_from_stats || 0
+                exclude_from_stats: employee.exclude_from_stats || 0,
+                job_role: employee.job_role || ''
             });
         }
     }, [employee]);
@@ -71,7 +73,7 @@ function EmployeeForm({ employee, groups, onSave, onCancel }) {
 
     return (
         <form onSubmit={handleSubmit}>
-            <div className="grid grid-2">
+            <div className="grid grid-3">
                 <div className="form-group">
                     <label className="form-label">이름 *</label>
                     <input
@@ -102,7 +104,20 @@ function EmployeeForm({ employee, groups, onSave, onCancel }) {
                 </div>
 
                 <div className="form-group">
-                    <label className="form-label">직급</label>
+                    <label className="form-label">상태</label>
+                    <select
+                        name="status"
+                        className="form-control"
+                        value={formData.status}
+                        onChange={handleChange}
+                    >
+                        <option value="active">재직</option>
+                        <option value="inactive">퇴사</option>
+                    </select>
+                </div>
+
+                <div className="form-group">
+                    <label className="form-label">직급 (Rank)</label>
                     <select
                         name="position"
                         className="form-control"
@@ -117,6 +132,21 @@ function EmployeeForm({ employee, groups, onSave, onCancel }) {
                         <option value="대리">대리</option>
                         <option value="사원">사원</option>
                         <option value="인턴">인턴</option>
+                    </select>
+                </div>
+
+                <div className="form-group">
+                    <label className="form-label">직무 (Role)</label>
+                    <select
+                        name="job_role"
+                        className="form-control"
+                        value={formData.job_role || ''}
+                        onChange={handleChange}
+                        style={{ borderColor: formData.job_role ? '#10b981' : 'rgba(255,255,255,0.1)' }}
+                    >
+                        <option value="">일반 (Staff)</option>
+                        <option value="PD">PD (Project Director)</option>
+                        <option value="PM">PM (Project Manager)</option>
                     </select>
                 </div>
 
@@ -172,19 +202,6 @@ function EmployeeForm({ employee, groups, onSave, onCancel }) {
                         value={formData.retirement_date}
                         onChange={handleChange}
                     />
-                </div>
-
-                <div className="form-group">
-                    <label className="form-label">상태</label>
-                    <select
-                        name="status"
-                        className="form-control"
-                        value={formData.status}
-                        onChange={handleChange}
-                    >
-                        <option value="active">재직</option>
-                        <option value="inactive">퇴사</option>
-                    </select>
                 </div>
 
                 <div className="form-group">

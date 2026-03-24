@@ -489,8 +489,9 @@ h6 {
   padding: 1px 0;
   outline: none;
   transition: all 0.1s;
-  font-size: 0.65rem;
-  letter-spacing: -0.5px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
 }
 
 select.grid-input {
