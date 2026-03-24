@@ -1823,7 +1823,7 @@ const ProjectReport = () => {
                                                 onFocus={() => setFocusedCell({ rowId: 'header', field: col.key })}
                                                 isFocused={focusedCell?.rowId === 'header' && focusedCell?.field === col.key}
                                                 className="text-center font-bold uppercase !px-1 text-[var(--text-primary)]"
-                                                align={(col.label && (col.label.toUpperCase().includes('PD') || col.label.toUpperCase().includes('PM') || col.label.includes('담당') || col.label.includes('보고자'))) || (col.key && (col.key.toLowerCase().includes('pd') || col.key.toLowerCase().includes('pm'))) ? 'center' : 'left'}
+                                                align="center"
                                             />
                                         )}
                                     </th>
