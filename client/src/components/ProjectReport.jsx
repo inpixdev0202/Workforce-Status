@@ -438,6 +438,7 @@ const ReportDataRow = React.memo(({
     onOpenLibrary,
     onDelete,
     onRowResize,
+    onRowCopyPrevious,
     theme,
     lastWeekProjects,
     masterProjects
@@ -529,15 +530,34 @@ const ReportDataRow = React.memo(({
                     );
                 }
 
+                const isProgressCol = col.key === 'progress';
+                let hasPrevData = false;
+                if (isProgressCol && item.projectName && lastWeekProjects) {
+                    const prevRows = Array.isArray(lastWeekProjects) ? lastWeekProjects : (lastWeekProjects?.rows || []);
+                    hasPrevData = prevRows.some(p => p.projectName === item.projectName && (p.progress || p.status || p.plan));
+                }
+
                 return (
-                    <td key={col.key} className="border border-[var(--border)] p-0 relative" style={{ width: columnWidths[col.key], height: rowHeight }}>
+                    <td key={col.key} className={`border border-[var(--border)] p-0 relative ${isProgressCol ? 'group/col-progress' : ''}`} style={{ width: columnWidths[col.key], height: rowHeight }}>
                         <SpreadsheetCellInput 
                             initialValue={item[col.key]}
                             onCommit={(v) => onCellChange(item.id, col.key, v)}
                             onFocus={() => setFocusedCell({ rowId: item.id, field: cellId })}
                             isFocused={focusedCell?.field === cellId}
-                            className={col.key === 'status' ? 'text-[var(--text-muted)] text-[10px]' : 'text-[var(--text-muted)] text-[11px]'}
+                            className={`text-[var(--text-muted)] ${col.key === 'status' ? 'text-[10px]' : 'text-[11px]'} ${hasPrevData ? 'pr-8' : ''}`}
                         />
+                        {hasPrevData && (
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onRowCopyPrevious(item.id, item.projectName);
+                                }}
+                                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-blue-500 bg-[var(--bg-secondary)] border border-blue-500/20 hover:bg-blue-500 hover:text-white rounded-md p-1.5 opacity-0 group-hover/col-progress:opacity-100 transition-all z-10 shadow-sm flex items-center gap-1"
+                                title="이 프로젝트의 지난주 보고 가져오기"
+                            >
+                                <ClipboardCopy size={12} />
+                            </button>
+                        )}
                     </td>
                 );
             })}
@@ -1047,6 +1067,39 @@ const ProjectReport = () => {
             alert('데이터를 가져오는 중 오류가 발생했습니다.');
         }
     };
+
+    const handleRowCopyPrevious = useCallback(async (rowId, projectName) => {
+        if (!projectName || projectName === '') {
+            alert('프로젝트명이 없는 행입니다. 먼저 프로젝트를 선택해주세요.');
+            return;
+        }
+        
+        const prevRows = Array.isArray(lastWeekProjects) ? lastWeekProjects : (lastWeekProjects?.rows || []);
+        const prevData = prevRows.find(p => p.projectName === projectName);
+        
+        if (prevData) {
+            setReportData(prevDataArray => prevDataArray.map(item => {
+                if (item.id === rowId) {
+                    return {
+                        ...item,
+                        progress: prevData.progress || '',
+                        status: prevData.status || '',
+                        plan: prevData.plan || '',
+                        rfpInfo: prevData.rfpInfo || '',
+                        proposal: prevData.proposal || '',
+                        pt: prevData.pt || '',
+                        clientInfo: prevData.clientInfo || ''
+                    };
+                }
+                return item;
+            }));
+            
+            setAutoSaveStatus('Saving...');
+            setTimeout(() => handleSave(true), 300);
+        } else {
+            alert(`지난주 데이터에 이 프로젝트(${projectName})가 존재하지 않거나 내용이 없습니다.`);
+        }
+    }, [lastWeekProjects, handleSave]);
 
     const [columns, setColumns] = useState(() => {
         const saved = localStorage.getItem(COLUMNS_CONFIG_KEY);
@@ -1600,6 +1653,7 @@ const ProjectReport = () => {
                                     onOpenLibrary={handleOpenMasterLibrary} 
                                     onDelete={deleteRow} 
                                     onRowResize={handleRowMouseDown} 
+                                    onRowCopyPrevious={handleRowCopyPrevious}
                                     theme={theme} 
                                     lastWeekProjects={lastWeekProjects} 
                                     masterProjects={masterProjects} 
