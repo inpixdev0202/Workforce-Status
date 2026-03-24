@@ -430,28 +430,29 @@ const MasterProjectModal = ({ isOpen, onClose, projects, onSelect, theme }) => {
 const ProjectAutocomplete = ({ value, onOpenLibrary, theme }) => {
     return (
         <div 
-            className={`relative w-full h-full group flex items-center overflow-hidden cursor-pointer transition-colors ${theme === 'light' ? 'hover:bg-emerald-50' : 'hover:bg-emerald-500/10'}`}
-            onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onOpenLibrary();
-            }}
-            title="클릭하여 마스터 라이브러리 열기"
+            className={`relative w-full h-full group flex items-center overflow-hidden transition-colors ${theme === 'light' ? 'hover:bg-emerald-50/30' : 'hover:bg-emerald-500/5'}`}
+            title="우측 책 아이콘을 클릭하여 마스터에서 가져올 수 있습니다"
         >
             <input
                 type="text"
                 value={value || ''}
                 readOnly
-                placeholder="마스터에서 선택..."
-                className={`flex-1 h-full px-3 py-1 bg-transparent border-none outline-none text-[12px] font-bold placeholder:text-muted-foreground/40 cursor-pointer pointer-events-none ${theme === 'light' ? 'text-slate-800' : 'text-slate-100'}`}
+                placeholder="마스터에서 선택(아이콘 클릭)..."
+                className={`flex-1 h-full px-3 py-1 bg-transparent border-none outline-none text-[12px] font-bold placeholder:text-muted-foreground/40 ${theme === 'light' ? 'text-slate-800' : 'text-slate-100'}`}
                 spellCheck={false}
             />
             
             <div
-                className="flex flex-shrink-0 items-center justify-center w-6 h-6 mr-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                className="flex flex-shrink-0 items-center justify-center w-7 h-7 mr-0.5 opacity-60 group-hover:opacity-100 transition-all cursor-pointer hover:scale-110 active:scale-95"
                 style={{ color: '#10b981' }}
+                onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onOpenLibrary();
+                }}
+                title="마스터 라이브러리 열기"
             >
-                <BookOpen size={15} />
+                <BookOpen size={16} />
             </div>
         </div>
     );
