@@ -206,13 +206,32 @@ export async function initializeDatabase() {
             }
         }
 
+        // Ensure project_reports has an 'id' column for the run() polyfill compatibility
         await pool.query(`
             CREATE TABLE IF NOT EXISTS project_reports (
-                week_date DATE PRIMARY KEY,
+                id SERIAL PRIMARY KEY,
+                week_date DATE UNIQUE NOT NULL,
                 data_json TEXT NOT NULL,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         `);
+
+        // Migration: Add id column to legacy project_reports if missing
+        try {
+            const { rows: columns } = await pool.query(`
+                SELECT column_name FROM information_schema.columns 
+                WHERE table_name = 'project_reports' AND column_name = 'id'
+            `);
+            if (columns.length === 0) {
+                console.log('Migrating project_reports to include id column...');
+                await pool.query('ALTER TABLE project_reports ADD COLUMN id SERIAL');
+                await pool.query('ALTER TABLE project_reports DROP CONSTRAINT IF EXISTS project_reports_pkey');
+                await pool.query('ALTER TABLE project_reports ADD PRIMARY KEY (id)');
+                await pool.query('ALTER TABLE project_reports ADD CONSTRAINT project_reports_week_date_key UNIQUE (week_date)');
+            }
+        } catch (migErr) {
+            console.warn('Project reports migration warning (likely already migrated):', migErr.message);
+        }
 
         console.log('✅ Postgres Database initialized successfully');
     } catch (e) {
@@ -239,6 +258,8 @@ export async function run(sql, ...params) {
     // SQLite polyfill: append RETURNING id for inserts if not present, to emulate lastInsertRowid
     const isInsert = text.trim().toUpperCase().startsWith('INSERT');
     if (isInsert && !text.toUpperCase().includes('RETURNING')) {
+        // Only append RETURNING id if it doesn't look like an UPSERT (ON CONFLICT) that might have issues
+        // or specifically for tables we know have 'id'
         text += ' RETURNING id';
     }
 
