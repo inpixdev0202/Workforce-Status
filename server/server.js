@@ -328,7 +328,7 @@ app.get('/api/dashboard/stats', async (req, res) => {
         }
 
         // 5. Rest of Data
-        const employeesByGroup = await query(`
+        const rawEmployeesByGroup = await query(`
             SELECT 
                 g.name, 
                 g.color, 
@@ -340,6 +340,13 @@ app.get('/api/dashboard/stats', async (req, res) => {
             GROUP BY g.id 
             ORDER BY g.display_order
         `, [todayStr]);
+
+        const employeesByGroup = rawEmployeesByGroup.map(g => ({
+            ...g,
+            count: parseInt(g.count, 10) || 0,
+            regular_count: parseInt(g.regular_count, 10) || 0,
+            contract_count: parseInt(g.contract_count, 10) || 0
+        }));
         const recentEmployees = await query("SELECT e.*, g.name as group_name, g.color as group_color FROM employees e LEFT JOIN groups g ON e.group_id = g.id WHERE (e.status = 'active' OR (e.retirement_date >= ?)) AND (e.exclude_from_stats IS NULL OR e.exclude_from_stats = 0) ORDER BY e.created_at DESC LIMIT 5", [todayStr]);
 
         const next30Days = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];

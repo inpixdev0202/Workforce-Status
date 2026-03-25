@@ -52,7 +52,7 @@ router.get('/matrix', async (req, res) => {
                 const assignAllocations = allocations.filter(alloc => alloc.assignment_id === assignment.id);
                 const allocationMap = {};
                 assignAllocations.forEach(alloc => {
-                    allocationMap[alloc.period_date] = alloc.value;
+                    allocationMap[alloc.period_date] = parseFloat(alloc.value) || 0;
                 });
 
                 return {
