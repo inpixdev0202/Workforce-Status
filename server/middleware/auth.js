@@ -12,14 +12,14 @@ export const authenticateToken = (req, res, next) => {
         return res.status(401).json({ error: '인증 토큰이 없습니다. 다시 로그인해 주세요.' });
     }
 
-    jwt.verify(token, JWT_SECRET, (err, decoded) => {
+    jwt.verify(token, JWT_SECRET, async (err, decoded) => {
         if (err) {
             return res.status(403).json({ error: '세션이 만료되었거나 유효하지 않습니다.' });
         }
 
         // Fetch user from DB to ensure they still exist and check their role
         try {
-            const user = get('SELECT id, name, email, role, group_id, permissions FROM users WHERE id = ?', [decoded.id]);
+            const user = await get('SELECT id, name, email, role, group_id, permissions FROM users WHERE id = ?', [decoded.id]);
             if (!user) {
                 return res.status(401).json({ error: '사용자를 찾을 수 없습니다.' });
             }
