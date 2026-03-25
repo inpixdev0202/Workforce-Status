@@ -1,5 +1,5 @@
 import pkg from 'pg';
-const { Pool } = pkg;
+const { Pool, types } = pkg;
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
@@ -9,6 +9,11 @@ const __dirname = dirname(__filename);
 
 // Load .env from server directory
 dotenv.config({ path: join(__dirname, '.env') });
+
+// GLOBALLY OVERRIDE TYPE PARSERS TO MIRROR SQLITE (Prevents Vercel Frontend UI crashes)
+types.setTypeParser(types.builtins.DATE, val => val); // Keeps raw dates (e.g. '2025-07-06') without timezones
+types.setTypeParser(types.builtins.NUMERIC, val => parseFloat(val)); // Parses DECIMAL columns to native Floats
+types.setTypeParser(types.builtins.INT8, val => parseInt(val, 10)); // Parses COUNT(*) integers from BigInt
 
 const pool = new Pool({
     connectionString: process.env.POSTGRES_URL || process.env.DATABASE_URL,
