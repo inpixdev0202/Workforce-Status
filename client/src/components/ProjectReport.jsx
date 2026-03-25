@@ -1713,24 +1713,18 @@ const ProjectReport = () => {
                     .btn-clone:hover { color: #60a5fa !important; background: rgba(96, 165, 250, 0.15) !important; filter: drop-shadow(0 0 5px rgba(96, 165, 250, 0.5)); }
                     .btn-reset:hover { color: #f43f5e !important; background: rgba(244, 63, 94, 0.15) !important; filter: drop-shadow(0 0 5px rgba(244, 63, 94, 0.5)); }
 
-                    @keyframes reportFadeIn {
-                        from { opacity: 0; transform: translateY(4px); }
-                        to { opacity: 1; transform: translateY(0); }
-                    }
                     .report-transition-wrapper {
-                        animation: reportFadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+                        /* Removed fade animations as requested */
                     }
                     .loading-overlay {
                         position: absolute;
                         top: 0; left: 0; right: 0; bottom: 0;
-                        background: rgba(var(--bg-primary-rgb), 0.3);
-                        backdrop-filter: blur(2px);
+                        background: rgba(var(--bg-primary-rgb), 0.15);
                         z-index: 1000;
                         display: flex;
                         align-items: center;
                         justify-content: center;
-                        opacity: 0;
-                        animation: fadeIn 0.3s forwards;
+                        /* Removed blur filter to avoid "blurry" effect */
                     }
                     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
                 `}
