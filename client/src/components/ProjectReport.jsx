@@ -79,8 +79,21 @@ const SpreadsheetCellInput = React.memo(({ initialValue, onCommit, onFocus, isFo
 
     return (
         <div 
-            className={`absolute inset-0 w-full h-full flex items-center ${align === 'center' ? 'justify-center' : 'justify-start'} ${isFocused ? 'focused-field overflow-hidden' : 'bg-transparent'} ${className}`}
+            className={`${isFocused ? 'focused-field overflow-hidden' : 'bg-transparent'} ${className}`}
             onClick={() => inputRef.current?.focus()}
+            style={{
+                position: 'absolute',
+                top: 0,
+                right: 0,
+                bottom: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: align === 'center' ? 'center' : 'justify-start',
+                overflow: 'hidden'
+            }}
         >
             {type === 'date' || !isMultilineField ? (
                 <input 
