@@ -634,7 +634,11 @@ const ReportDataRow = React.memo(({
                     }
                 }
                 const isDate = col.label && (col.label.includes('시작') || col.label.includes('종료') || col.label.includes('날짜') || (col.key && col.key.toLowerCase().includes('date')));
-                const isMultiline = !isPDPM && (['progress', 'status', 'plan', 'rfpInfo', 'proposal'].includes(col.key) || (col.label && (col.label.includes('상세') || col.label.includes('내용'))));
+                const multilineLabels = ['상세', '내용', '비고', '진행상황', '투입계획', '특이사항', '고객 정보', '보고'];
+                const isMultiline = !isPDPM && (
+                    ['progress', 'status', 'plan', 'rfpInfo', 'proposal'].includes(col.key) || 
+                    (col.label && multilineLabels.some(l => col.label.includes(l)))
+                );
 
                 if (isCopyCol) {
                     let hasPrevData = false;
