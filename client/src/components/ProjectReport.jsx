@@ -77,6 +77,8 @@ const SpreadsheetCellInput = React.memo(({ initialValue, onCommit, onFocus, isFo
         pointerEvents: 'auto'
     };
 
+    const isMultiline = isMultilineField;
+
     return (
         <div 
             className={`${isFocused ? 'focused-field overflow-hidden' : 'bg-transparent'} ${className}`}
@@ -89,13 +91,14 @@ const SpreadsheetCellInput = React.memo(({ initialValue, onCommit, onFocus, isFo
                 left: 0,
                 width: '100%',
                 height: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: align === 'center' ? 'center' : 'justify-start',
+                // For multiline, avoid flex centering if it trips certain browsers
+                display: isMultiline ? 'block' : 'flex',
+                alignItems: isMultiline ? 'stretch' : 'center',
+                justifyContent: align === 'center' ? 'center' : 'flex-start',
                 overflow: 'hidden'
             }}
         >
-            {type === 'date' || !isMultilineField ? (
+            {type === 'date' || !isMultiline ? (
                 <input 
                     ref={inputRef}
                     type={type}
@@ -114,13 +117,17 @@ const SpreadsheetCellInput = React.memo(({ initialValue, onCommit, onFocus, isFo
                     onBlur={handleBlur}
                     onFocus={onFocus}
                     onKeyDown={handleKeyDown}
+                    rows={2} // Baseline for browser behavior
                     spellCheck={false}
                     style={{ 
                         ...inputStyle,
+                        height: '100%',
+                        minHeight: '100%',
                         whiteSpace: 'pre-wrap',
                         wordBreak: 'break-all',
                         resize: 'none',
-                        overflow: 'hidden'
+                        overflowX: 'hidden',
+                        overflowY: 'auto'
                     }}
                 />
             )}
