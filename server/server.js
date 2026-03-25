@@ -266,7 +266,7 @@ app.get('/api/dashboard/stats', async (req, res) => {
                 FROM project_allocations pa
                 JOIN project_assignments pas ON pa.assignment_id = pas.id
                 JOIN projects p ON pas.project_id = p.id
-                WHERE pa.period_date LIKE ?
+                WHERE pa.period_date::TEXT LIKE ?
                 GROUP BY p.type
             `, [`${yearMonth}%`]);
 
@@ -276,54 +276,39 @@ app.get('/api/dashboard/stats', async (req, res) => {
 
             demandResult.forEach(row => {
                 const type = row.type || 'Client'; // Default to Client
-                const val = row.total_mm || 0;
+                const val = parseFloat(row.total_mm) || 0;
                 if (type === 'Client') clientMM += val;
-                else if (type === 'Internal') internalMM += val;
-                else if (type === 'Leave' || type === 'Annual') leaveMM += val;
-                else clientMM += val; // Default to client for unknown types
+                else if (type === 'Internal' || type === 'Bench' || type === 'Annual') internalMM += val;
+                else if (type === 'Leave') leaveMM += val;
+                else clientMM += val; // Default others to client or treat as internal
             });
 
-            const nextMonthStart = new Date(d.getFullYear(), d.getMonth() + 1, 1).toISOString().split('T')[0];
-
-            // Fetch supply breakdown by employment type
+            // Fetch supply (Headcount of Regulars vs Contractors as of that month)
+            // Approximate by checking employees active during that month
+            const safeEndOfMonth = format(endOfMonth(new Date(`${yearMonth}-01T00:00:00`)), 'yyyy-MM-dd');
             const supplyStats = await query(`
                 SELECT employment_type, COUNT(*) as count 
                 FROM employees 
-                WHERE status = 'active' AND (join_date < ? OR join_date IS NULL)
-                  AND (exclude_from_stats IS NULL OR exclude_from_stats = 0)
+                WHERE status = 'active' AND (exclude_from_stats IS NULL OR exclude_from_stats = 0) 
+                  AND created_at <= ? 
+                  AND (retirement_date > ? OR retirement_date IS NULL)
                 GROUP BY employment_type
-            `, [nextMonthStart]);
+            `, [safeEndOfMonth, `${yearMonth}-01`]);
 
             let regularCount = 0;
             let contractorCount = 0;
-
             supplyStats.forEach(stat => {
                 const type = stat.employment_type || '';
-                // Flexible matching for 'Regular'
+                const countVal = parseInt(stat.count, 10) || 0;
+                
                 if (['Regular', '정규직', 'Permanent'].includes(type) || !type) {
-                    // Assume undefined/null might be regular or we should default to one. 
-                    // Let's assume 'Regular' if missing, or strictly check.
-                    // Actually, if 'employment_type' is null, maybe just count as regular?
-                    // Let's count 'Regular', '정규직' as Regular. Others as Contractor.
                     if (type === 'Regular' || type === '정규직' || type === 'Permanent') {
-                        regularCount += stat.count;
+                        regularCount += countVal;
                     } else {
-                        contractorCount += stat.count;
+                        contractorCount += countVal;
                     }
                 } else {
-                    contractorCount += stat.count;
-                }
-            });
-
-            // Simplified logic: Explicitly check for Regular, everything else is Contractor
-            regularCount = 0;
-            contractorCount = 0;
-            supplyStats.forEach(stat => {
-                const type = stat.employment_type;
-                if (type === 'Regular' || type === '정규직' || type === 'Permanent') {
-                    regularCount += stat.count;
-                } else {
-                    contractorCount += stat.count;
+                    contractorCount += countVal;
                 }
             });
 
