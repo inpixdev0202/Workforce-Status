@@ -61,10 +61,20 @@ const SpreadsheetCellInput = React.memo(({ initialValue, onCommit, onFocus, isFo
 
     const inputClasses = `w-full bg-transparent border-none outline-none px-2 text-inherit m-0 p-0 block pointer-events-auto`;
     const inputStyle = { 
+        width: '100%',
+        height: '100%',
+        background: 'transparent',
+        border: 'none',
+        outline: 'none',
+        margin: 0,
+        padding: isMultilineField ? '4px 8px' : '0 8px',
         textAlign: align,
         fontSize: 'inherit',
         fontWeight: 'inherit',
-        lineHeight: '1.2'
+        lineHeight: '1.4',
+        color: 'inherit',
+        display: 'block',
+        pointerEvents: 'auto'
     };
 
     return (
@@ -81,7 +91,6 @@ const SpreadsheetCellInput = React.memo(({ initialValue, onCommit, onFocus, isFo
                     onBlur={handleBlur}
                     onFocus={onFocus}
                     onKeyDown={handleKeyDown}
-                    className={`${inputClasses} h-auto`}
                     style={inputStyle}
                 />
             ) : (
@@ -92,14 +101,13 @@ const SpreadsheetCellInput = React.memo(({ initialValue, onCommit, onFocus, isFo
                     onBlur={handleBlur}
                     onFocus={onFocus}
                     onKeyDown={handleKeyDown}
-                    rows={1}
                     spellCheck={false}
-                    className={`${inputClasses} h-auto resize-none overflow-hidden`}
                     style={{ 
                         ...inputStyle,
                         whiteSpace: 'pre-wrap',
                         wordBreak: 'break-all',
-                        padding: '4px 0'
+                        resize: 'none',
+                        overflow: 'hidden'
                     }}
                 />
             )}
