@@ -8,9 +8,9 @@ const router = express.Router();
 router.use(requireRoles(['Admin', 'GroupLeader', 'PD', 'TeamLeader', 'GM']));
 
 // Get all integrations
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
     try {
-        const integrations = query('SELECT * FROM integrations ORDER BY display_order');
+        const integrations = await query('SELECT * FROM integrations ORDER BY display_order');
         res.json(integrations);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -18,7 +18,7 @@ router.get('/', (req, res) => {
 });
 
 // Create new integration
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
     try {
         const { name, description, url, icon_emoji } = req.body;
 
@@ -26,15 +26,15 @@ router.post('/', (req, res) => {
             return res.status(400).json({ error: 'Name and URL are required' });
         }
 
-        const maxOrderResult = get('SELECT MAX(display_order) as max FROM integrations');
+        const maxOrderResult = await get('SELECT MAX(display_order) as max FROM integrations');
         const displayOrder = (maxOrderResult?.max || 0) + 1;
 
-        const result = run(`
+        const result = await run(`
             INSERT INTO integrations (name, description, url, icon_emoji, display_order)
             VALUES (?, ?, ?, ?, ?)
         `, [name, description, url, icon_emoji || '🔗', displayOrder]);
 
-        const newIntegration = get('SELECT * FROM integrations WHERE id = ?', [result.lastInsertRowid]);
+        const newIntegration = await get('SELECT * FROM integrations WHERE id = ?', [result.lastInsertRowid]);
         res.status(201).json(newIntegration);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -42,7 +42,7 @@ router.post('/', (req, res) => {
 });
 
 // Update integration
-router.put('/:id', (req, res) => {
+router.put('/:id', async (req, res) => {
     try {
         const { name, description, url, icon_emoji, display_order } = req.body;
         const updates = [];
@@ -60,7 +60,7 @@ router.put('/:id', (req, res) => {
 
         values.push(req.params.id);
 
-        const result = run(`
+        const result = await run(`
             UPDATE integrations 
             SET ${updates.join(', ')}
             WHERE id = ?
@@ -70,7 +70,7 @@ router.put('/:id', (req, res) => {
             return res.status(404).json({ error: 'Integration not found' });
         }
 
-        const updated = get('SELECT * FROM integrations WHERE id = ?', [req.params.id]);
+        const updated = await get('SELECT * FROM integrations WHERE id = ?', [req.params.id]);
         res.json(updated);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -78,9 +78,9 @@ router.put('/:id', (req, res) => {
 });
 
 // Delete integration
-router.delete('/:id', (req, res) => {
+router.delete('/:id', async (req, res) => {
     try {
-        const result = run('DELETE FROM integrations WHERE id = ?', [req.params.id]);
+        const result = await run('DELETE FROM integrations WHERE id = ?', [req.params.id]);
         if (result.changes === 0) {
             return res.status(404).json({ error: 'Integration not found' });
         }

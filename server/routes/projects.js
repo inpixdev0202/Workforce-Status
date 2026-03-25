@@ -4,9 +4,9 @@ import { query, run, get } from '../db.js';
 const router = express.Router();
 
 // Get all projects (simple list)
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
     try {
-        const projects = query('SELECT * FROM projects ORDER BY name ASC');
+        const projects = await query('SELECT * FROM projects ORDER BY name ASC');
         res.json(projects);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -14,16 +14,16 @@ router.get('/', (req, res) => {
 });
 
 // Get all projects with assignments and allocations (Matrix Data)
-router.get('/matrix', (req, res) => {
+router.get('/matrix', async (req, res) => {
     try {
         // 1. Get Projects
-        const projects = query(`
+        const projects = await query(`
       SELECT * FROM projects 
       ORDER BY COALESCE(display_order, id) ASC
     `);
 
         // 2. Get Assignments with Employee info
-        const assignments = query(`
+        const assignments = await query(`
       SELECT 
         pa.*,
         e.name as employee_name,
@@ -40,7 +40,7 @@ router.get('/matrix', (req, res) => {
     `);
 
         // 3. Get Allocations
-        const allocations = query(`
+        const allocations = await query(`
       SELECT * FROM project_allocations
     `);
 
@@ -74,7 +74,7 @@ router.get('/matrix', (req, res) => {
 });
 
 // Create Project
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
     try {
         const { name, start_date, end_date, status, note, type, pd, pm } = req.body;
 
@@ -83,14 +83,14 @@ router.post('/', (req, res) => {
         }
 
         // Get max order
-        const maxOrder = get('SELECT MAX(display_order) as max_order FROM projects')?.max_order || 0;
+        const maxOrder = await get('SELECT MAX(display_order) as max_order FROM projects')?.max_order || 0;
 
-        const result = run(`
+        const result = await run(`
       INSERT INTO projects (name, start_date, end_date, status, note, type, display_order, pd, pm)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [name, start_date || null, end_date || null, status || 'active', note || '', type || 'Client', maxOrder + 1, pd || '', pm || '']);
 
-        const newProject = get('SELECT * FROM projects WHERE id = ?', [result.lastInsertRowid]);
+        const newProject = await get('SELECT * FROM projects WHERE id = ?', [result.lastInsertRowid]);
         res.status(201).json(newProject);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -98,20 +98,18 @@ router.post('/', (req, res) => {
 });
 
 // Reorder Projects
-router.put('/reorder', (req, res) => {
+router.put('/reorder', async (req, res) => {
     try {
         const { projectIds } = req.body; // Array of IDs in new order
         if (!Array.isArray(projectIds)) return res.status(400).json({ error: 'Invalid projectIds' });
 
-        run('BEGIN TRANSACTION');
         try {
-            projectIds.forEach((id, index) => {
-                run('UPDATE projects SET display_order = ? WHERE id = ?', [index, id]);
-            });
-            run('COMMIT');
+            for (let index = 0; index < projectIds.length; index++) {
+                const id = projectIds[index];
+                await run('UPDATE projects SET display_order = ? WHERE id = ?', [index, id]);
+            }
             res.json({ success: true });
         } catch (e) {
-            run('ROLLBACK');
             throw e;
         }
     } catch (error) {
@@ -120,20 +118,18 @@ router.put('/reorder', (req, res) => {
 });
 
 // Reorder Assignments within a project
-router.put('/assignments/reorder', (req, res) => {
+router.put('/assignments/reorder', async (req, res) => {
     try {
         const { assignmentIds } = req.body; // Array of IDs in new order
         if (!Array.isArray(assignmentIds)) return res.status(400).json({ error: 'Invalid assignmentIds' });
 
-        run('BEGIN TRANSACTION');
         try {
-            assignmentIds.forEach((id, index) => {
-                run('UPDATE project_assignments SET display_order = ? WHERE id = ?', [index, id]);
-            });
-            run('COMMIT');
+            for (let index = 0; index < assignmentIds.length; index++) {
+                const id = assignmentIds[index];
+                await run('UPDATE project_assignments SET display_order = ? WHERE id = ?', [index, id]);
+            }
             res.json({ success: true });
         } catch (e) {
-            run('ROLLBACK');
             throw e;
         }
     } catch (error) {
@@ -142,17 +138,17 @@ router.put('/assignments/reorder', (req, res) => {
 });
 
 // Update Project
-router.put('/:id', (req, res) => {
+router.put('/:id', async (req, res) => {
     try {
         const { name, start_date, end_date, status, note, type, pd, pm } = req.body;
 
-        run(`
+        await run(`
       UPDATE projects 
       SET name = ?, start_date = ?, end_date = ?, status = ?, note = ?, type = ?, pd = ?, pm = ?
       WHERE id = ?
     `, [name, start_date || null, end_date || null, status || 'active', note || '', type || 'Client', pd || '', pm || '', req.params.id]);
 
-        const updated = get('SELECT * FROM projects WHERE id = ?', [req.params.id]);
+        const updated = await get('SELECT * FROM projects WHERE id = ?', [req.params.id]);
         res.json(updated);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -160,9 +156,9 @@ router.put('/:id', (req, res) => {
 });
 
 // Delete Project
-router.delete('/:id', (req, res) => {
+router.delete('/:id', async (req, res) => {
     try {
-        run('DELETE FROM projects WHERE id = ?', [req.params.id]);
+        await run('DELETE FROM projects WHERE id = ?', [req.params.id]);
         res.json({ message: 'Project deleted' });
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -170,12 +166,12 @@ router.delete('/:id', (req, res) => {
 });
 
 // Assign Employee to Project
-router.post('/:id/assign', (req, res) => {
+router.post('/:id/assign', async (req, res) => {
     try {
         const { employee_id, role, input_start_date, input_end_date } = req.body;
 
         // Check if already assigned
-        const exists = get(
+        const exists = await get(
             'SELECT id FROM project_assignments WHERE project_id = ? AND employee_id = ?',
             [req.params.id, employee_id]
         );
@@ -185,16 +181,16 @@ router.post('/:id/assign', (req, res) => {
         }
 
         // Get max order
-        const maxOrder = get('SELECT MAX(display_order) as max_order FROM project_assignments WHERE project_id = ?', [req.params.id])?.max_order || 0;
+        const maxOrder = await get('SELECT MAX(display_order) as max_order FROM project_assignments WHERE project_id = ?', [req.params.id])?.max_order || 0;
 
-        const result = run(`
+        const result = await run(`
       INSERT INTO project_assignments (project_id, employee_id, role, input_start_date, input_end_date, display_order)
       VALUES (?, ?, ?, ?, ?, ?)
     `, [req.params.id, employee_id, role || '', input_start_date || null, input_end_date || null, maxOrder + 1]);
 
         console.log(`[ASSIGN] Inserted ID: ${result.lastInsertRowid}`);
 
-        const newAssignment = get(`
+        const newAssignment = await get(`
       SELECT pa.*, e.name as employee_name, e.position as employee_position, e.skill_level as employee_grade, e.employment_type as employee_employment_type, g.name as group_name, g.color as group_color
       FROM project_assignments pa
       LEFT JOIN employees e ON pa.employee_id = e.id
@@ -216,7 +212,7 @@ router.post('/:id/assign', (req, res) => {
 });
 
 // Update Assignment (Role, Dates, Employee)
-router.put('/assignments/:id', (req, res) => {
+router.put('/assignments/:id', async (req, res) => {
     try {
         const { role, input_start_date, input_end_date, employee_id, work_location } = req.body;
         console.log(`[ASSIGN UPDATE] ID: ${req.params.id}, role: ${role}, start: ${input_start_date}, end: ${input_end_date}, emp: ${employee_id}, loc: ${work_location}`);
@@ -234,7 +230,7 @@ router.put('/assignments/:id', (req, res) => {
 
         params.push(req.params.id);
 
-        const result = run(`
+        const result = await run(`
       UPDATE project_assignments 
       SET ${updates.join(', ')}
       WHERE id = ?
@@ -242,7 +238,7 @@ router.put('/assignments/:id', (req, res) => {
         console.log(`[ASSIGN UPDATE] DB Result:`, result);
 
         // Fetch updated info with joins to return full object
-        const updated = get(`
+        const updated = await get(`
             SELECT pa.*, e.name as employee_name, e.position as employee_position, e.skill_level as employee_grade, e.employment_type as employee_employment_type, g.name as group_name, g.color as group_color
             FROM project_assignments pa
             JOIN employees e ON pa.employee_id = e.id
@@ -257,9 +253,9 @@ router.put('/assignments/:id', (req, res) => {
 });
 
 // Remove Assignment
-router.delete('/assignments/:id', (req, res) => {
+router.delete('/assignments/:id', async (req, res) => {
     try {
-        run('DELETE FROM project_assignments WHERE id = ?', [req.params.id]);
+        await run('DELETE FROM project_assignments WHERE id = ?', [req.params.id]);
         res.json({ message: 'Member removed from project' });
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -267,12 +263,12 @@ router.delete('/assignments/:id', (req, res) => {
 });
 
 // Update Allocation (Single or Bulk)
-router.post('/allocations', (req, res) => {
+router.post('/allocations', async (req, res) => {
     try {
         const { assignment_id, date, value } = req.body; // Single update for simplicity first
 
         // Check existing
-        const existing = get(
+        const existing = await get(
             'SELECT id FROM project_allocations WHERE assignment_id = ? AND period_date = ?',
             [assignment_id, date]
         );
@@ -280,14 +276,14 @@ router.post('/allocations', (req, res) => {
         if (existing) {
             if (value === '' || value === null) {
                 // Delete if empty
-                run('DELETE FROM project_allocations WHERE id = ?', [existing.id]);
+                await run('DELETE FROM project_allocations WHERE id = ?', [existing.id]);
             } else {
                 // Update
-                run('UPDATE project_allocations SET value = ? WHERE id = ?', [value, existing.id]);
+                await run('UPDATE project_allocations SET value = ? WHERE id = ?', [value, existing.id]);
             }
         } else if (value !== '' && value !== null) {
             // Insert
-            run(`
+            await run(`
         INSERT INTO project_allocations (assignment_id, period_date, value)
         VALUES (?, ?, ?)
       `, [assignment_id, date, value]);
@@ -308,36 +304,21 @@ router.post('/allocations/batch', async (req, res) => {
             return res.status(400).json({ error: 'Updates must be an array' });
         }
 
-        // Use direct DB access to avoid saveDatabase() on every step
-        const { getDB, saveDatabase } = await import('../db.js');
-        const db = await getDB();
+        for (const update of updates) {
+            const { assignment_id, date, value } = update;
 
-        // Prepare statements for performance inside the loop
-        const checkStmt = db.prepare('SELECT id FROM project_allocations WHERE assignment_id = ? AND period_date = ?');
-        const updateStmt = db.prepare('UPDATE project_allocations SET value = ? WHERE id = ?');
-        const deleteStmt = db.prepare('DELETE FROM project_allocations WHERE id = ?');
-        const insertStmt = db.prepare('INSERT INTO project_allocations (assignment_id, period_date, value) VALUES (?, ?, ?)');
-
-        db.transaction((updates) => {
-            for (const update of updates) {
-                const { assignment_id, date, value } = update;
-
-                // Check existing
-                const existing = checkStmt.get(assignment_id, date);
-
-                if (existing) {
-                    if (value === '' || value === null) {
-                        deleteStmt.run(existing.id);
-                    } else {
-                        updateStmt.run(value, existing.id);
-                    }
-                } else if (value !== '' && value !== null) {
-                    insertStmt.run(assignment_id, date, value);
-                }
+            if (value === '' || value === null) {
+                await run('DELETE FROM project_allocations WHERE assignment_id = ? AND period_date = ?', [assignment_id, date]);
+            } else {
+                await run(`
+                    INSERT INTO project_allocations (assignment_id, period_date, value) 
+                    VALUES (?, ?, ?)
+                    ON CONFLICT (assignment_id, period_date) 
+                    DO UPDATE SET value = EXCLUDED.value
+                `, [assignment_id, date, value]);
             }
-        })(updates);
+        }
 
-        saveDatabase(); // Save once at the end
         res.json({ success: true, count: updates.length });
     } catch (error) {
         console.error('[BATCH UPDATE ERROR]', error);

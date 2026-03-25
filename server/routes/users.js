@@ -10,9 +10,9 @@ router.use(authenticateToken);
 router.use(requireAdmin);
 
 // GET /api/users - List all users
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
     try {
-        const users = query(`
+        const users = await query(`
             SELECT u.id, u.name, u.email, u.role, u.group_id, u.permissions, u.created_at, g.name as group_name 
             FROM users u
             LEFT JOIN groups g ON u.group_id = g.id
@@ -38,7 +38,7 @@ router.post('/', async (req, res) => {
         }
 
         // Check for existing email
-        const existing = get('SELECT id FROM users WHERE email = ?', [email]);
+        const existing = await get('SELECT id FROM users WHERE email = ?', [email]);
         if (existing) {
             return res.status(400).json({ error: '이미 사용 중인 이메일입니다.' });
         }
@@ -46,7 +46,7 @@ router.post('/', async (req, res) => {
         const salt = await bcrypt.genSalt(10);
         const hash = await bcrypt.hash(password, salt);
 
-        const result = run(
+        const result = await run(
             'INSERT INTO users (name, email, password_hash, role, group_id, permissions) VALUES (?, ?, ?, ?, ?, ?)',
             [name, email, hash, role, group_id || null, permissions ? JSON.stringify(permissions) : null]
         );
@@ -64,14 +64,14 @@ router.put('/:id', async (req, res) => {
         const { id } = req.params;
         const { name, email, password, role, group_id, permissions } = req.body;
 
-        const user = get('SELECT * FROM users WHERE id = ?', [id]);
+        const user = await get('SELECT * FROM users WHERE id = ?', [id]);
         if (!user) {
             return res.status(404).json({ error: '사용자를 찾을 수 없습니다.' });
         }
 
         // If email changed, check uniqueness
         if (email !== user.email) {
-            const existing = get('SELECT id FROM users WHERE email = ?', [email]);
+            const existing = await get('SELECT id FROM users WHERE email = ?', [email]);
             if (existing) {
                 return res.status(400).json({ error: '이미 사용 중인 이메일입니다.' });
             }
@@ -83,7 +83,7 @@ router.put('/:id', async (req, res) => {
             hashToUpdate = await bcrypt.hash(password, salt);
         }
 
-        run(
+        await run(
             'UPDATE users SET name = ?, email = ?, password_hash = ?, role = ?, group_id = ?, permissions = ? WHERE id = ?',
             [name, email, hashToUpdate, role, group_id || null, permissions ? JSON.stringify(permissions) : null, id]
         );
@@ -96,7 +96,7 @@ router.put('/:id', async (req, res) => {
 });
 
 // DELETE /api/users/:id - Delete a user
-router.delete('/:id', (req, res) => {
+router.delete('/:id', async (req, res) => {
     try {
         const { id } = req.params;
 
@@ -105,7 +105,7 @@ router.delete('/:id', (req, res) => {
             return res.status(400).json({ error: '자신의 계정은 삭제할 수 없습니다.' });
         }
 
-        run('DELETE FROM users WHERE id = ?', [id]);
+        await run('DELETE FROM users WHERE id = ?', [id]);
         res.json({ message: '사용자가 삭제되었습니다.' });
     } catch (error) {
         console.error('Error deleting user:', error);

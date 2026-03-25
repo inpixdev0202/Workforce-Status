@@ -4,7 +4,7 @@ import { query, run, get } from '../db.js';
 const router = express.Router();
 
 // Get attendance records
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
     try {
         const { employee_id, start_date, end_date, month } = req.query;
         let sql = `
@@ -32,7 +32,7 @@ router.get('/', (req, res) => {
 
         sql += ' ORDER BY a.date DESC, e.name';
 
-        const records = query(sql, params);
+        const records = await query(sql, params);
         res.json(records);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -40,9 +40,9 @@ router.get('/', (req, res) => {
 });
 
 // Get attendance for specific employee and date
-router.get('/employee/:employee_id/date/:date', (req, res) => {
+router.get('/employee/:employee_id/date/:date', async (req, res) => {
     try {
-        const record = get(`
+        const record = await get(`
       SELECT a.*, e.name as employee_name
       FROM attendance a
       JOIN employees e ON a.employee_id = e.id
@@ -56,7 +56,7 @@ router.get('/employee/:employee_id/date/:date', (req, res) => {
 });
 
 // Create or update attendance record
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
     try {
         const { employee_id, date, status, hours, notes } = req.body;
 
@@ -65,33 +65,33 @@ router.post('/', (req, res) => {
         }
 
         // Check if employee exists
-        const employee = get('SELECT id FROM employees WHERE id = ?', [employee_id]);
+        const employee = await get('SELECT id FROM employees WHERE id = ?', [employee_id]);
         if (!employee) {
             return res.status(404).json({ error: 'Employee not found' });
         }
 
         // Check if record exists
-        const existing = get(
+        const existing = await get(
             'SELECT id FROM attendance WHERE employee_id = ? AND date = ?',
             [employee_id, date]
         );
 
         if (existing) {
             // Update
-            run(`
+            await run(`
         UPDATE attendance 
         SET status = ?, hours = ?, notes = ?, created_at = CURRENT_TIMESTAMP
         WHERE employee_id = ? AND date = ?
       `, [status || null, hours || null, notes || null, employee_id, date]);
         } else {
             // Insert
-            run(`
+            await run(`
         INSERT INTO attendance (employee_id, date, status, hours, notes)
         VALUES (?, ?, ?, ?, ?)
       `, [employee_id, date, status || null, hours || null, notes || null]);
         }
 
-        const record = get(`
+        const record = await get(`
       SELECT a.*, e.name as employee_name
       FROM attendance a
       JOIN employees e ON a.employee_id = e.id
@@ -105,7 +105,7 @@ router.post('/', (req, res) => {
 });
 
 // Bulk create/update attendance
-router.post('/bulk', (req, res) => {
+router.post('/bulk', async (req, res) => {
     try {
         const { records } = req.body;
 
@@ -114,13 +114,13 @@ router.post('/bulk', (req, res) => {
         }
 
         for (const record of records) {
-            const existing = get(
+            const existing = await get(
                 'SELECT id FROM attendance WHERE employee_id = ? AND date = ?',
                 [record.employee_id, record.date]
             );
 
             if (existing) {
-                run(`
+                await run(`
           UPDATE attendance 
           SET status = ?, hours = ?, notes = ?, created_at = CURRENT_TIMESTAMP
           WHERE employee_id = ? AND date = ?
@@ -132,7 +132,7 @@ router.post('/bulk', (req, res) => {
                     record.date
                 ]);
             } else {
-                run(`
+                await run(`
           INSERT INTO attendance (employee_id, date, status, hours, notes)
           VALUES (?, ?, ?, ?, ?)
         `, [
@@ -152,9 +152,9 @@ router.post('/bulk', (req, res) => {
 });
 
 // Delete attendance record
-router.delete('/:id', (req, res) => {
+router.delete('/:id', async (req, res) => {
     try {
-        const result = run('DELETE FROM attendance WHERE id = ?', [req.params.id]);
+        const result = await run('DELETE FROM attendance WHERE id = ?', [req.params.id]);
 
         if (result.changes === 0) {
             return res.status(404).json({ error: 'Attendance record not found' });
@@ -167,7 +167,7 @@ router.delete('/:id', (req, res) => {
 });
 
 // Get monthly summary
-router.get('/summary/monthly', (req, res) => {
+router.get('/summary/monthly', async (req, res) => {
     try {
         const { month } = req.query; // Format: YYYY-MM
 
@@ -175,7 +175,7 @@ router.get('/summary/monthly', (req, res) => {
             return res.status(400).json({ error: 'month parameter is required (format: YYYY-MM)' });
         }
 
-        const summary = query(`
+        const summary = await query(`
       SELECT 
         g.name as group_name,
         g.color as group_color,

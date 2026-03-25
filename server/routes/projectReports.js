@@ -5,10 +5,10 @@ import { authenticateToken } from '../middleware/auth.js';
 const router = express.Router();
 
 // Get report for a specific date
-router.get('/:date', authenticateToken, (req, res) => {
+router.get('/:date', authenticateToken, async (req, res) => {
     try {
         const { date } = req.params;
-        const report = get('SELECT * FROM project_reports WHERE week_date = ?', date);
+        const report = await get('SELECT * FROM project_reports WHERE week_date = ?', date);
         
         if (report) {
             res.json(JSON.parse(report.data_json));
@@ -22,7 +22,7 @@ router.get('/:date', authenticateToken, (req, res) => {
 });
 
 // Save report for a specific date
-router.post('/', authenticateToken, (req, res) => {
+router.post('/', authenticateToken, async (req, res) => {
     try {
         const { week_date, data } = req.body;
         if (!week_date || !data) {
@@ -32,8 +32,11 @@ router.post('/', authenticateToken, (req, res) => {
         const dataJson = JSON.stringify(data);
         
         // Use REPLACE INTO for SQLite to handle insert or update
-        run(
-            'INSERT OR REPLACE INTO project_reports (week_date, data_json, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)',
+        await run(
+            `INSERT INTO project_reports (week_date, data_json, updated_at) 
+             VALUES (?, ?, CURRENT_TIMESTAMP)
+             ON CONFLICT (week_date) 
+             DO UPDATE SET data_json = EXCLUDED.data_json, updated_at = CURRENT_TIMESTAMP`,
             week_date,
             dataJson
         );
@@ -46,16 +49,16 @@ router.post('/', authenticateToken, (req, res) => {
 });
 
 // Update column widths for ALL reports
-router.post('/update-all-column-widths', authenticateToken, (req, res) => {
+router.post('/update-all-column-widths', authenticateToken, async (req, res) => {
     try {
         const { columnWidths } = req.body;
         if (!columnWidths) {
             return res.status(400).json({ message: 'Missing columnWidths' });
         }
 
-        const allReports = query('SELECT * FROM project_reports');
+        const allReports = await query('SELECT * FROM project_reports');
         
-        allReports.forEach(report => {
+        for (const report of allReports) {
             let data = JSON.parse(report.data_json);
             
             if (Array.isArray(data)) {
@@ -69,12 +72,12 @@ router.post('/update-all-column-widths', authenticateToken, (req, res) => {
                 data.columnWidths = columnWidths;
             }
             
-            run(
+            await run(
                 'UPDATE project_reports SET data_json = ?, updated_at = CURRENT_TIMESTAMP WHERE week_date = ?',
                 JSON.stringify(data),
                 report.week_date
             );
-        });
+        }
 
         res.json({ message: `Successfully updated column widths for ${allReports.length} reports.` });
     } catch (error) {
@@ -84,7 +87,7 @@ router.post('/update-all-column-widths', authenticateToken, (req, res) => {
 });
 
 // Global Metadata Sync: Update a specific field for a project across ALL weekly reports
-router.post('/sync-project-field', authenticateToken, (req, res) => {
+router.post('/sync-project-field', authenticateToken, async (req, res) => {
     try {
         const { projectName, field, value } = req.body;
         if (!projectName || !field) {
@@ -103,14 +106,14 @@ router.post('/sync-project-field', authenticateToken, (req, res) => {
 
         const dbColumn = dbFieldMap[field.toLowerCase()];
         if (dbColumn) {
-            run(`UPDATE projects SET ${dbColumn} = ? WHERE name = ?`, value, projectName);
+            await run(`UPDATE projects SET ${dbColumn} = ? WHERE name = ?`, value, projectName);
         }
 
         // 2. Update ALL Project Reports
-        const allReports = query('SELECT * FROM project_reports');
+        const allReports = await query('SELECT * FROM project_reports');
         let updateCount = 0;
 
-        allReports.forEach(report => {
+        for (const report of allReports) {
             let data = JSON.parse(report.data_json);
             let rows = Array.isArray(data) ? data : (data.rows || []);
             let modified = false;
@@ -132,14 +135,14 @@ router.post('/sync-project-field', authenticateToken, (req, res) => {
                     data.rows = rows;
                 }
 
-                run(
+                await run(
                     'UPDATE project_reports SET data_json = ?, updated_at = CURRENT_TIMESTAMP WHERE week_date = ?',
                     JSON.stringify(data),
                     report.week_date
                 );
                 updateCount++;
             }
-        });
+        }
 
         res.json({ message: `Successfully synced '${field}' for project '${projectName}' across ${updateCount} weeks.` });
     } catch (error) {

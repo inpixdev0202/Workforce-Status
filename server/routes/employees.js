@@ -8,7 +8,7 @@ const router = express.Router();
 router.use(requireRoles(['Admin', 'GroupLeader', 'PD', 'TeamLeader', 'GM']));
 
 // Get all employees with filters
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
     try {
         const { group_id, status, search, job_role } = req.query;
         let sql = `
@@ -41,7 +41,7 @@ router.get('/', (req, res) => {
 
         sql += ' ORDER BY g.display_order, e.name';
 
-        const employees = query(sql, params);
+        const employees = await query(sql, params);
         res.json(employees);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -49,9 +49,9 @@ router.get('/', (req, res) => {
 });
 
 // Get single employee
-router.get('/:id', (req, res) => {
+router.get('/:id', async (req, res) => {
     try {
-        const employee = get(`
+        const employee = await get(`
       SELECT e.*, g.name as group_name, g.color as group_color
       FROM employees e
       LEFT JOIN groups g ON e.group_id = g.id
@@ -69,7 +69,7 @@ router.get('/:id', (req, res) => {
 });
 
 // Create new employee
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
     try {
         const {
             group_id,
@@ -90,7 +90,7 @@ router.post('/', (req, res) => {
         if (!name) {
             return res.status(400).json({ error: 'Employee name is required' });
         }
-        const result = run(`
+        const result = await run(`
       INSERT INTO employees (
         group_id, name, position, skill_level, employment_type, join_date, retirement_date,
         contact_email, contact_phone, status, notes, exclude_from_stats, job_role
@@ -111,7 +111,7 @@ router.post('/', (req, res) => {
             job_role || null
         ]);
 
-        const newEmployee = get(`
+        const newEmployee = await get(`
       SELECT e.*, g.name as group_name, g.color as group_color
       FROM employees e
       LEFT JOIN groups g ON e.group_id = g.id
@@ -125,7 +125,7 @@ router.post('/', (req, res) => {
 });
 
 // Update employee
-router.put('/:id', (req, res) => {
+router.put('/:id', async (req, res) => {
     try {
         const allowedFields = [
             'group_id', 'name', 'position', 'skill_level', 'employment_type', 'join_date', 'retirement_date',
@@ -159,12 +159,12 @@ router.put('/:id', (req, res) => {
         values.push(employeeId);
 
         // Debug: Check if employee exists first
-        const check = get('SELECT id FROM employees WHERE id = ?', [employeeId]);
+        const check = await get('SELECT id FROM employees WHERE id = ?', [employeeId]);
         console.log(`Pre-update check for ID ${employeeId}:`, check);
 
         console.log(`Updating employee ID ${employeeId} with values:`, values);
 
-        const result = run(`
+        const result = await run(`
       UPDATE employees 
       SET ${updates.join(', ')}
       WHERE id = ?
@@ -176,7 +176,7 @@ router.put('/:id', (req, res) => {
             return res.status(404).json({ error: `Employee not found (ID: ${employeeId})` });
         }
 
-        const updatedEmployee = get(`
+        const updatedEmployee = await get(`
       SELECT e.*, g.name as group_name, g.color as group_color
       FROM employees e
       LEFT JOIN groups g ON e.group_id = g.id
@@ -190,9 +190,9 @@ router.put('/:id', (req, res) => {
 });
 
 // Delete employee
-router.delete('/:id', (req, res) => {
+router.delete('/:id', async (req, res) => {
     try {
-        const result = run('DELETE FROM employees WHERE id = ?', [req.params.id]);
+        const result = await run('DELETE FROM employees WHERE id = ?', [req.params.id]);
 
         if (result.changes === 0) {
             return res.status(404).json({ error: 'Employee not found' });

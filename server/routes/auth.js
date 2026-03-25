@@ -16,7 +16,7 @@ router.post('/login', async (req, res) => {
             return res.status(400).json({ error: '이메일과 비밀번호를 입력해주세요.' });
         }
 
-        const user = get('SELECT * FROM users WHERE email = ?', [email]);
+        const user = await get('SELECT * FROM users WHERE email = ?', [email]);
 
         if (!user) {
             return res.status(401).json({ error: '이메일 또는 비밀번호가 올바르지 않습니다.' });
@@ -54,7 +54,7 @@ router.post('/login', async (req, res) => {
 });
 
 // GET /api/auth/verify - Get current active user from token
-router.get('/verify', authenticateToken, (req, res) => {
+router.get('/verify', authenticateToken, async (req, res) => {
     // If the middleware passes, req.user is set
     res.json({
         user: req.user

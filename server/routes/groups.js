@@ -8,9 +8,9 @@ const router = express.Router();
 router.use(requireRoles(['Admin', 'GroupLeader', 'PD', 'TeamLeader', 'GM']));
 
 // Get all groups
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
     try {
-        const groups = query(`
+        const groups = await query(`
       SELECT g.*, 
              COUNT(e.id) as employee_count
       FROM groups g
@@ -26,9 +26,9 @@ router.get('/', (req, res) => {
 });
 
 // Get single group
-router.get('/:id', (req, res) => {
+router.get('/:id', async (req, res) => {
     try {
-        const group = get('SELECT * FROM groups WHERE id = ?', [req.params.id]);
+        const group = await get('SELECT * FROM groups WHERE id = ?', [req.params.id]);
         if (!group) {
             return res.status(404).json({ error: 'Group not found' });
         }
@@ -39,7 +39,7 @@ router.get('/:id', (req, res) => {
 });
 
 // Create new group
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
     try {
         const { name, color } = req.body;
 
@@ -48,15 +48,15 @@ router.post('/', (req, res) => {
         }
 
         // Get max display_order
-        const maxOrderResult = get('SELECT MAX(display_order) as max FROM groups');
+        const maxOrderResult = await get('SELECT MAX(display_order) as max FROM groups');
         const displayOrder = (maxOrderResult?.max || 0) + 1;
 
-        const result = run(`
+        const result = await run(`
       INSERT INTO groups (name, color, display_order)
       VALUES (?, ?, ?)
     `, [name, color || '#3B82F6', displayOrder]);
 
-        const newGroup = get('SELECT * FROM groups WHERE id = ?', [result.lastInsertRowid]);
+        const newGroup = await get('SELECT * FROM groups WHERE id = ?', [result.lastInsertRowid]);
         res.status(201).json(newGroup);
     } catch (error) {
         if (error.message.includes('UNIQUE constraint failed')) {
@@ -68,7 +68,7 @@ router.post('/', (req, res) => {
 });
 
 // Update group
-router.put('/:id', (req, res) => {
+router.put('/:id', async (req, res) => {
     try {
         const { name, color, display_order } = req.body;
         const updates = [];
@@ -93,7 +93,7 @@ router.put('/:id', (req, res) => {
 
         values.push(req.params.id);
 
-        const result = run(`
+        const result = await run(`
       UPDATE groups 
       SET ${updates.join(', ')}
       WHERE id = ?
@@ -103,7 +103,7 @@ router.put('/:id', (req, res) => {
             return res.status(404).json({ error: 'Group not found' });
         }
 
-        const updatedGroup = get('SELECT * FROM groups WHERE id = ?', [req.params.id]);
+        const updatedGroup = await get('SELECT * FROM groups WHERE id = ?', [req.params.id]);
         res.json(updatedGroup);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -111,10 +111,10 @@ router.put('/:id', (req, res) => {
 });
 
 // Delete group
-router.delete('/:id', (req, res) => {
+router.delete('/:id', async (req, res) => {
     try {
         // Check if group has employees
-        const employeeCountResult = get(
+        const employeeCountResult = await get(
             'SELECT COUNT(*) as count FROM employees WHERE group_id = ?',
             [req.params.id]
         );
@@ -125,7 +125,7 @@ router.delete('/:id', (req, res) => {
             });
         }
 
-        const result = run('DELETE FROM groups WHERE id = ?', [req.params.id]);
+        const result = await run('DELETE FROM groups WHERE id = ?', [req.params.id]);
 
         if (result.changes === 0) {
             return res.status(404).json({ error: 'Group not found' });

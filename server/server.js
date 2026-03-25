@@ -25,7 +25,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Request logging
-app.use((req, res, next) => {
+app.use(async (req, res, next) => {
     console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
     next();
 });
@@ -49,7 +49,7 @@ app.use('/api/integrations', integrationsRouter);
 app.use('/api/project-reports', projectReportsRouter);
 
 // Health check
-app.get('/api/health', (req, res) => {
+app.get('/api/health', async (req, res) => {
     res.json({
         status: 'ok',
         timestamp: new Date().toISOString(),
@@ -64,9 +64,9 @@ app.get('/api/dashboard/stats', async (req, res) => {
         const { startOfWeek, endOfWeek, addWeeks, startOfMonth, endOfMonth, addMonths, format, eachDayOfInterval, isWeekend, parseISO } = await import('date-fns');
 
         const todayStr = format(new Date(), 'yyyy-MM-dd');
-        const totalEmployeesResult = get("SELECT COUNT(*) as count FROM employees WHERE status = 'active' AND (exclude_from_stats IS NULL OR exclude_from_stats = 0)");
-        const totalGroupsResult = get('SELECT COUNT(*) as count FROM groups');
-        const totalAssignmentsResult = get(`
+        const totalEmployeesResult = await get("SELECT COUNT(*) as count FROM employees WHERE status = 'active' AND (exclude_from_stats IS NULL OR exclude_from_stats = 0)");
+        const totalGroupsResult = await get('SELECT COUNT(*) as count FROM groups');
+        const totalAssignmentsResult = await get(`
             SELECT COUNT(DISTINCT pa.employee_id) as count 
             FROM project_assignments pa
             JOIN projects p ON pa.project_id = p.id
@@ -77,11 +77,11 @@ app.get('/api/dashboard/stats', async (req, res) => {
         `, [todayStr, todayStr]);
 
         // 1. Basic Distributions
-        const employmentStatus = query("SELECT employment_type, COUNT(*) as count FROM employees WHERE status = 'active' AND (exclude_from_stats IS NULL OR exclude_from_stats = 0) GROUP BY employment_type");
-        const skillLevelStatus = query("SELECT skill_level, COUNT(*) as count FROM employees WHERE status = 'active' AND (exclude_from_stats IS NULL OR exclude_from_stats = 0) GROUP BY skill_level");
+        const employmentStatus = await query("SELECT employment_type, COUNT(*) as count FROM employees WHERE status = 'active' AND (exclude_from_stats IS NULL OR exclude_from_stats = 0) GROUP BY employment_type");
+        const skillLevelStatus = await query("SELECT skill_level, COUNT(*) as count FROM employees WHERE status = 'active' AND (exclude_from_stats IS NULL OR exclude_from_stats = 0) GROUP BY skill_level");
 
         // 2. Work Location
-        const workLocationStatus = query(`
+        const workLocationStatus = await query(`
             SELECT pa.work_location, COUNT(*) as count
             FROM project_assignments pa
             JOIN projects p ON pa.project_id = p.id
@@ -93,8 +93,8 @@ app.get('/api/dashboard/stats', async (req, res) => {
 
         // 3. IDLE STATS CALCULATION
         // Fetch all active employees and groups
-        const employees = query("SELECT id, group_id, name, employment_type FROM employees WHERE status = 'active' AND (exclude_from_stats IS NULL OR exclude_from_stats = 0)");
-        const groups = query("SELECT id, name FROM groups");
+        const employees = await query("SELECT id, group_id, name, employment_type FROM employees WHERE status = 'active' AND (exclude_from_stats IS NULL OR exclude_from_stats = 0)");
+        const groups = await query("SELECT id, name FROM groups");
         const groupMap = groups.reduce((acc, g) => ({ ...acc, [g.id]: g.name }), {});
 
         // Helper to get formatted date strings for a range excluding weekends
@@ -120,7 +120,7 @@ app.get('/api/dashboard/stats', async (req, res) => {
         const rangeStart = format(thisWeekStart, 'yyyy-MM-dd');
         const rangeEnd = format(addWeeks(thisWeekStart, 16), 'yyyy-MM-dd');
 
-        const allAllocations = query(`
+        const allAllocations = await query(`
             SELECT pa.assignment_id, pa.period_date, pa.value, e.id as employee_id, e.group_id, p.type as project_type
             FROM project_allocations pa
             JOIN project_assignments pass ON pa.assignment_id = pass.id
@@ -146,7 +146,7 @@ app.get('/api/dashboard/stats', async (req, res) => {
             }
         });
 
-        const allAssignmentsResult = query("SELECT DISTINCT employee_id FROM project_assignments");
+        const allAssignmentsResult = await query("SELECT DISTINCT employee_id FROM project_assignments");
         const assignedEmpSet = new Set(allAssignmentsResult.map(r => r.employee_id));
 
         // Precalculate Regular Employee base per group
@@ -261,7 +261,7 @@ app.get('/api/dashboard/stats', async (req, res) => {
             const label = `${d.getMonth() + 1}월`;
 
             // Fetch demand breakdowns - Join with projects to get type
-            const demandResult = query(`
+            const demandResult = await query(`
                 SELECT p.type, SUM(pa.value) as total_mm 
                 FROM project_allocations pa
                 JOIN project_assignments pas ON pa.assignment_id = pas.id
@@ -286,7 +286,7 @@ app.get('/api/dashboard/stats', async (req, res) => {
             const nextMonthStart = new Date(d.getFullYear(), d.getMonth() + 1, 1).toISOString().split('T')[0];
 
             // Fetch supply breakdown by employment type
-            const supplyStats = query(`
+            const supplyStats = await query(`
                 SELECT employment_type, COUNT(*) as count 
                 FROM employees 
                 WHERE status = 'active' AND (join_date < ? OR join_date IS NULL)
@@ -343,7 +343,7 @@ app.get('/api/dashboard/stats', async (req, res) => {
         }
 
         // 5. Rest of Data
-        const employeesByGroup = query(`
+        const employeesByGroup = await query(`
             SELECT 
                 g.name, 
                 g.color, 
@@ -355,10 +355,10 @@ app.get('/api/dashboard/stats', async (req, res) => {
             GROUP BY g.id 
             ORDER BY g.display_order
         `, [todayStr]);
-        const recentEmployees = query("SELECT e.*, g.name as group_name, g.color as group_color FROM employees e LEFT JOIN groups g ON e.group_id = g.id WHERE (e.status = 'active' OR (e.retirement_date >= ?)) AND (e.exclude_from_stats IS NULL OR e.exclude_from_stats = 0) ORDER BY e.created_at DESC LIMIT 5", [todayStr]);
+        const recentEmployees = await query("SELECT e.*, g.name as group_name, g.color as group_color FROM employees e LEFT JOIN groups g ON e.group_id = g.id WHERE (e.status = 'active' OR (e.retirement_date >= ?)) AND (e.exclude_from_stats IS NULL OR e.exclude_from_stats = 0) ORDER BY e.created_at DESC LIMIT 5", [todayStr]);
 
         const next30Days = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-        const upcomingRolloffs = query(`
+        const upcomingRolloffs = await query(`
             SELECT e.name as employee_name, e.position, e.employment_type, g.name as group_name, g.color as group_color, p.name as project_name, pa.input_end_date
             FROM project_assignments pa JOIN employees e ON pa.employee_id = e.id LEFT JOIN groups g ON e.group_id = g.id JOIN projects p ON pa.project_id = p.id
             WHERE pa.input_end_date BETWEEN ? AND ? 
@@ -366,7 +366,7 @@ app.get('/api/dashboard/stats', async (req, res) => {
             ORDER BY pa.input_end_date ASC
         `, [todayStr, next30Days]);
 
-        const benchList = query(`
+        const benchList = await query(`
             SELECT DISTINCT e.id, e.name, e.position, e.skill_level, e.employment_type, g.name as group_name, g.color as group_color,
             (SELECT p.name FROM project_assignments pa JOIN projects p ON pa.project_id = p.id 
              WHERE pa.employee_id = e.id AND (pa.input_end_date >= ? OR pa.input_end_date IS NULL) 
@@ -389,8 +389,8 @@ app.get('/api/dashboard/stats', async (req, res) => {
         `, [todayStr, todayStr, todayStr, todayStr, todayStr, todayStr]);
 
         // Calculate Group Workforce Detail (Stacked Bar Chart Data)
-        const groupWorkforceDetails = groups.map(g => {
-            const groupEmployees = query(`
+        const groupWorkforceDetails = await Promise.all(groups.map(async g => {
+            const groupEmployees = await query(`
                 SELECT e.id, e.name, e.employment_type, e.exclude_from_stats,
                 (SELECT p.type FROM project_assignments pa JOIN projects p ON pa.project_id = p.id 
                  WHERE pa.employee_id = e.id AND (pa.input_end_date >= ? OR pa.input_end_date IS NULL) 
@@ -442,7 +442,7 @@ app.get('/api/dashboard/stats', async (req, res) => {
                 benchNames,
                 otherNames
             };
-        });
+        }));
 
         res.json({
             totalEmployees: totalEmployeesResult?.count || 0,
@@ -476,23 +476,27 @@ app.use((err, req, res, next) => {
 });
 
 // 404 handler
-app.use((req, res) => {
+app.use(async (req, res) => {
     res.status(404).json({ error: 'Route not found' });
 });
 
-// Start server
-app.listen(PORT, () => {
-    console.log(`
+// Start server only if not in Vercel Serverless environment
+if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+    app.listen(PORT, () => {
+        console.log(`
 ╔════════════════════════════════════════════╗
 ║   Workforce Status Management System      ║
 ║   Server running on port ${PORT}            ║
 ║   Environment: ${process.env.NODE_ENV || 'development'}           ║
 ╚════════════════════════════════════════════╝
-  `);
-});
+      `);
+    });
+}
 
 // Graceful shutdown
 process.on('SIGINT', () => {
     console.log('\n🛑 Shutting down gracefully...');
     process.exit(0);
 });
+
+export default app;
