@@ -47,13 +47,22 @@ const SpreadsheetCellInput = React.memo(({ initialValue, onCommit, onFocus, isFo
 
     const handleKeyDown = (e) => {
         if (e.key === 'Enter') {
-            if (e.altKey && type !== 'date') {
+            const isLineBreak = e.altKey || e.shiftKey;
+            
+            if (isLineBreak && isMultilineField && type !== 'date') {
                 e.preventDefault();
+                e.stopPropagation();
+                
                 const { selectionStart, selectionEnd } = e.target;
-                const newValue = localValue.substring(0, selectionStart) + "\n" + localValue.substring(selectionEnd);
-                setLocalValue(newValue);
-                selectionRef.current = { start: selectionStart + 1, end: selectionStart + 1 };
-            } else {
+                setLocalValue(prev => {
+                    const newValue = prev.substring(0, selectionStart) + "\n" + prev.substring(selectionEnd);
+                    // Update selection ref for next render
+                    selectionRef.current = { start: selectionStart + 1, end: selectionStart + 1 };
+                    return newValue;
+                });
+            } else if (!isLineBreak) {
+                e.preventDefault();
+                e.stopPropagation();
                 inputRef.current.blur();
             }
         }
