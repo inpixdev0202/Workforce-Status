@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { usersAPI, groupsAPI } from '../api';
-import { Edit2, Trash2, UserPlus, Plus, Shield, Users, Mail, Lock, User as UserIcon, Check, X, Search, Briefcase, TrendingUp, Eye, EyeOff, ChevronDown } from 'lucide-react';
+import { Edit2, Trash2, UserPlus, Plus, Shield, Users, Mail, Lock, User as UserIcon, Check, X, Search, Briefcase, TrendingUp, Eye, EyeOff, ChevronDown, LayoutDashboard, FileText, Settings as SettingsIcon } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { ROLES } from '../constants/menuConfig';
 
 export default function UserManagement() {
     const { user } = useAuth();
+    const topRef = useRef(null);
     const [usersList, setUsersList] = useState([]);
     const [groups, setGroups] = useState([]);
     const [isFormOpen, setIsFormOpen] = useState(false);
@@ -61,6 +62,7 @@ export default function UserManagement() {
         setSaving(false);
         setIsFormOpen(true);
         setShowPassword(false);
+        setTimeout(() => topRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
     };
 
     const handleCloseForm = () => {
@@ -128,7 +130,7 @@ export default function UserManagement() {
     );
 
     return (
-        <div className="animate-in fade-in duration-700">
+        <div ref={topRef} className="animate-in fade-in duration-700">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-lg">
                 <div>
                     <h1 className="tracking-tight">사용자 관리</h1>
@@ -168,17 +170,20 @@ export default function UserManagement() {
             {isFormOpen && (
                 <div className="premium-glass p-1 mb-12 animate-in slide-in-from-top-4 duration-500 shadow-2xl shadow-blue-500/10">
                     <div className="glass-card-header flex justify-between items-center py-6 px-10">
-                        <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 rounded-2xl bg-blue-500/20 flex items-center justify-center text-blue-400">
-                                {editingUser ? <Edit2 size={24} /> : <UserPlus size={24} />}
+                        <div className="flex items-center gap-3">
+                            <div className="text-blue-400 flex items-center shrink-0">
+                                {editingUser ? <Edit2 size={26} /> : <UserPlus size={26} />}
                             </div>
-                            <div>
-                                <h3 className="text-2xl font-extrabold text-white tracking-tight">{editingUser ? '사용자 정보 수정' : '신규 사용자 등록'}</h3>
-                                <p className="text-xs text-gray-500 font-bold uppercase tracking-widest mt-1">계정 및 인증 정보 설정</p>
-                            </div>
+                            <h3 className="text-2xl font-extrabold text-white tracking-tight leading-none translate-y-[0.5px]">
+                                {editingUser ? '사용자 정보 수정' : '신규 사용자 등록'}
+                            </h3>
                         </div>
-                        <button onClick={handleCloseForm} className="p-3 hover:bg-white/10 rounded-xl transition-colors text-gray-500 hover:text-white">
-                            <X size={24} />
+                        <button 
+                            onClick={handleCloseForm} 
+                            className="premium-icon-btn btn-delete"
+                            title="닫기"
+                        >
+                            <X size={18} />
                         </button>
                     </div>
 
@@ -247,6 +252,7 @@ export default function UserManagement() {
                                         type="button"
                                         onClick={() => setShowPassword(!showPassword)}
                                         className="premium-input-action"
+                                        style={{ position: 'absolute', zIndex: 20, pointerEvents: 'auto' }}
                                         title={showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
                                     >
                                         {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -296,46 +302,61 @@ export default function UserManagement() {
 
                             {formData.role !== ROLES.ADMIN && (
                                 <div className="premium-input-group md:col-span-2">
-                                    <label className="premium-input-label">메뉴 접근 권한 설정 (Granular Permissions)</label>
-                                    <div className="bg-black/20 rounded-2xl p-6 border border-white/5">
-                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                            {[
-                                                { key: 'dashboard', label: '대시보드' },
-                                                { key: 'sales', label: '영업현황' },
-                                                { key: 'projects', label: '프로젝트 배정' },
-                                                { key: 'settings', label: '설정' }
-                                            ].map(opt => (
-                                                <label key={opt.key} className="flex items-center gap-3 cursor-pointer group">
-                                                    <div 
-                                                        className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
-                                                            formData.permissions[opt.key] !== false ? 'bg-blue-500/20 text-blue-400' : 'bg-white/5 text-gray-600'
-                                                        }`}
-                                                        onClick={(e) => {
-                                                            e.preventDefault();
-                                                            const current = formData.permissions[opt.key];
-                                                            // undefined -> false -> true -> undefined (or simple toggle)
-                                                            // We'll use simple toggle for checkboxes: true / false
-                                                            const next = current === false ? true : false;
-                                                            setFormData({
-                                                                ...formData,
-                                                                permissions: { ...formData.permissions, [opt.key]: next }
-                                                            });
+                                    <label className="premium-input-label">메뉴 접근 권한 설정</label>
+                                    <div className="rounded-2xl border border-white/5 overflow-hidden">
+                                        {[
+                                            { key: 'dashboard', label: '대시보드', icon: <LayoutDashboard size={16} /> },
+                                            { key: 'sales', label: '영업현황', icon: <TrendingUp size={16} /> },
+                                            { key: 'projects', label: '프로젝트 배정', icon: <Briefcase size={16} /> },
+                                            { key: 'project-report', label: '프로젝트 보고', icon: <FileText size={16} /> },
+                                            { key: 'settings', label: '설정', icon: <SettingsIcon size={16} /> }
+                                        ].map((opt, idx, arr) => {
+                                            const isEnabled = formData.permissions[opt.key] !== false;
+                                            const toggle = () => {
+                                                const next = formData.permissions[opt.key] === false ? true : false;
+                                                setFormData({ ...formData, permissions: { ...formData.permissions, [opt.key]: next } });
+                                            };
+                                            return (
+                                                <div
+                                                    key={opt.key}
+                                                    onClick={toggle}
+                                                    className={`flex items-center gap-4 px-5 py-4 cursor-pointer transition-all duration-200 ${
+                                                        idx !== arr.length - 1 ? 'border-b border-white/5' : ''
+                                                    }`}
+                                                >
+                                                    {/* Icon */}
+                                                    <div
+                                                        style={{
+                                                            width: '36px', height: '36px', borderRadius: '12px',
+                                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                            flexShrink: 0, transition: 'all 0.2s',
+                                                            background: isEnabled ? 'rgba(59,130,246,0.15)' : 'rgba(239,68,68,0.15)',
+                                                            color: isEnabled ? '#60a5fa' : '#f87171'
                                                         }}
                                                     >
-                                                        {formData.permissions[opt.key] !== false ? <Check size={18} /> : <X size={18} />}
+                                                        {opt.icon}
                                                     </div>
-                                                    <span className={`text-sm font-semibold transition-colors ${
-                                                        formData.permissions[opt.key] !== false ? 'text-white' : 'text-gray-500'
+                                                    {/* Label */}
+                                                    <div className="flex-1 min-w-0">
+                                                        <div
+                                                            style={{ fontSize: '0.875rem', fontWeight: 700, transition: 'color 0.2s', color: isEnabled ? '#60a5fa' : '#f87171' }}
+                                                        >
+                                                            {opt.label}
+                                                        </div>
+                                                    </div>
+                                                    {/* Toggle switch */}
+                                                    <div className={`relative w-11 h-6 rounded-full transition-all duration-300 flex-shrink-0 ${
+                                                        isEnabled ? 'bg-blue-500' : 'bg-red-500'
                                                     }`}>
-                                                        {opt.label}
-                                                    </span>
-                                                </label>
-                                            ))}
-                                        </div>
-                                        <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-4">
-                                            * 관리자의 경우 모든 메뉴에 대한 접근 권한이 자동으로 부여됩니다.
-                                        </p>
+                                                        <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-all duration-300 ${
+                                                            isEnabled ? 'left-5' : 'left-0.5'
+                                                        }`} />
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
                                     </div>
+
                                 </div>
                             )}
 

@@ -23,6 +23,7 @@ api.interceptors.request.use(config => {
 export const authAPI = {
     login: (credentials) => api.post('/auth/login', credentials),
     verify: () => api.get('/auth/verify'),
+    changePassword: (data) => api.post('/auth/change-password', data),
 };
 
 // Users API (Admin)

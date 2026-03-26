@@ -2347,7 +2347,7 @@ select.form-control {
 .premium-input-action {
   position: absolute;
   right: 0.75rem;
-  z-index: 11;
+  z-index: 30;
   width: 34px;
   height: 34px;
   border-radius: 50%;
@@ -2360,6 +2360,7 @@ select.form-control {
   justify-content: center;
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   outline: none !important;
+  pointer-events: auto;
 }
 
 .premium-input-action:hover {

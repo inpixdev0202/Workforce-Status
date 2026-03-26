@@ -12,12 +12,14 @@ router.use(requireAdmin);
 // GET /api/users - List all users
 router.get('/', async (req, res) => {
     try {
-        const users = await query(`
+        const rows = await query(`
             SELECT u.id, u.name, u.email, u.role, u.group_id, u.permissions, u.created_at, g.name as group_name 
             FROM users u
             LEFT JOIN groups g ON u.group_id = g.id
             ORDER BY u.role, u.name
-        `).map(u => ({
+        `);
+        
+        const users = rows.map(u => ({
             ...u,
             permissions: u.permissions ? JSON.parse(u.permissions) : {}
         }));
