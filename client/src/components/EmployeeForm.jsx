@@ -129,6 +129,7 @@ function EmployeeForm({ employee, groups, onSave, onCancel }) {
                         <option value="이사">이사</option>
                         <option value="상무">상무</option>
                         <option value="부장">부장</option>
+                        <option value="팀장">팀장</option>
                         <option value="차장">차장</option>
                         <option value="과장">과장</option>
                         <option value="대리">대리</option>

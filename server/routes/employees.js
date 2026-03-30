@@ -139,8 +139,8 @@ router.put('/:id', async (req, res) => {
             if (req.body[field] !== undefined) {
                 updates.push(`${field} = ?`);
 
-                // Handle nullable integer fields
-                if (field === 'group_id' && req.body[field] === '') {
+                // Convert empty strings to null to avoid database type errors (e.g., for DATE or INTEGER fields)
+                if (req.body[field] === '') {
                     values.push(null);
                 } else {
                     values.push(req.body[field]);
