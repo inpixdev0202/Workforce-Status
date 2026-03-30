@@ -747,6 +747,10 @@ select.form-control {
   grid-template-columns: repeat(2, 1fr);
 }
 
+.col-span-full {
+  grid-column: 1 / -1;
+}
+
 .grid-3 {
   grid-template-columns: repeat(3, 1fr);
 }

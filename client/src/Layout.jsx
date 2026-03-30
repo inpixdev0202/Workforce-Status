@@ -11,6 +11,7 @@ import GroupManager from './components/GroupManager';
 import Settings from './components/Settings';
 import ProjectStatus from './components/ProjectStatus';
 import ProjectReport from './components/ProjectReport';
+import ProjectMaster from './components/ProjectMaster';
 import Login from './pages/Login';
 import { MENU_ITEMS, hasAccess, ROLES } from './constants/menuConfig';
 
@@ -621,6 +622,7 @@ const MainLayout = () => {
                             'groups': GroupManager,
                             'projects': ProjectsPage,
                             'project-report': ProjectReport,
+                            'project-master': ProjectMaster,
                             'settings': Settings
                         };
 

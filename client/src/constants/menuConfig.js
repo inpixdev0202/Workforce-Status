@@ -42,6 +42,14 @@ export const MENU_ITEMS = [
         permissionKey: 'project-report'
     },
     {
+        id: 'project-master',
+        label: '프로젝트 마스터',
+        path: '/project-master',
+        icon: Briefcase,
+        allowedRoles: [ROLES.ADMIN, ROLES.GROUP_LEADER, ROLES.TEAM_LEADER, ROLES.PD],
+        permissionKey: 'project-master'
+    },
+    {
         id: 'settings',
         label: '설정',
         path: '/settings',

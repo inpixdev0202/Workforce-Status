@@ -1020,16 +1020,16 @@ const ProjectReport = () => {
     useEffect(() => {
         const fetchData = async () => {
             setIsLoading(true);
-            dataLoaded.current = false; // Reset to prevent auto-save of old data to new date
-            setReportData([]); // Clear UI state immediately before fetch
+            dataLoaded.current = false;
+            setReportData([]); 
             try {
+                // 1. Fetch current week's data
                 const resCurrent = await projectReportsAPI.getByDate(selectedDate);
                 const loaded = resCurrent.data;
                 
                 let currentRows = [];
                 let currentLayout = null;
                 
-                // Handle both Legacy Array format and New Object format
                 if (Array.isArray(loaded)) {
                     currentRows = loaded;
                 } else if (loaded && loaded.rows) {
@@ -1040,15 +1040,33 @@ const ProjectReport = () => {
                     };
                 }
 
-                // 2026-03-24: Only set data if the selected date hasn't changed since the request started
-                setReportData(currentRows || []);
-                
-                // 2026-03-24: Inherit layout from previous week if current is default
+                // 2. Fetch previous week's data for layout and potential carry-over
                 const prevDateStr = offsetDate(selectedDate, -7);
                 const resPrev = await projectReportsAPI.getByDate(prevDateStr);
                 const prevLoaded = resPrev.data;
+                const prevRows = Array.isArray(prevLoaded) ? prevLoaded : (prevLoaded?.rows || []);
                 const prevLayout = (!Array.isArray(prevLoaded) && prevLoaded?.columnWidths) ? prevLoaded : null;
 
+                // 3. AUTO-CARRYOVER: If current week is empty but previous isn't, seed it.
+                if (currentRows.length === 0 && prevRows.length > 0) {
+                    // Seed with project names and metadata, but clear weekly reports
+                    currentRows = prevRows.map(prev => ({
+                        ...prev,
+                        id: Date.now() + Math.random(), // New unique IDs for this week
+                        progress: '-',
+                        status: '',
+                        plan: '-',
+                        pt: '-',
+                        rfpInfo: '-',
+                        proposal: '-',
+                        // Metadata preserved: category, projectName, health, pd, pm, mainContractor, estimatedAmount, kickoff, clientInfo, rowHeight
+                    }));
+                }
+
+                setReportData(currentRows || []);
+                setLastWeekProjects(prevRows); // For manual clone and copy-row suggestions
+
+                // 4. Handle Layout Inheritance
                 if (currentLayout) {
                     const isCurrentDefault = JSON.stringify(currentLayout.columnWidths) === JSON.stringify(DEFAULT_COLUMN_WIDTHS);
                     if (!isCurrentDefault) {
@@ -1064,14 +1082,6 @@ const ProjectReport = () => {
 
                 dataLoaded.current = true;
                 
-                // Fetch Suggestions ( suggestions only, no merging)
-                const d = new Date(selectedDate);
-                d.setDate(d.getDate() - 7);
-                const prevDate = getReportingFriday(d);
-                const resPrevForSync = await projectReportsAPI.getByDate(prevDate);
-                const prevRowsSync = Array.isArray(resPrevForSync.data) ? resPrevForSync.data : (resPrevForSync.data?.rows || []);
-                setLastWeekProjects(prevRowsSync);
-
                 // Fetch master projects
                 const resMaster = await projectsAPI.getAll();
                 setMasterProjects(resMaster.data);
