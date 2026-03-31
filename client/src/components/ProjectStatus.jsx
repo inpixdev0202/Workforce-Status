@@ -1648,8 +1648,8 @@ const ProjectStatus = () => {
         return employees.filter(emp => {
             // Expensive lookup inside filter: try to optimize if data is huge
             // For now, it's okay but ideally we'd have a pre-calculated set of assigned IDs per project
-            return (emp.name.toLowerCase().includes(lowerTerm) ||
-                emp.group_name.toLowerCase().includes(lowerTerm))
+            return (emp.name?.toLowerCase().includes(lowerTerm) ||
+                emp.group_name?.toLowerCase().includes(lowerTerm))
         }).slice(0, 10);
     }, [employees]);
 
