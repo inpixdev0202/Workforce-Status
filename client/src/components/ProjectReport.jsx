@@ -1892,6 +1892,10 @@ const ProjectReport = () => {
                                         pdList={pdList}
                                     />
                                 ))
+                            ) : isLoading ? (
+                                <tr>
+                                    <td colSpan={columns.length + 1} className="py-[100px]"></td>
+                                </tr>
                             ) : (
                                 <tr>
                                     <td colSpan={columns.length + 1} className="py-20 text-center bg-[var(--bg-secondary)]">
