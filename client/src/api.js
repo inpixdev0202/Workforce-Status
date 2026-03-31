@@ -102,4 +102,10 @@ export const dashboardAPI = {
     health: () => api.get('/health'),
 };
 
+// Sales API
+export const salesAPI = {
+    get: () => api.get('/sales'),
+    save: (data) => api.post('/sales', data)
+};
+
 export default api;

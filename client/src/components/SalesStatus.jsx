@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { Table, TrendingUp, Search, Plus, Save, Trash2, CheckCircle2, ChevronsLeftRight, FileText, Download, Filter, Maximize2, Sun, Moon, Settings, X, ChevronUp, ChevronDown, Lock, AlignLeft, Columns } from 'lucide-react';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
+import { salesAPI } from '../api';
 
 const SpreadsheetCellInput = React.memo(({ initialValue, onCommit, onFocus, isFocused, className = "", isMultilineField = false }) => {
     const [localValue, setLocalValue] = useState(initialValue || '');
@@ -468,78 +469,122 @@ const SalesStatus = () => {
     const ROW_HEIGHTS_KEY = 'sales_row_heights_v3';
     const COLUMNS_CONFIG_KEY = 'sales_columns_config_v3';
     
-    const [salesData, setSalesData] = useState(() => {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (saved) {
-            try { return JSON.parse(saved); } catch (e) { console.error(e); }
-        }
-        return [
-            { id: 1, category: '진행중', projectName: '20260223_경기신용보증재단 디지털채널 고도화(이지원 리뉴얼)', pd: '김시영, 이종호', mainContractor: '-', estimatedAmount: '3.5(vat포함)', progress: 'S-vat포함)', kickoff: '-', rfpInfo: '-', proposal: '-', pt: '-', status: '2026.02.23 업무 협의, 개발자 별도 UI/UX 미팅 진행, 참여 인원 파악\n2026.02.24 견적서 제출, 견적 협의\n2026.02.26 3월 10일 공고 입찰 마감 UI/UX 별도 산정\n2026.03.01 제안 준비, 3월 12일 마감, PT 진행', plan: '', clientInfo: '-' },
-            { id: 2, category: '진행중', projectName: '20260103_KB국민은행 현대화 2차', pd: 'KBDS, SKC&C', mainContractor: '-', estimatedAmount: '-', progress: 'LG CNS(바이오 날자 외주리, 설계급)', kickoff: '18개월', rfpInfo: '2026.03.13', proposal: '2026.04.03', pt: '-', status: '2025.12.09 매출 사업 파악\n2025.12.10 SI 컨셉팅 진행, 고객사측에서 파트너 곡\n2025.12.11 LG CNS 영업 연동', plan: '', clientInfo: '-' },
-            { id: 3, category: '진행중', projectName: '20260223_포스코 IWP 구축(EP)', pd: '김경환, 김현우', mainContractor: '-', estimatedAmount: '-', progress: '-', kickoff: '-', rfpInfo: '-', proposal: '-', pt: '-', status: '2025.12.23 EP 개선 프로젝트 (IWP: Intelligence Workplace)\n- 포스코와 포스코DX 동일 프로젝트 동시에 진행\n- 3월 ~ 4월 선행 파트 2 프로젝트 진행 예상\n- 7월 ~ 9월 순차 도입, 단가 850 이상 협의 중\n- 3월 기획 2명 선투입 / 기획 역량 및 정규직 투입 원함\n2026.01.03 포스코DX 사업 수주 완료, 최대 6~7명 투입 규모. 2명부터 투입 계회, 매주 1-2명 에정', plan: '', clientInfo: '-' },
-            { id: 4, category: '진행중', projectName: '20250109_신흥기업 홈페이지 리뉴얼_포스TNS', pd: '임시영', mainContractor: '-', estimatedAmount: '인픽스 외 2개사', progress: '-', kickoff: '-', rfpInfo: '-', proposal: '-', pt: '-', status: '2025.12.23 검토 지원 요청 (3개사 견적 제안 및 미팅)\n아이디 이신이 설계서 가져오셔서 인피닉스로 지원\n2025.12.24 견적 지원 (0.5억 내외)', plan: '기1 대1 퍼1 개1', clientInfo: '-' }
-        ];
-    });
+    const [salesData, setSalesData] = useState([]);
+    const [columns, setColumns] = useState([]);
+    const [columnWidths, setColumnWidths] = useState({});
+    const [rowHeights, setRowHeights] = useState({});
+    
+    const [isLoading, setIsLoading] = useState(true);
+    const [autoSaveStatus, setAutoSaveStatus] = useState('');
+    const [isAutoSaving, setIsAutoSaving] = useState(false);
+    
+    const dataLoaded = useRef(false);
+    const isInitialMount = useRef(true);
 
-    const [columns, setColumns] = useState(() => {
-        const saved = localStorage.getItem(COLUMNS_CONFIG_KEY);
-        if (saved) {
-            try { return JSON.parse(saved); } catch (e) { console.error(e); }
-        }
-        return [
-            { key: 'category', label: '구분', width: 80 },
-            { key: 'projectName', label: '프로젝트명', width: 320 },
-            { key: 'pd', label: 'PD명', width: 150 },
-            { key: 'mainContractor', label: '주사업자명', width: 150 },
-            { key: 'estimatedAmount', label: '예상금액', width: 120 },
-            { key: 'progress', label: '진행사항', width: 180 },
-            { key: 'kickoff', label: '킥오프/기간', width: 120 },
-            { key: 'rfpInfo', label: 'RFP설명회', width: 120 },
-            { key: 'proposal', label: '제안서', width: 120 },
-            { key: 'pt', label: 'PT', width: 100 },
-            { key: 'status', label: '현황 및 계획', width: 500 },
-            { key: 'plan', label: '예상인력투입계획', width: 150 },
-            { key: 'clientInfo', label: '고객사 정보', width: 200 },
-            { key: 'manage', label: '관리', width: 60 }
-        ];
-    });
-
-    // Data Migration for 'plan' field (object to string)
-    useEffect(() => {
-        const migrateData = () => {
-            let changed = false;
-            const migrated = salesData.map(item => {
-                if (item.plan && typeof item.plan === 'object') {
-                    changed = true;
-                    const p = item.plan;
-                    const parts = [];
-                    if (p.planning) parts.push(`기${p.planning}`);
-                    if (p.design) parts.push(`디${p.design}`);
-                    if (p.publishing) parts.push(`퍼${p.publishing}`);
-                    if (p.dev) parts.push(`개${p.dev}`);
-                    return { ...item, plan: parts.join(' ') };
-                }
-                return item;
-            });
-            if (changed) {
-                setSalesData(migrated);
-            }
-        };
-        migrateData();
-    }, []);
-
-    useEffect(() => {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(salesData));
-    }, [salesData]);
-
-    useEffect(() => {
-        localStorage.setItem(COLUMNS_CONFIG_KEY, JSON.stringify(columns));
-    }, [columns]);
+    const THEME_KEY = 'sales_status_theme';
+    const [theme, setTheme] = useState(() => localStorage.getItem(THEME_KEY) || 'dark');
+    useEffect(() => { localStorage.setItem(THEME_KEY, theme); }, [theme]);
+    const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
 
     const [searchTerm, setSearchTerm] = useState('');
     const [showSaveToast, setShowSaveToast] = useState(false);
     const [focusedCell, setFocusedCell] = useState(null);
     const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+
+    // Initialization and Data Fetching
+    useEffect(() => {
+        const fetchInitialData = async () => {
+            setIsLoading(true);
+            try {
+                const res = await salesAPI.get();
+                if (res.data) {
+                    // Server Data exists
+                    setSalesData(res.data.rows || []);
+                    setColumns(res.data.columns || []);
+                    setColumnWidths(res.data.columnWidths || {});
+                    setRowHeights(res.data.rowHeights || {});
+                } else {
+                    // Start Migration Logic: Check if local storage has anything
+                    console.log("No data found on server, attempting migration from local storage...");
+                    const localData = localStorage.getItem(STORAGE_KEY);
+                    const localCols = localStorage.getItem(COLUMNS_CONFIG_KEY);
+                    const localWidths = localStorage.getItem(COLUMN_WIDTHS_KEY);
+                    const localHeights = localStorage.getItem(ROW_HEIGHTS_KEY);
+
+                    if (localData || localCols) {
+                        setSalesData(localData ? JSON.parse(localData) : []);
+                        setColumns(localCols ? JSON.parse(localCols) : []);
+                        setColumnWidths(localWidths ? JSON.parse(localWidths) : {});
+                        setRowHeights(localHeights ? JSON.parse(localHeights) : {});
+                    } else {
+                        // Total fallback to Defaults if nothing exists anywhere
+                        setSalesData([
+                            { id: 1, category: '진행중', projectName: '2026.02 샘플 프로젝트', pd: '담당자명', mainContractor: '-', estimatedAmount: '예상액', progress: '-', kickoff: '-', rfpInfo: '-', proposal: '-', pt: '-', status: '내용 없음', plan: '', clientInfo: '-' }
+                        ]);
+                        setColumns([
+                            { key: 'category', label: '구분', width: 80 },
+                            { key: 'projectName', label: '프로젝트명', width: 320 },
+                            { key: 'pd', label: 'PD명', width: 150 },
+                            { key: 'mainContractor', label: '주사업자명', width: 150 },
+                            { key: 'estimatedAmount', label: '예상금액', width: 120 },
+                            { key: 'progress', label: '진행사항', width: 180 },
+                            { key: 'kickoff', label: '킥오프/기간', width: 120 },
+                            { key: 'rfpInfo', label: 'RFP설명회', width: 120 },
+                            { key: 'proposal', label: '제안서', width: 120 },
+                            { key: 'pt', label: 'PT', width: 100 },
+                            { key: 'status', label: '현황 및 계획', width: 500 },
+                            { key: 'plan', label: '예상인력투입계획', width: 150 },
+                            { key: 'clientInfo', label: '고객사 정보', width: 200 },
+                            { key: 'manage', label: '관리', width: 60 }
+                        ]);
+                    }
+                }
+            } catch (err) {
+                console.error("Failed to load sales data", err);
+            } finally {
+                setIsLoading(false);
+                dataLoaded.current = true;
+            }
+        };
+
+        fetchInitialData();
+    }, []);
+
+    // AUTO-SAVE LOGIC
+    useEffect(() => {
+        if (isInitialMount.current) {
+            isInitialMount.current = false;
+            return;
+        }
+        if (!dataLoaded.current) return;
+        
+        // Wait until at least default columns are mounted
+        if (columns.length === 0) return;
+
+        setAutoSaveStatus('Saving...');
+        setIsAutoSaving(true);
+
+        const timer = setTimeout(async () => {
+            try {
+                if (!dataLoaded.current) return;
+                await salesAPI.save({
+                    rows: salesData,
+                    columns: columns,
+                    columnWidths: columnWidths,
+                    rowHeights: rowHeights
+                });
+                setAutoSaveStatus('Saved');
+                setTimeout(() => setAutoSaveStatus(''), 2000);
+            } catch (err) {
+                console.error("Auto-save failed", err);
+                setAutoSaveStatus('Error');
+            } finally {
+                setIsAutoSaving(false);
+            }
+        }, 2000);
+
+        return () => clearTimeout(timer);
+    }, [salesData, columns, columnWidths, rowHeights]);
 
     const handleUpdateColumns = useCallback((newCols) => {
         setSalesData(prevData => {
@@ -559,44 +604,6 @@ const SalesStatus = () => {
     const columnLetters = useMemo(() => 
         Array.from({ length: columns.length }, (_, i) => String.fromCharCode(65 + i))
     , [columns]);
-
-    const [columnWidths, setColumnWidths] = useState(() => {
-        const saved = localStorage.getItem(COLUMN_WIDTHS_KEY);
-        if (saved) {
-            try { return JSON.parse(saved); } catch (e) { console.error(e); }
-        }
-        return columns.reduce((acc, col) => ({ ...acc, [col.key]: col.width }), {});
-    });
-
-    const THEME_KEY = 'sales_status_theme';
-    const [theme, setTheme] = useState(() => localStorage.getItem(THEME_KEY) || 'dark');
-
-    useEffect(() => {
-        localStorage.setItem(THEME_KEY, theme);
-    }, [theme]);
-
-    const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
-
-    const [rowHeights, setRowHeights] = useState(() => {
-        const saved = localStorage.getItem(ROW_HEIGHTS_KEY);
-        if (saved) {
-            try { 
-                const parsed = JSON.parse(saved);
-                if (parsed && !parsed.header) parsed.header = 36;
-                return parsed;
-            } catch (e) { console.error(e); }
-        }
-        const initialHeights = salesData.reduce((acc, item) => ({ ...acc, [item.id]: 80 }), {});
-        return { ...initialHeights, header: 36 };
-    });
-
-    useEffect(() => {
-        localStorage.setItem(COLUMN_WIDTHS_KEY, JSON.stringify(columnWidths));
-    }, [columnWidths]);
-
-    useEffect(() => {
-        localStorage.setItem(ROW_HEIGHTS_KEY, JSON.stringify(rowHeights));
-    }, [rowHeights]);
 
     const resizingRef = useRef({ isResizing: false, type: null, id: null, startPos: 0, startSize: 0 });
 
@@ -655,7 +662,23 @@ const SalesStatus = () => {
         }
     }, []);
 
-    const handleSave = () => { setShowSaveToast(true); setTimeout(() => setShowSaveToast(false), 3000); };
+    const handleSave = async (silent = false) => {
+        try {
+            await salesAPI.save({
+                rows: salesData,
+                columns: columns,
+                columnWidths: columnWidths,
+                rowHeights: rowHeights
+            });
+            if (!silent) {
+                setShowSaveToast(true);
+                setTimeout(() => setShowSaveToast(false), 3000);
+            }
+        } catch (error) {
+            console.error('Failed to save sales data manually:', error);
+            if (!silent) alert('서버 오류로 저장에 실패했습니다.');
+        }
+    };
 
     const filteredData = useMemo(() => {
         const order = ['진행중', '홀딩', '수주', '드롭', '탈락'];
@@ -897,6 +920,17 @@ const SalesStatus = () => {
                     >
                         <Columns size={16} />
                     </button>
+                    
+                    {autoSaveStatus && (
+                        <div className={`text-[10px] font-bold px-2 py-1 rounded-md transition-all animate-pulse ${
+                            autoSaveStatus === 'Saving...' ? 'text-blue-400 bg-blue-500/10' : 
+                            autoSaveStatus === 'Saved' ? 'text-green-400 bg-green-500/10' : 
+                            'text-red-400 bg-red-500/10'
+                        }`}>
+                            {autoSaveStatus === 'Saving...' ? '⚡ 자동 저장 중...' : 
+                             autoSaveStatus === 'Saved' ? '✅ 저장됨' : '❌ 저장 실패'}
+                        </div>
+                    )}
                 </div>
                 <div className="flex items-center gap-3">
                     <button 
@@ -937,7 +971,12 @@ const SalesStatus = () => {
                     </div>
                 </div>
             </div>
-            <div className="flex-1 overflow-auto bg-[var(--bg-primary)] sales-spreadsheet-container">
+            <div className="flex-1 overflow-auto bg-[var(--bg-primary)] sales-spreadsheet-container relative">
+                {isLoading && (
+                    <div className="absolute inset-0 bg-slate-900/30 backdrop-blur-[1px] z-[1000] flex items-center justify-center pointer-events-none">
+                        <div className="w-8 h-8 border-2 border-blue-500/20 border-t-blue-500 rounded-full animate-spin shadow-[0_0_15px_rgba(59,130,246,0.5)]" />
+                    </div>
+                )}
                 <table className="table-fixed w-max">
                     <thead className="z-40">
                         <tr className="bg-[var(--bg-tertiary)]">

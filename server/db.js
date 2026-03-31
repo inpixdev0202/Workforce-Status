@@ -219,6 +219,16 @@ export async function initializeDatabase() {
             )
         `);
 
+        // Create Sales Data Table (Single-document style to store the entire spreadsheet state)
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS sales_data (
+                id SERIAL PRIMARY KEY,
+                key_name VARCHAR(50) UNIQUE NOT NULL,
+                data_json TEXT NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
         // Migration: Add id column to legacy project_reports if missing
         try {
             const { rows: columns } = await pool.query(`

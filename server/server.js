@@ -11,6 +11,7 @@ import authRouter from './routes/auth.js';
 import usersRouter from './routes/users.js';
 import integrationsRouter from './routes/integrations.js';
 import projectReportsRouter from './routes/projectReports.js';
+import salesRouter from './routes/sales.js';
 import { authenticateToken } from './middleware/auth.js';
 
 // Load environment variables
@@ -47,6 +48,7 @@ app.use('/api/attendance', attendanceRouter);
 app.use('/api/projects', projectsRouter);
 app.use('/api/integrations', integrationsRouter);
 app.use('/api/project-reports', projectReportsRouter);
+app.use('/api/sales', salesRouter);
 
 // Health check
 app.get('/api/health', async (req, res) => {
