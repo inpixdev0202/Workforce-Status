@@ -1489,11 +1489,18 @@ const ProjectReport = () => {
                     const name = typeof projectData === 'string' ? projectData : (projectData.displayName || projectData.name);
                     const pd = typeof projectData === 'object' ? (projectData.pd || '') : '';
                     const pm = typeof projectData === 'object' ? (projectData.pm || '') : '';
+                    
+                    // The user uses the kickoff and rfpInfo columns for start_date and end_date respectively
+                    const startDate = typeof projectData === 'object' && projectData.start_date ? projectData.start_date : (item.kickoff !== '-' ? item.kickoff : '');
+                    const endDate = typeof projectData === 'object' && projectData.end_date ? projectData.end_date : (item.rfpInfo !== '-' ? item.rfpInfo : '');
+
                     return { 
                         ...item, 
                         projectName: name,
                         pd: pd || item.pd,
-                        pm: pm || item.pm
+                        pm: pm || item.pm,
+                        kickoff: startDate || '-',
+                        rfpInfo: endDate || '-'
                     };
                 }
             }
@@ -1951,9 +1958,9 @@ const ProjectReport = () => {
                 isOpen={isMasterModalOpen}
                 onClose={() => setIsMasterModalOpen(false)}
                 projects={masterProjects}
-                onSelect={(name) => {
+                onSelect={(projectObj) => {
                     if (activeMasterRowId) {
-                        handleProjectSelect(activeMasterRowId, name, false);
+                        handleProjectSelect(activeMasterRowId, projectObj, false);
                     }
                     setIsMasterModalOpen(false);
                 }}
