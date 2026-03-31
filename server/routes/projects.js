@@ -227,9 +227,18 @@ router.put('/assignments/:id', async (req, res) => {
         const params = [];
 
         if (role !== undefined) { updates.push('role = ?'); params.push(role); }
-        if (input_start_date !== undefined) { updates.push('input_start_date = ?'); params.push(input_start_date); }
-        if (input_end_date !== undefined) { updates.push('input_end_date = ?'); params.push(input_end_date); }
-        if (employee_id !== undefined) { updates.push('employee_id = ?'); params.push(employee_id); }
+        if (input_start_date !== undefined) { 
+            updates.push('input_start_date = ?'); 
+            params.push(input_start_date === '' ? null : input_start_date); 
+        }
+        if (input_end_date !== undefined) { 
+            updates.push('input_end_date = ?'); 
+            params.push(input_end_date === '' ? null : input_end_date); 
+        }
+        if (employee_id !== undefined) { 
+            updates.push('employee_id = ?'); 
+            params.push(employee_id === '' ? null : employee_id); 
+        }
         if (work_location !== undefined) { updates.push('work_location = ?'); params.push(work_location); }
 
         if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });
@@ -247,7 +256,7 @@ router.put('/assignments/:id', async (req, res) => {
         const updated = await get(`
             SELECT pa.*, e.name as employee_name, e.position as employee_position, e.skill_level as employee_grade, e.employment_type as employee_employment_type, g.name as group_name, g.color as group_color
             FROM project_assignments pa
-            JOIN employees e ON pa.employee_id = e.id
+            LEFT JOIN employees e ON pa.employee_id = e.id
             LEFT JOIN groups g ON e.group_id = g.id
             WHERE pa.id = ?
         `, [req.params.id]);
