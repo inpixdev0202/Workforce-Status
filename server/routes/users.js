@@ -19,10 +19,18 @@ router.get('/', async (req, res) => {
             ORDER BY u.role, u.name
         `);
         
-        const users = rows.map(u => ({
-            ...u,
-            permissions: u.permissions ? JSON.parse(u.permissions) : {}
-        }));
+        const users = rows.map(u => {
+            let permissions = {};
+            try {
+                if (u.permissions) {
+                    permissions = typeof u.permissions === 'string' ? JSON.parse(u.permissions) : u.permissions;
+                }
+            } catch (e) {
+                console.error(`Error parsing permissions for user ${u.id}:`, e);
+                permissions = {};
+            }
+            return { ...u, permissions };
+        });
         res.json(users);
     } catch (error) {
         console.error('Error fetching users:', error);

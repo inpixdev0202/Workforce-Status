@@ -1,5 +1,6 @@
 import express from 'express';
 import { query, run, get } from '../db.js';
+import fs from 'fs';
 
 const router = express.Router();
 
@@ -141,6 +142,10 @@ router.put('/assignments/reorder', async (req, res) => {
 router.put('/:id', async (req, res) => {
     try {
         const { name, start_date, end_date, status, note, type, pd, pm } = req.body;
+        
+        console.log('[DEBUG PUT /:id] Editing ID:', req.params.id);
+        console.log('[DEBUG PUT /:id] Body:', req.body);
+        console.log('[DEBUG PUT /:id] SQL Params:', [name, start_date || null, end_date || null, status || 'active', note || '', type || 'Client', pd || '', pm || '', req.params.id]);
 
         await run(`
       UPDATE projects 
@@ -151,6 +156,7 @@ router.put('/:id', async (req, res) => {
         const updated = await get('SELECT * FROM projects WHERE id = ?', [req.params.id]);
         res.json(updated);
     } catch (error) {
+        import('fs').then(fs => fs.appendFileSync('debug_update_error.log', new Date().toISOString() + ' : ' + error.stack + '\n'));
         res.status(500).json({ error: error.message });
     }
 });

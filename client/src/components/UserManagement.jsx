@@ -32,8 +32,8 @@ export default function UserManagement() {
                 usersAPI.getAll(),
                 groupsAPI.getAll()
             ]);
-            setUsersList(usersRes.data);
-            setGroups(groupsRes.data);
+            setUsersList(Array.isArray(usersRes.data) ? usersRes.data : []);
+            setGroups(Array.isArray(groupsRes.data) ? groupsRes.data : []);
         } catch (err) {
             console.error(err);
             setError('데이터를 불러오는데 실패했습니다.');
@@ -115,9 +115,9 @@ export default function UserManagement() {
         }
     };
 
-    const filteredUsers = usersList.filter(u => 
-        u.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        u.email.toLowerCase().includes(searchTerm.toLowerCase())
+    const filteredUsers = (Array.isArray(usersList) ? usersList : []).filter(u => 
+        (u?.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+        (u?.email || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
 
     if (user?.role !== 'Admin') return null;

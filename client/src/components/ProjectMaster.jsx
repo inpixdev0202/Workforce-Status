@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { 
     Briefcase, 
     Plus, 
@@ -14,7 +15,11 @@ import {
     AlertCircle,
     ChevronRight,
     ArrowUpDown,
-    MoreHorizontal
+    MoreHorizontal,
+    Layers,
+    Activity,
+    Building2,
+    CheckCircle
 } from 'lucide-react';
 import { projectsAPI, employeesAPI } from '../api';
 import { format, parseISO, isAfter, isBefore, isValid } from 'date-fns';
@@ -143,8 +148,9 @@ const ProjectMaster = () => {
             setIsModalOpen(false);
             loadProjects();
         } catch (err) {
-            alert('저장에 실패했습니다.');
-            console.error(err);
+            const errorMsg = err.response?.data?.error || err.message || '알 수 없는 오류';
+            alert(`저장에 실패했습니다.\n사유: ${errorMsg}`);
+            console.error('Save Project Error:', err);
         }
     };
 
@@ -226,14 +232,7 @@ const ProjectMaster = () => {
             {/* Header Section */}
             <div className="flex justify-between items-end mb-10">
                 <div>
-                    <div className="flex items-center gap-3 mb-2">
-                        <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center text-primary border border-primary/20 shadow-[0_0_15px_rgba(59,130,246,0.2)]">
-                            <Briefcase size={20} />
-                        </div>
-                        <h4 className="text-primary font-bold tracking-widest uppercase text-xs">Project Master</h4>
-                    </div>
                     <h1 className="tracking-tight m-0">프로젝트 마스터 관리</h1>
-                    <p className="text-gray-400 mt-2 text-sm">시스템에 등록된 모든 프로젝트 정보를 통합 관리합니다.</p>
                 </div>
                 
                 <button 
@@ -245,45 +244,64 @@ const ProjectMaster = () => {
             </div>
 
             {/* Stats Overview */}
-            <div className="grid grid-4 gap-md mb-8">
-                <div className="premium-glass p-6 text-center">
-                    <p className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-2">전체 프로젝트</p>
-                    <h2 className="text-3xl font-black text-white m-0">{projects.length}</h2>
+            <div className="grid grid-4 gap-md mb-10">
+                <div className="stat-card-premium" style={{ '--card-glow': 'rgba(59, 130, 246, 1)', '--accent-color': '#3b82f6' }}>
+                    <div className="stat-icon-wrapper" style={{ '--icon-bg': 'rgba(59, 130, 246, 0.1)', '--icon-color': '#3b82f6' }}>
+                        <Layers size={22} />
+                    </div>
+                    <p className="stat-label">전체 프로젝트</p>
+                    <h2 className="stat-value">{projects.length}</h2>
+                    <div className="stat-accent-bar"></div>
                 </div>
-                <div className="premium-glass p-6 text-center">
-                    <p className="text-success text-xs font-bold uppercase tracking-wider mb-2">활성 프로젝트</p>
-                    <h2 className="text-3xl font-black text-white m-0">{projects.filter(p => p.status === 'active').length}</h2>
+                
+                <div className="stat-card-premium" style={{ '--card-glow': 'rgba(16, 185, 129, 1)', '--accent-color': '#10b981' }}>
+                    <div className="stat-icon-wrapper" style={{ '--icon-bg': 'rgba(16, 185, 129, 0.1)', '--icon-color': '#10b981' }}>
+                        <Activity size={22} />
+                    </div>
+                    <p className="stat-label" style={{ color: '#10b981' }}>활성 프로젝트</p>
+                    <h2 className="stat-value">{projects.filter(p => p.status === 'active').length}</h2>
+                    <div className="stat-accent-bar"></div>
                 </div>
-                <div className="premium-glass p-6 text-center border-l-4 border-l-blue-500">
-                    <p className="text-blue-400 text-xs font-bold uppercase tracking-wider mb-2">고객사 프로젝트</p>
-                    <h2 className="text-3xl font-black text-white m-0">{projects.filter(p => p.type === 'Client').length}</h2>
+                
+                <div className="stat-card-premium" style={{ '--card-glow': 'rgba(34, 211, 238, 1)', '--accent-color': '#22d3ee' }}>
+                    <div className="stat-icon-wrapper" style={{ '--icon-bg': 'rgba(34, 211, 238, 0.1)', '--icon-color': '#22d3ee' }}>
+                        <Building2 size={22} />
+                    </div>
+                    <p className="stat-label" style={{ color: '#22d3ee' }}>고객사 프로젝트</p>
+                    <h2 className="stat-value">{projects.filter(p => p.type === 'Client').length}</h2>
+                    <div className="stat-accent-bar"></div>
                 </div>
-                <div className="premium-glass p-6 text-center">
-                    <p className="text-gray-500 text-xs font-bold uppercase tracking-wider mb-2">종료된 프로젝트</p>
-                    <h2 className="text-3xl font-black text-white m-0">{projects.filter(p => p.status === 'closed').length}</h2>
+                
+                <div className="stat-card-premium" style={{ '--card-glow': 'rgba(148, 163, 184, 1)', '--accent-color': '#94a3b8' }}>
+                    <div className="stat-icon-wrapper" style={{ '--icon-bg': 'rgba(148, 163, 184, 0.1)', '--icon-color': '#94a3b8' }}>
+                        <CheckCircle size={22} />
+                    </div>
+                    <p className="stat-label">종료된 프로젝트</p>
+                    <h2 className="stat-value">{projects.filter(p => p.status === 'closed').length}</h2>
+                    <div className="stat-accent-bar"></div>
                 </div>
             </div>
 
             {/* Filters Bar */}
-            <div className="premium-glass p-4 mb-6 flex flex-wrap items-center gap-6">
-                <div className="flex-1 min-w-[300px] relative">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+            <div className="filter-bar-premium mb-8">
+                <div className="search-container-premium">
+                    <Search className="absolute left-4 text-gray-500" size={18} />
                     <input 
                         type="text" 
                         placeholder="프로젝트 이름, PD, PM 등으로 검색..." 
-                        className="premium-search-input w-full pl-12"
+                        className="search-input-premium"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
                 </div>
 
-                <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-2 text-sm font-bold text-gray-400">
-                        <Filter size={14} /> 필터:
+                <div className="flex items-center gap-3">
+                    <div className="p-2 bg-white/5 rounded-lg text-gray-400">
+                        <Filter size={16} />
                     </div>
                     
                     <select 
-                        className="premium-input py-2 text-sm"
+                        className="select-premium"
                         value={statusFilter}
                         onChange={(e) => setStatusFilter(e.target.value)}
                     >
@@ -293,7 +311,7 @@ const ProjectMaster = () => {
                     </select>
 
                     <select 
-                        className="premium-input py-2 text-sm"
+                        className="select-premium"
                         value={typeFilter}
                         onChange={(e) => setTypeFilter(e.target.value)}
                     >
@@ -400,7 +418,7 @@ const ProjectMaster = () => {
             </div>
 
             {/* Add/Edit Modal */}
-            {isModalOpen && (
+            {isModalOpen && createPortal((
                 <div style={{
                     position: 'fixed',
                     top: 0,
@@ -858,39 +876,139 @@ const ProjectMaster = () => {
                         </form>
                     </div>
                 </div>
-            )}
+            ), document.body)}
 
             {/* Delete Confirmation Modal */}
-            {deleteConfirm.isOpen && (
-                <div className="modal-overlay">
-                    <div className="modal-content compact-modal animate-in slide-in-from-bottom duration-300 border-red-500/30">
-                        <div className="p-8 text-center">
-                            <div className="w-20 h-20 bg-red-500/10 rounded-full flex items-center justify-center text-red-500 mx-auto mb-6 border border-red-500/20 shadow-[0_0_30px_rgba(239,68,68,0.2)]">
-                                <Trash2 size={40} />
+            {deleteConfirm.isOpen && createPortal((
+                <div style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    width: '100vw',
+                    height: '100vh',
+                    backgroundColor: 'rgba(5, 8, 20, 0.9)',
+                    backdropFilter: 'blur(16px)',
+                    WebkitBackdropFilter: 'blur(16px)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 100000,
+                    padding: '20px'
+                }}>
+                    <div style={{ 
+                        width: '100%', 
+                        maxWidth: '420px', 
+                        backgroundColor: 'rgba(21, 28, 48, 0.95)', 
+                        borderRadius: '24px',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        boxShadow: '0 40px 100px -20px rgba(0, 0, 0, 0.8)',
+                        overflow: 'hidden',
+                        position: 'relative',
+                        color: 'white'
+                    }}>
+                        {/* Close Button */}
+                        <button 
+                            onClick={() => setDeleteConfirm({ isOpen: false, projectId: null, projectName: '' })} 
+                            style={{
+                                position: 'absolute',
+                                right: '24px',
+                                top: '24px',
+                                width: '32px',
+                                height: '32px',
+                                borderRadius: '50%',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                                border: 'none',
+                                color: '#94a3b8',
+                                cursor: 'pointer',
+                                transition: '0.2s',
+                                zIndex: 10
+                            }}
+                            onMouseOver={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'; e.currentTarget.style.color = '#fff'; }}
+                            onMouseOut={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)'; e.currentTarget.style.color = '#94a3b8'; }}
+                        >
+                            <X size={18} />
+                        </button>
+
+                        <div style={{ padding: '40px 32px 32px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                            {/* Header Icon */}
+                            <div style={{ 
+                                width: '64px', 
+                                height: '64px', 
+                                borderRadius: '20px', 
+                                backgroundColor: 'rgba(239, 68, 68, 0.1)', 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                justifyContent: 'center', 
+                                color: '#f87171',
+                                border: '1px solid rgba(239, 68, 68, 0.2)',
+                                boxShadow: '0 0 30px rgba(239, 68, 68, 0.15)',
+                                marginBottom: '24px'
+                            }}>
+                                <Trash2 size={32} />
                             </div>
-                            <h2 className="mb-4">프로젝트 삭제</h2>
-                            <p className="text-gray-400 leading-relaxed mb-8">
-                                <strong className="text-white">"{deleteConfirm.projectName}"</strong> 를 삭제하시겠습니까?<br />
-                                프로젝트에 배정된 모든 투입 정보와 보고서 데이터가 함께 삭제되며, 이 작업은 <span className="text-red-500 font-bold">복구할 수 없습니다.</span>
+                            
+                            <h2 style={{ fontSize: '24px', fontWeight: '800', letterSpacing: '-0.02em', margin: '0 0 12px' }}>프로젝트 삭제</h2>
+                            
+                            <p style={{ color: '#94a3b8', fontSize: '14px', lineHeight: '1.6', margin: 0, textAlign: 'center' }}>
+                                <span style={{ color: '#fff', fontWeight: '700' }}>"{deleteConfirm.projectName}"</span><br />
+                                이 프로젝트를 정말로 삭제하시겠습니까?<br />
+                                <span style={{ color: '#f87171', fontWeight: '600' }}>배정 및 보고서 데이터가 모두 소멸되며 복구가 불가능합니다.</span>
                             </p>
-                            <div className="flex gap-4">
-                                <button 
-                                    onClick={() => setDeleteConfirm({ isOpen: false, projectId: null, projectName: '' })} 
-                                    className="premium-btn flex-1 py-4 rounded-2xl font-bold border-white/10"
-                                >
-                                    취소
-                                </button>
-                                <button 
-                                    onClick={handleDelete} 
-                                    className="premium-btn bg-red-600 hover:bg-red-500 text-white flex-1 py-4 rounded-2xl font-black shadow-lg shadow-red-600/20 border-red-600"
-                                >
-                                    영구 삭제
-                                </button>
-                            </div>
+                        </div>
+
+                        <div style={{ padding: '0 32px 40px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                            <button 
+                                onClick={handleDelete} 
+                                style={{
+                                    width: '100%',
+                                    padding: '16px',
+                                    borderRadius: '14px',
+                                    background: 'linear-gradient(135deg, #ef4444 0%, #b91c1c 100%)',
+                                    border: 'none',
+                                    color: 'white',
+                                    fontWeight: '800',
+                                    fontSize: '15px',
+                                    cursor: 'pointer',
+                                    transition: '0.2s',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '8px',
+                                    boxShadow: '0 8px 20px -4px rgba(239, 68, 68, 0.3)',
+                                    letterSpacing: '0.01em'
+                                }}
+                                onMouseOver={(e) => { e.currentTarget.style.filter = 'brightness(1.1)'; }}
+                                onMouseOut={(e) => { e.currentTarget.style.filter = 'brightness(1)'; }}
+                            >
+                                <Trash2 size={18} />
+                                영구 삭제하기
+                            </button>
+                            <button 
+                                onClick={() => setDeleteConfirm({ isOpen: false, projectId: null, projectName: '' })} 
+                                style={{
+                                    width: '100%',
+                                    padding: '14px',
+                                    borderRadius: '14px',
+                                    background: 'transparent',
+                                    border: '1px solid rgba(255, 255, 255, 0.05)',
+                                    color: '#94a3b8',
+                                    fontWeight: '600',
+                                    fontSize: '14px',
+                                    cursor: 'pointer',
+                                    transition: '0.2s'
+                                }}
+                                onMouseOver={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)'; e.currentTarget.style.color = '#fff'; }}
+                                onMouseOut={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#94a3b8'; }}
+                            >
+                                취소
+                            </button>
                         </div>
                     </div>
                 </div>
-            )}
+            ), document.body)}
         </div>
     );
 };

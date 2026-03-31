@@ -1021,7 +1021,6 @@ const ProjectReport = () => {
         const fetchData = async () => {
             setIsLoading(true);
             dataLoaded.current = false;
-            setReportData([]); 
             try {
                 // 1. Fetch current week's data
                 const resCurrent = await projectReportsAPI.getByDate(selectedDate);
@@ -1171,7 +1170,7 @@ const ProjectReport = () => {
         await handleSave(true);
         const prevWeekDate = offsetDate(selectedDate, -7);
         dataLoaded.current = false;
-        setReportData([]); // Clear UI immediately
+        setIsLoading(true); // Show spinner without clearing UI
         setSelectedDate(prevWeekDate);
     };
 
@@ -1186,7 +1185,7 @@ const ProjectReport = () => {
 
         await handleSave(true);
         dataLoaded.current = false;
-        setReportData([]); // Clear UI immediately
+        setIsLoading(true); // Show spinner without clearing UI
         setSelectedDate(nextWeekDate);
     };
 
@@ -1726,16 +1725,7 @@ const ProjectReport = () => {
                     .report-transition-wrapper {
                         /* Removed fade animations as requested */
                     }
-                    .loading-overlay {
-                        position: absolute;
-                        top: 0; left: 0; right: 0; bottom: 0;
-                        background: rgba(var(--bg-primary-rgb), 0.15);
-                        z-index: 1000;
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                        /* Removed blur filter to avoid "blurry" effect */
-                    }
+                    /* removed loading-overlay as it is now using tailwind */
                     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
                 `}
             </style>
@@ -1759,6 +1749,7 @@ const ProjectReport = () => {
                 <div className="flex items-center gap-2">
                     <button onClick={handleSave} className="premium-icon-btn btn-save" title="저장 (Save)"><Save size={16} /></button>
                     <button onClick={addNewRow} className="premium-icon-btn btn-add" title="행 추가 (Add Row)"><Plus size={16} /></button>
+                    <button onClick={handleClonePrevious} className="premium-icon-btn btn-clone" title="지난주 스마트 병합 (가져오기)"><ClipboardCopy size={16} /></button>
                     <button onClick={() => setIsSettingsModalOpen(true)} className="premium-icon-btn btn-cols" title="열 설정 (Columns)"><Columns size={16} /></button>
                     <button onClick={() => setIsResetConfirmOpen(true)} className="premium-icon-btn btn-reset" title="레이아웃 초기화 (Reset Layout)"><RotateCcw size={16} /></button>
                     
@@ -1832,8 +1823,8 @@ const ProjectReport = () => {
             </div>
             <div className="flex-1 overflow-auto bg-[var(--bg-primary)] report-spreadsheet-container relative">
                 {isLoading && (
-                    <div className="loading-overlay">
-                        <div className="w-8 h-8 border-2 border-blue-500/20 border-t-blue-500 rounded-full animate-spin" />
+                    <div className="absolute inset-0 bg-slate-900/30 backdrop-blur-[1px] z-[1000] flex items-center justify-center pointer-events-none">
+                        <div className="w-8 h-8 border-2 border-blue-500/20 border-t-blue-500 rounded-full animate-spin shadow-[0_0_15px_rgba(59,130,246,0.5)]" />
                     </div>
                 )}
                 <div key={selectedDate} className="report-transition-wrapper">

@@ -13,6 +13,7 @@ function EmployeeList() {
     const [filters, setFilters] = useState({
         group_id: '',
         status: 'active',
+        position: '',
         search: ''
     });
 
@@ -51,6 +52,11 @@ function EmployeeList() {
         // Status Filter
         if (filters.status) {
             filtered = filtered.filter(emp => emp.status === filters.status);
+        }
+
+        // Position (Rank) Filter
+        if (filters.position) {
+            filtered = filtered.filter(emp => emp.position === filters.position);
         }
 
         // Search Filter (Name, Position, Email, Phone)
@@ -121,9 +127,8 @@ function EmployeeList() {
                 </button>
             </div>
 
-            {/* Filters */}
             <div className="card mb-lg">
-                <div className="grid grid-3">
+                <div className="grid grid-4" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
                     <div className="form-group">
                         <label className="form-label">그룹</label>
                         <select
@@ -137,6 +142,27 @@ function EmployeeList() {
                                     {group.name}
                                 </option>
                             ))}
+                        </select>
+                    </div>
+
+                    <div className="form-group">
+                        <label className="form-label">직급</label>
+                        <select
+                            className="form-control"
+                            value={filters.position}
+                            onChange={(e) => setFilters({ ...filters, position: e.target.value })}
+                        >
+                            <option value="">전체</option>
+                            <option value="대표이사">대표이사</option>
+                            <option value="이사">이사</option>
+                            <option value="상무">상무</option>
+                            <option value="부장">부장</option>
+                            <option value="팀장">팀장</option>
+                            <option value="차장">차장</option>
+                            <option value="과장">과장</option>
+                            <option value="대리">대리</option>
+                            <option value="사원">사원</option>
+                            <option value="인턴">인턴</option>
                         </select>
                     </div>
 
@@ -158,7 +184,7 @@ function EmployeeList() {
                         <input
                             type="text"
                             className="form-control"
-                            placeholder="이름, 직급, 연락처 검색..."
+                            placeholder="이름, 연락처 검색..."
                             value={filters.search}
                             onChange={(e) => setFilters({ ...filters, search: e.target.value })}
                         />
