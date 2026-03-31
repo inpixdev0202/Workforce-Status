@@ -798,8 +798,16 @@ const ProjectStatus = () => {
     const handleAddProject = async (newProjectData) => {
         try {
             // Before adding, ensure the project name is unique in the current list
-            const exists = data.some(p => p.name === newProjectData.name);
-            if (exists) {
+            const existingProject = data.find(p => p.name === newProjectData.name);
+            if (existingProject) {
+                if (viewMode === 'group') {
+                    // In Group View, if it exists, just open member modal for it
+                    setSelectedProject(existingProject);
+                    setModalSearchTerm('');
+                    setShowMemberModal(true);
+                    setShowProjectModal(false);
+                    return;
+                }
                 alert('이미 보드에 추가된 프로젝트입니다.');
                 return;
             }
@@ -2980,6 +2988,8 @@ const ProjectStatus = () => {
                 allMasterProjects={allMasterProjects}
                 employees={employees}
                 currentProjects={data}
+                viewMode={viewMode}
+                selectedGroup={selectedGroup}
             />
 
             {/* Member Assignment Modal */}
@@ -3095,19 +3105,39 @@ const ProjectStatus = () => {
  * AddProjectModal Component
  * Extracted to prevent main ProjectStatus table re-renders on every keystroke.
  */
-const AddProjectModal = React.memo(({ isOpen, onClose, onAdd, allMasterProjects, employees, currentProjects }) => {
+const AddProjectModal = React.memo(({ isOpen, onClose, onAdd, allMasterProjects, employees, currentProjects, viewMode, selectedGroup }) => {
     const [searchQuery, setSearchQuery] = useState('');
     
     if (!isOpen) return null;
 
     const currentProjectNames = new Set(currentProjects.map(p => p.name));
+    
+    // In Group View, we want to see which projects already have members from the selected group
+    const projectsWithGroupMembers = new Set();
+    if (viewMode === 'group' && selectedGroup && selectedGroup !== 'ALL') {
+        currentProjects.forEach(p => {
+            if (p.members.some(m => m.group_name === selectedGroup)) {
+                projectsWithGroupMembers.add(p.name);
+            }
+        });
+    }
+
     const typePriority = { 'Client': 1, 'Internal': 2, 'Annual': 3, 'Leave': 4 };
 
     const filteredProjects = allMasterProjects.filter(p => {
         const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
             (p.pd && p.pd.toLowerCase().includes(searchQuery.toLowerCase())) ||
             (p.pm && p.pm.toLowerCase().includes(searchQuery.toLowerCase()));
+        
         const isAlreadyOnBoard = currentProjectNames.has(p.name);
+        const hasGroupMembers = projectsWithGroupMembers.has(p.name);
+
+        if (viewMode === 'group' && selectedGroup && selectedGroup !== 'ALL') {
+            // In group view, hide only if it ALREADY has members from this specific group
+            return matchesSearch && !hasGroupMembers;
+        }
+
+        // In project view or global group view, hide if already on board
         return matchesSearch && !isAlreadyOnBoard;
     }).sort((a, b) => {
         const pA = typePriority[a.type] || 99;
