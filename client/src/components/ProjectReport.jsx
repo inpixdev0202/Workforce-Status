@@ -288,10 +288,20 @@ const MasterProjectModal = ({ isOpen, onClose, projects, onSelect, theme }) => {
     const modalRef = useRef(null);
 
     const filteredProjects = useMemo(() => {
-        const cleaned = projects.map(p => ({
+        const typePriority = { 'Client': 1, 'Internal': 2, 'Annual': 3, 'Leave': 4 };
+        
+        const sorted = [...projects].sort((a, b) => {
+            const pA = typePriority[a.type] || 99;
+            const pB = typePriority[b.type] || 99;
+            if (pA !== pB) return pA - pB;
+            return (a.name || '').localeCompare(b.name || '', 'ko');
+        });
+
+        const cleaned = sorted.map(p => ({
             ...p,
             displayName: (p.name || '').replace(/\s*\(.*?\)\s*/g, '').trim()
         }));
+        
         if (!searchTerm) return cleaned;
         return cleaned.filter(p => p.displayName.toLowerCase().includes(searchTerm.toLowerCase()));
     }, [projects, searchTerm]);
