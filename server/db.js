@@ -94,7 +94,7 @@ export async function initializeDatabase() {
                 name VARCHAR(100) NOT NULL,
                 start_date DATE,
                 end_date DATE,
-                status VARCHAR(20) DEFAULT 'active',
+                status VARCHAR(20) DEFAULT '진행중',
                 note TEXT,
                 display_order INTEGER,
                 type VARCHAR(20) DEFAULT 'Client',
@@ -103,6 +103,17 @@ export async function initializeDatabase() {
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         `);
+
+        // Add project_group column if it doesn't exist
+        try {
+            await pool.query('ALTER TABLE projects ADD COLUMN project_group VARCHAR(50)');
+            console.log('Added project_group column to projects table');
+        } catch (error) {
+            // Error code 42701 means duplicate_column, which is expected if the column already exists
+            if (error.code !== '42701') {
+                console.error('Error adding project_group column:', error);
+            }
+        }
 
         await pool.query(`
             CREATE TABLE IF NOT EXISTS project_assignments (

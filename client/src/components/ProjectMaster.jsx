@@ -29,7 +29,7 @@ const ProjectMaster = () => {
     const [employees, setEmployees] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
-    const [statusFilter, setStatusFilter] = useState('all'); // all, active, closed
+    const [statusFilter, setStatusFilter] = useState('all'); // all, 진행중, 종료
     const [typeFilter, setTypeFilter] = useState('all');
     
     // Dropdown state for PD/PM search
@@ -42,11 +42,12 @@ const ProjectMaster = () => {
     const [formData, setFormData] = useState({
         name: '',
         type: 'Client',
-        status: 'active',
+        status: '진행중',
         start_date: '',
         end_date: '',
         pd: '',
         pm: '',
+        project_group: '',
         note: ''
     });
 
@@ -89,11 +90,12 @@ const ProjectMaster = () => {
             setFormData({
                 name: project.name || '',
                 type: project.type || 'Client',
-                status: project.status || 'active',
+                status: project.status || '진행중',
                 start_date: project.start_date || '',
                 end_date: project.end_date || '',
                 pd: project.pd || '',
                 pm: project.pm || '',
+                project_group: project.project_group || '',
                 note: project.note || ''
             });
         } else {
@@ -101,11 +103,12 @@ const ProjectMaster = () => {
             setFormData({
                 name: '',
                 type: 'Client',
-                status: 'active',
+                status: '진행중',
                 start_date: format(new Date(), 'yyyy-MM-dd'),
                 end_date: format(new Date(), 'yyyy-MM-dd'),
                 pd: '',
                 pm: '',
+                project_group: '',
                 note: ''
             });
         }
@@ -174,8 +177,8 @@ const ProjectMaster = () => {
             
             const matchesStatus = 
                 statusFilter === 'all' || 
-                (statusFilter === 'active' && p.status === 'active') ||
-                (statusFilter === 'closed' && p.status === 'closed');
+                (statusFilter === '진행중' && p.status === '진행중') ||
+                (statusFilter === '종료' && p.status === '종료');
 
             const matchesType = 
                 typeFilter === 'all' || p.type === typeFilter;
@@ -191,6 +194,13 @@ const ProjectMaster = () => {
             'Leave': 4
         };
 
+        // Group sort order
+        const groupPriority = {
+            '구축': 1,
+            'ISG1': 2,
+            'ISD': 3
+        };
+
         return [...filtered].sort((a, b) => {
             const priorityA = typePriority[a.type] || 5;
             const priorityB = typePriority[b.type] || 5;
@@ -198,8 +208,15 @@ const ProjectMaster = () => {
             if (priorityA !== priorityB) {
                 return priorityA - priorityB;
             }
+
+            const gA = groupPriority[a.project_group] || 99;
+            const gB = groupPriority[b.project_group] || 99;
             
-            // Name sort within same type
+            if (gA !== gB) {
+                return gA - gB;
+            }
+            
+            // Name sort within same group
             return (a.name || '').localeCompare(b.name || '', 'ko-KR');
         });
     }, [projects, searchTerm, statusFilter, typeFilter]);
@@ -207,7 +224,7 @@ const ProjectMaster = () => {
     const getStatusBadge = (status, endDate) => {
         const isExpired = endDate && isBefore(parseISO(endDate), new Date());
         
-        if (status === 'closed') {
+        if (status === '종료') {
             return <span className="badge badge-secondary">종료됨</span>;
         }
         
@@ -259,7 +276,7 @@ const ProjectMaster = () => {
                         <Activity size={22} />
                     </div>
                     <p className="stat-label" style={{ color: '#10b981' }}>활성 프로젝트</p>
-                    <h2 className="stat-value">{projects.filter(p => p.status === 'active').length}</h2>
+                    <h2 className="stat-value">{projects.filter(p => p.status === '진행중').length}</h2>
                     <div className="stat-accent-bar"></div>
                 </div>
                 
@@ -277,7 +294,7 @@ const ProjectMaster = () => {
                         <CheckCircle size={22} />
                     </div>
                     <p className="stat-label">종료된 프로젝트</p>
-                    <h2 className="stat-value">{projects.filter(p => p.status === 'closed').length}</h2>
+                    <h2 className="stat-value">{projects.filter(p => p.status === '종료').length}</h2>
                     <div className="stat-accent-bar"></div>
                 </div>
             </div>
@@ -306,8 +323,8 @@ const ProjectMaster = () => {
                         onChange={(e) => setStatusFilter(e.target.value)}
                     >
                         <option value="all">모든 상태</option>
-                        <option value="active">진행중</option>
-                        <option value="closed">종료됨</option>
+                        <option value="진행중">진행중</option>
+                        <option value="종료">종료됨</option>
                     </select>
 
                     <select 
@@ -364,14 +381,21 @@ const ProjectMaster = () => {
                                             </span>
                                         </div>
                                     </td>
-                                    <td className="text-center">
-                                        <span className={`px-2 py-1 rounded text-[10px] font-black uppercase tracking-tighter ${
-                                            project.type === 'Client' ? 'bg-blue-500/20 text-blue-400' :
-                                            project.type === 'Internal' ? 'bg-emerald-500/20 text-emerald-400' :
-                                            'bg-yellow-500/20 text-yellow-500'
-                                        }`}>
-                                            {project.type}
-                                        </span>
+                                    <td className="text-center align-middle">
+                                        <div className="flex flex-col items-center justify-center gap-1.5">
+                                            <span className={`px-2 py-1 rounded text-[10px] font-black uppercase tracking-tighter ${
+                                                project.type === 'Client' ? 'bg-blue-500/20 text-blue-400' :
+                                                project.type === 'Internal' ? 'bg-emerald-500/20 text-emerald-400' :
+                                                'bg-yellow-500/20 text-yellow-500'
+                                            }`}>
+                                                {project.type}
+                                            </span>
+                                            {project.project_group && (
+                                                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold tracking-tight bg-white/10 text-gray-300 border border-white/10">
+                                                    {project.project_group}
+                                                </span>
+                                            )}
+                                        </div>
                                     </td>
                                     <td className="text-center">
                                         {getStatusBadge(project.status, project.end_date)}
@@ -578,8 +602,8 @@ const ProjectMaster = () => {
                                         onFocus={(e) => { e.currentTarget.style.borderColor = 'rgba(34, 211, 238, 0.5)'; e.currentTarget.style.boxShadow = '0 0 0 4px rgba(34, 211, 238, 0.1)'; }}
                                         onBlur={(e) => { e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)'; e.currentTarget.style.boxShadow = 'none'; }}
                                     >
-                                        <option value="active">진행중 (Active)</option>
-                                        <option value="closed">프로젝트 종료 (Closed)</option>
+                                        <option value="진행중">진행중 (Ongoing)</option>
+                                        <option value="종료">프로젝트 종료 (Completed)</option>
                                     </select>
                                 </div>
 
@@ -802,6 +826,38 @@ const ProjectMaster = () => {
                                                 )}
                                             </div>
                                         )}
+                                    </div>
+                                </div>
+
+                                <div className="form-group col-span-full">
+                                    <label style={{ fontSize: '12px', fontWeight: '600', color: '#94a3b8', paddingLeft: '4px', marginBottom: '8px', display: 'block' }}>프로젝트 그룹</label>
+                                    <div className="relative">
+                                        <Layers style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} size={18} />
+                                        <select
+                                            style={{
+                                                width: '100%',
+                                                backgroundColor: '#0f172a',
+                                                border: '1px solid rgba(255, 255, 255, 0.1)',
+                                                borderRadius: '14px',
+                                                padding: '14px 16px 14px 48px',
+                                                color: 'white',
+                                                fontSize: '14px',
+                                                outline: 'none',
+                                                transition: '0.2s',
+                                                appearance: 'none',
+                                                cursor: 'pointer'
+                                            }}
+                                            value={formData.project_group}
+                                            onChange={e => setFormData({...formData, project_group: e.target.value})}
+                                            onFocus={(e) => { e.currentTarget.style.borderColor = 'rgba(34, 211, 238, 0.5)'; e.currentTarget.style.boxShadow = '0 0 0 4px rgba(34, 211, 238, 0.1)'; }}
+                                            onBlur={(e) => { e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)'; e.currentTarget.style.boxShadow = 'none'; }}
+                                        >
+                                            <option value="">선택 안함</option>
+                                            <option value="구축">구축</option>
+                                            <option value="ISG1">ISG1</option>
+                                            <option value="ISD">ISD</option>
+                                        </select>
+                                        <ArrowUpDown style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', color: '#64748b', pointerEvents: 'none' }} size={14} />
                                     </div>
                                 </div>
 

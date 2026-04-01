@@ -77,7 +77,7 @@ router.get('/matrix', async (req, res) => {
 // Create Project
 router.post('/', async (req, res) => {
     try {
-        const { name, start_date, end_date, status, note, type, pd, pm } = req.body;
+        const { name, start_date, end_date, status, note, type, pd, pm, project_group } = req.body;
 
         if (!name) {
             return res.status(400).json({ error: 'Project name is required' });
@@ -87,9 +87,9 @@ router.post('/', async (req, res) => {
         const maxOrder = await get('SELECT MAX(display_order) as max_order FROM projects')?.max_order || 0;
 
         const result = await run(`
-      INSERT INTO projects (name, start_date, end_date, status, note, type, display_order, pd, pm)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `, [name, start_date || null, end_date || null, status || 'active', note || '', type || 'Client', maxOrder + 1, pd || '', pm || '']);
+      INSERT INTO projects (name, start_date, end_date, status, note, type, display_order, pd, pm, project_group)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [name, start_date || null, end_date || null, status || '진행중', note || '', type || 'Client', maxOrder + 1, pd || '', pm || '', project_group || null]);
 
         const newProject = await get('SELECT * FROM projects WHERE id = ?', [result.lastInsertRowid]);
         res.status(201).json(newProject);
@@ -141,7 +141,7 @@ router.put('/assignments/reorder', async (req, res) => {
 // Update Project
 router.put('/:id', async (req, res) => {
     try {
-        const { name, start_date, end_date, status, note, type, pd, pm } = req.body;
+        const { name, start_date, end_date, status, note, type, pd, pm, project_group } = req.body;
         
         console.log('[DEBUG PUT /:id] Editing ID:', req.params.id);
         console.log('[DEBUG PUT /:id] Body:', req.body);
@@ -149,9 +149,9 @@ router.put('/:id', async (req, res) => {
 
         await run(`
       UPDATE projects 
-      SET name = ?, start_date = ?, end_date = ?, status = ?, note = ?, type = ?, pd = ?, pm = ?
+      SET name = ?, start_date = ?, end_date = ?, status = ?, note = ?, type = ?, pd = ?, pm = ?, project_group = ?
       WHERE id = ?
-    `, [name, start_date || null, end_date || null, status || 'active', note || '', type || 'Client', pd || '', pm || '', req.params.id]);
+    `, [name, start_date || null, end_date || null, status || '진행중', note || '', type || 'Client', pd || '', pm || '', project_group || null, req.params.id]);
 
         const updated = await get('SELECT * FROM projects WHERE id = ?', [req.params.id]);
         res.json(updated);

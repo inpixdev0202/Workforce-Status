@@ -1,11 +1,11 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Table, TrendingUp, Search, Plus, Save, Trash2, CheckCircle2, ChevronsLeftRight, FileText, Download, Filter, Maximize2, Sun, Moon, Settings, X, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Calendar, ClipboardCopy, Lock, AlignLeft, Columns, ChevronRightSquare, LayoutList, BookOpen, RotateCcw } from 'lucide-react';
+import { Table, TrendingUp, Search, Plus, Save, Trash2, CheckCircle2, ChevronsLeftRight, FileText, Download, Filter, Maximize2, Sun, Moon, Settings, X, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Calendar, ClipboardCopy, Lock, AlignLeft, Columns, ChevronRightSquare, LayoutList, BookOpen, RotateCcw, Sparkles } from 'lucide-react';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import { projectsAPI, projectReportsAPI, employeesAPI } from '../api';
 
-const SpreadsheetCellInput = React.memo(({ initialValue, onCommit, onFocus, isFocused, className = "", isMultilineField = false, type = "text", align = "left" }) => {
+const SpreadsheetCellInput = React.memo(({ initialValue, onCommit, onFocus, isFocused, className = "", isMultilineField = false, type = "text", align = "left", readOnly = false }) => {
     const [localValue, setLocalValue] = useState(initialValue || '');
     const inputRef = useRef(null);
     const selectionRef = useRef({ start: 0, end: 0 });
@@ -107,39 +107,49 @@ const SpreadsheetCellInput = React.memo(({ initialValue, onCommit, onFocus, isFo
                 overflow: 'hidden'
             }}
         >
-            {type === 'date' || !isMultiline ? (
-                <input 
-                    ref={inputRef}
-                    type={type}
-                    value={localValue}
-                    onChange={handleChange}
-                    onBlur={handleBlur}
-                    onFocus={onFocus}
-                    onKeyDown={handleKeyDown}
-                    style={inputStyle}
-                />
-            ) : (
-                <textarea 
-                    ref={inputRef}
-                    value={localValue}
-                    onChange={handleChange}
-                    onBlur={handleBlur}
-                    onFocus={onFocus}
-                    onKeyDown={handleKeyDown}
-                    rows={2} // Baseline for browser behavior
-                    spellCheck={false}
-                    style={{ 
-                        ...inputStyle,
-                        height: '100%',
-                        minHeight: '100%',
-                        whiteSpace: 'pre-wrap',
-                        wordBreak: 'break-all',
-                        resize: 'none',
-                        overflowX: 'hidden',
-                        overflowY: 'auto'
-                    }}
-                />
-            )}
+                {readOnly ? (
+                    <div 
+                        className={`w-full h-full flex items-center px-1 text-[var(--text-muted)] opacity-80 cursor-default select-none ${align === 'center' ? 'justify-center' : 'justify-start'} ${className}`}
+                        style={{ fontSize: 'inherit', fontWeight: 'inherit', textAlign: align, whiteSpace: isMultiline ? 'pre-wrap' : 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                    >
+                        {localValue || '-'}
+                    </div>
+                ) : (
+                    type === 'date' || !isMultiline ? (
+                        <input 
+                            ref={inputRef}
+                            type={type}
+                            value={localValue}
+                            onChange={handleChange}
+                            onBlur={handleBlur}
+                            onFocus={onFocus}
+                            onKeyDown={handleKeyDown}
+                            style={inputStyle}
+                            spellCheck={false}
+                        />
+                    ) : (
+                        <textarea 
+                            ref={inputRef}
+                            value={localValue}
+                            onChange={handleChange}
+                            onBlur={handleBlur}
+                            onFocus={onFocus}
+                            onKeyDown={handleKeyDown}
+                            rows={2} // Baseline for browser behavior
+                            spellCheck={false}
+                            style={{ 
+                                ...inputStyle,
+                                height: '100%',
+                                minHeight: '100%',
+                                whiteSpace: 'pre-wrap',
+                                wordBreak: 'break-all',
+                                resize: 'none',
+                                overflowX: 'hidden',
+                                overflowY: 'auto'
+                            }}
+                        />
+                    )
+                )}
         </div>
     );
 });
@@ -162,7 +172,17 @@ const RowResizeHandle = React.memo(({ rowId, onMouseDown }) => (
     </div>
 ));
 
-const SpreadsheetCellSelect = React.memo(({ value, options, onCommit, onFocus, onBlur, isFocused, className = "" }) => {
+const SpreadsheetCellSelect = React.memo(({ value, options, onCommit, onFocus, onBlur, isFocused, className = "", readOnly = false }) => {
+    if (readOnly) {
+        return (
+            <div 
+                className={`w-full h-full flex items-center justify-center text-[var(--text-muted)] opacity-80 cursor-default select-none ${className}`}
+                style={{ fontSize: 'inherit', fontWeight: 'inherit', textAlign: 'center' }}
+            >
+                {value || '-'}
+            </div>
+        );
+    }
     return (
         <select
             value={value || ''}
@@ -474,33 +494,37 @@ const MasterProjectModal = ({ isOpen, onClose, projects, onSelect, theme }) => {
     );
 };
 
-const ProjectAutocomplete = ({ value, onOpenLibrary, theme }) => {
+const ProjectAutocomplete = ({ value, onOpenLibrary, theme, readOnly = false }) => {
+    const isMasterLinked = !!value;
+
     return (
         <div 
-            className={`relative w-full h-full group flex items-center overflow-hidden transition-colors ${theme === 'light' ? 'hover:bg-emerald-50/30' : 'hover:bg-emerald-500/5'}`}
-            title="우측 책 아이콘을 클릭하여 마스터에서 가져올 수 있습니다"
+            className={`relative w-full h-full group flex items-center overflow-hidden transition-colors ${(theme === 'light' ? 'hover:bg-emerald-50/30' : 'hover:bg-emerald-500/5')} ${readOnly && isMasterLinked ? 'bg-white/[0.02]' : ''}`}
+            title={readOnly && isMasterLinked ? "마스터 DB에서 관리되는 프로젝트입니다" : "우측 책 아이콘을 클릭하여 마스터에서 가져올 수 있습니다"}
         >
             <input
                 type="text"
                 value={value || ''}
                 readOnly
                 placeholder="마스터에서 선택(아이콘 클릭)..."
-                className={`flex-1 h-full px-3 py-1 bg-transparent border-none outline-none text-[12px] font-bold placeholder:text-muted-foreground/40 ${theme === 'light' ? 'text-slate-800' : 'text-slate-100'}`}
+                className={`flex-1 h-full px-3 py-1 bg-transparent border-none outline-none text-[12px] font-bold placeholder:text-muted-foreground/40 ${theme === 'light' ? 'text-slate-800' : 'text-slate-100'} ${readOnly && isMasterLinked ? 'cursor-default' : ''}`}
                 spellCheck={false}
             />
             
-            <div
-                className="flex flex-shrink-0 items-center justify-center w-7 h-7 mr-0.5 opacity-60 group-hover:opacity-100 transition-all cursor-pointer hover:scale-110 active:scale-95"
-                style={{ color: '#10b981' }}
-                onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    onOpenLibrary();
-                }}
-                title="마스터 라이브러리 열기"
-            >
-                <BookOpen size={16} />
-            </div>
+            {!readOnly && (
+                <div
+                    className="flex flex-shrink-0 items-center justify-center w-7 h-7 mr-0.5 opacity-60 group-hover:opacity-100 transition-all cursor-pointer hover:scale-110 active:scale-95"
+                    style={{ color: '#10b981' }}
+                    onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onOpenLibrary();
+                    }}
+                    title="마스터 라이브러리 열기"
+                >
+                    <BookOpen size={16} />
+                </div>
+            )}
         </div>
     );
 };
@@ -518,7 +542,6 @@ const ReportDataRow = React.memo(({
     onOpenLibrary,
     onDelete,
     onRowResize,
-    onRowCopyPrevious,
     theme,
     lastWeekProjects,
     masterProjects,
@@ -539,6 +562,7 @@ const ReportDataRow = React.memo(({
             
             {columns.map((col) => {
                 const cellId = `${item.id}-${col.key}`;
+
                 if (col.key === 'manage') {
                     return (
                         <td key={col.key} className="border border-[var(--border)] p-0 text-center w-[60px] relative" style={{ height: rowHeight }}>
@@ -554,9 +578,21 @@ const ReportDataRow = React.memo(({
                     );
                 }
 
+                const isMasterSourced = [
+                    'projectName', 'pd', 'pm', 'kickoff', 'rfpInfo', 
+                    'mainContractor', 'estimatedAmount', 'clientInfo'
+                ].includes(col.key) || (col.label && (
+                    ['프로젝트명', 'PD', 'PM', '시작일', '종료일', '주사업자', '금액(예상)', '고객 정보'].some(l => col.label.includes(l)) ||
+                    col.label.toUpperCase().includes('PD') || 
+                    col.label.toUpperCase().includes('PM')
+                ));
+                
+                const isLinked = !!item.projectName;
+                const isReadOnly = isMasterSourced && isLinked;
+
                 if (col.key === 'projectName') {
                     return (
-                        <td key={col.key} className="border border-[var(--border)] p-0 relative" style={{ width: columnWidths[col.key], height: rowHeight }}>
+                        <td key={col.key} className={`border border-[var(--border)] p-0 relative ${isReadOnly ? 'bg-white/[0.02]' : ''}`} style={{ width: columnWidths[col.key], height: rowHeight }}>
                             <ProjectAutocomplete 
                                 value={item[col.key]}
                                 onSelect={(p, isFull) => onProjectSelect(item.id, p, isFull)}
@@ -565,6 +601,7 @@ const ReportDataRow = React.memo(({
                                 lastWeekProjects={lastWeekProjects}
                                 onOpenLibrary={() => onOpenLibrary(item.id)}
                                 theme={theme}
+                                readOnly={isReadOnly}
                             />
                         </td>
                     );
@@ -590,6 +627,7 @@ const ReportDataRow = React.memo(({
                                 isFocused={focusedCell?.field === cellId}
                                 className="font-bold text-center text-[11px]"
                                 style={{ color: catStyle.text, textShadow: theme === 'dark' ? catStyle.shadow : 'none' }}
+                                readOnly={isReadOnly}
                             />
                         </td>
                     );
@@ -629,7 +667,7 @@ const ReportDataRow = React.memo(({
                     const options = isPM ? pmList : pdList;
                     if (options.length > 0) {
                         return (
-                            <td key={col.key} className={`border border-[var(--border)] p-0 relative align-middle`} style={{ width: columnWidths[col.key], height: rowHeight }}>
+                            <td key={col.key} className={`border border-[var(--border)] p-0 relative align-middle ${isReadOnly ? 'bg-white/[0.02]' : ''}`} style={{ width: columnWidths[col.key], height: rowHeight }}>
                                 <SpreadsheetCellSelect
                                     value={item[col.key]}
                                     options={options}
@@ -638,6 +676,7 @@ const ReportDataRow = React.memo(({
                                     onBlur={() => setFocusedCell(null)}
                                     isFocused={focusedCell?.field === cellId}
                                     className="text-center text-[13px] font-bold"
+                                    readOnly={isReadOnly}
                                 />
                             </td>
                         );
@@ -650,58 +689,8 @@ const ReportDataRow = React.memo(({
                     (col.label && multilineLabels.some(l => col.label.includes(l)))
                 );
 
-                if (isCopyCol) {
-                    let hasPrevData = false;
-                    if (item.projectName && lastWeekProjects) {
-                        const prevRows = Array.isArray(lastWeekProjects) ? lastWeekProjects : (lastWeekProjects?.rows || []);
-                        hasPrevData = prevRows.some(p => p.projectName === item.projectName && (p.progress || p.status || p.plan));
-                    }
-
-                    return (
-                        <td key={col.key} className="border border-[var(--border)] p-1 relative align-middle" style={{ width: columnWidths[col.key], height: rowHeight }}>
-                            <style>{`
-                                .sync-row-btn {
-                                    background: transparent !important;
-                                    background-color: transparent !important;
-                                    border: none !important;
-                                    outline: none !important;
-                                    box-shadow: none !important;
-                                    appearance: none !important;
-                                    -webkit-appearance: none !important;
-                                    display: flex !important;
-                                    padding: 0 !important;
-                                    margin: 0 !important;
-                                    width: 100% !important;
-                                    height: 100% !important;
-                                }
-                                .sync-row-btn:hover {
-                                    background: rgba(59, 130, 246, 0.1) !important;
-                                }
-                            `}</style>
-                            {hasPrevData ? (
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        onRowCopyPrevious(item.id, item.projectName);
-                                    }}
-                                    className="sync-row-btn flex-row items-center justify-center gap-2 group/btn"
-                                    title="이 프로젝트의 지난주 보고 전체 복사"
-                                >
-                                    <ClipboardCopy size={16} className="text-blue-500 group-hover/btn:scale-110 transition-transform" />
-                                    <span className="font-bold text-blue-500" style={{ fontSize: '10px' }}>지난주 복사</span>
-                                </button>
-                            ) : (
-                                <div className="w-full h-full flex items-center justify-center gap-1 text-[10px] text-[var(--text-muted)] opacity-30 select-none">
-                                    <ClipboardCopy size={13} className="opacity-50 grayscale" />
-                                    <span className="whitespace-nowrap">데이터 없음</span>
-                                </div>
-                            )}
-                        </td>
-                    );
-                }
-
                 return (
-                    <td key={col.key} className={`border border-[var(--border)] p-0 relative ${isPDPM ? 'align-middle' : ''}`} style={{ width: columnWidths[col.key], height: rowHeight }}>
+                    <td key={col.key} className={`border border-[var(--border)] p-0 relative ${isPDPM ? 'align-middle' : ''} ${isReadOnly ? 'bg-white/[0.02]' : ''}`} style={{ width: columnWidths[col.key], height: rowHeight }}>
                         <SpreadsheetCellInput 
                             initialValue={item[col.key]}
                             onCommit={(v) => onCellChange(item.id, col.key, v)}
@@ -711,6 +700,7 @@ const ReportDataRow = React.memo(({
                             align={isPDPM ? 'center' : 'left'}
                             type={isDate ? 'date' : 'text'}
                             isMultilineField={isMultiline}
+                            readOnly={isReadOnly}
                         />
                     </td>
                 );
@@ -718,6 +708,41 @@ const ReportDataRow = React.memo(({
         </tr>
     );
 });
+
+// --- Utility Helpers ---
+
+// Helper for super-robust project name matching (handles invisible whitespace/tabs/newlines)
+const normalizeProjectName = (name) => String(name || '').replace(/\s+/g, ' ').trim().normalize('NFC');
+
+// Helper to convert Master DB dates (YYYY.MM.DD or Date object) to Report date input format (YYYY-MM-DD)
+const normalizeToDashDate = (val) => {
+    if (!val || val === '-' || val === '') return '';
+    
+    let d = null;
+    if (val instanceof Date) {
+        d = val;
+    } else {
+        // Try parsing YYYY.MM.DD or YYYY/MM/DD or YYYY-MM-DD
+        const s = String(val).replace(/[\.\/ ]/g, '-').replace(/-+/g, '-').trim();
+        const parts = s.split('-');
+        if (parts.length === 3) {
+            let [year, month, day] = parts;
+            if (year.length === 2) year = '20' + year;
+            d = new Date(year, parseInt(month) - 1, parseInt(day));
+        } else {
+            // Last resort for other formats
+            d = new Date(val);
+        }
+    }
+
+    if (d && !isNaN(d.getTime())) {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+    }
+    return '';
+};
 
 const ColumnSettingsModal = ({ isOpen, onClose, columns, onUpdateColumns, onSyncAllWidths, isSyncing }) => {
     const [localColumns, setLocalColumns] = useState(columns);
@@ -1027,8 +1052,7 @@ const ProjectReport = () => {
     };
 
     // Fetch data from server
-    useEffect(() => {
-        const fetchData = async () => {
+    const fetchData = useCallback(async () => {
             setIsLoading(true);
             dataLoaded.current = false;
             try {
@@ -1058,18 +1082,31 @@ const ProjectReport = () => {
 
                 // 3. AUTO-CARRYOVER: If current week is empty but previous isn't, seed it.
                 if (currentRows.length === 0 && prevRows.length > 0) {
-                    // Seed with project names and metadata, but clear weekly reports
-                    currentRows = prevRows.map(prev => ({
-                        ...prev,
-                        id: Date.now() + Math.random(), // New unique IDs for this week
-                        progress: '-',
-                        status: '',
-                        plan: '-',
-                        pt: '-',
-                        rfpInfo: '-',
-                        proposal: '-',
-                        // Metadata preserved: category, projectName, health, pd, pm, mainContractor, estimatedAmount, kickoff, clientInfo, rowHeight
-                    }));
+                    // Fetch master projects early for filtering
+                    const resMaster = await projectsAPI.getAll();
+                    const masterProjectsList = resMaster.data;
+                    setMasterProjects(masterProjectsList);
+
+                    // Seed only Client projects
+                    currentRows = prevRows
+                        .filter(prev => {
+                            // Check saved type in report row or lookup in master
+                            if (prev.type === 'Client') return true;
+                            const master = masterProjectsList.find(m => m.name === prev.projectName);
+                            return master && master.type === 'Client';
+                        })
+                        .map(prev => ({
+                            ...prev,
+                            id: Date.now() + Math.random(), // New unique IDs for this week
+                            progress: '-',
+                            status: '',
+                            plan: '-',
+                            pt: '-',
+                            rfpInfo: normalizeToDashDate(prev.rfpInfo) || '-',
+                            kickoff: normalizeToDashDate(prev.kickoff) || '-',
+                            proposal: '-',
+                            type: 'Client' // Explicitly set it
+                        }));
                 }
 
                 setReportData(currentRows || []);
@@ -1091,9 +1128,11 @@ const ProjectReport = () => {
 
                 dataLoaded.current = true;
                 
-                // Fetch master projects
-                const resMaster = await projectsAPI.getAll();
-                setMasterProjects(resMaster.data);
+                // Fetch master projects if not already fetched during seeding
+                if (masterProjects.length === 0) {
+                    const resMaster = await projectsAPI.getAll();
+                    setMasterProjects(resMaster.data);
+                }
 
                 // Fetch PD/PM lists
                 const [pms, pds] = await Promise.all([
@@ -1107,9 +1146,11 @@ const ProjectReport = () => {
             } finally {
                 setIsLoading(false);
             }
-        };
+    }, [selectedDate, masterProjects.length]);
+
+    useEffect(() => {
         fetchData();
-    }, [selectedDate]);
+    }, [fetchData]);
 
     // AUTO-SAVE LOGIC: Debounce manual changes
     useEffect(() => {
@@ -1199,87 +1240,162 @@ const ProjectReport = () => {
         setSelectedDate(nextWeekDate);
     };
 
-    const handleClonePrevious = async () => {
-        const prevDateStr = offsetDate(selectedDate, -7);
-        
+
+    
+    const handleSmartCarryOver = async () => {
+        setIsLoading(true);
         try {
+            // 1. Get Previous Week's Data
+            const prevDateStr = offsetDate(selectedDate, -7);
             const resPrev = await projectReportsAPI.getByDate(prevDateStr);
-            const prevDataRaw = resPrev.data;
-            
-            // Handle both Legacy Array and New Object formats
-            const prevRows = Array.isArray(prevDataRaw) ? prevDataRaw : (prevDataRaw?.rows || []);
-            const prevColWidths = (!Array.isArray(prevDataRaw) && prevDataRaw?.columnWidths) ? prevDataRaw.columnWidths : null;
-            const prevRowHeights = (!Array.isArray(prevDataRaw) && prevDataRaw?.rowHeights) ? prevDataRaw.rowHeights : null;
+            const prevRows = Array.isArray(resPrev.data) ? resPrev.data : (resPrev.data?.rows || []);
 
-            const legacyData = localStorage.getItem('project_report_data_v1');
+            // 2. Get Master DB Data
+            const resMaster = await projectsAPI.getAll();
+            const masterProjects = resMaster.data;
 
-            if (prevRows.length > 0) {
-                const merged = mergeReportData(reportData, prevRows);
-                setReportData(merged);
-                setFocusedCell(null); // Clear focus for full clone too
-                
-                // Also migrate column widths if available
-                if (prevColWidths) {
-                    setColumnWidths(prevColWidths);
-                }
-                if (prevRowHeights) {
-                    setRowHeights(prevRowHeights);
-                }
-                
-                alert('지난주 데이터를 스마트 병합했습니다. 프로젝트 정보와 셀 크기가 업데이트되고, 이번 주에 새로 추가한 내용은 유지됩니다.');
-            } else if (legacyData) {
-                if (confirm('서버에 지난주 데이터가 없습니다. 개인 PC에 저장된 기존 통합 데이터를 서버로 가져오시겠습니까?')) {
-                    try {
-                        const parsed = JSON.parse(legacyData);
-                        setReportData(parsed.map(row => ({ ...row, id: Date.now() + Math.random() })));
-                        alert('기존 데이터를 로드했습니다. [저장]을 누르면 서버에 저장되어 모든 PM이 볼 수 있습니다.');
-                    } catch (e) { console.error(e); alert('데이터 처리에 실패했습니다.'); }
-                }
-            } else {
-                alert('가져올 수 있는 이전 데이터가 서버나 로컬에 존재하지 않습니다.');
-            }
-        } catch (error) {
-            console.error('Clone failed:', error);
-            alert('데이터를 가져오는 중 오류가 발생했습니다.');
-        }
-    };
+            let newRows = [...reportData];
 
-    const handleRowCopyPrevious = useCallback(async (rowId, projectName) => {
-        if (!projectName || projectName === '') {
-            alert('프로젝트명이 없는 행입니다. 먼저 프로젝트를 선택해주세요.');
-            return;
-        }
-        
-        const prevRows = Array.isArray(lastWeekProjects) ? lastWeekProjects : (lastWeekProjects?.rows || []);
-        const prevData = prevRows.find(p => p.projectName === projectName);
-        
-        if (prevData) {
-            const newRows = reportData.map(item => {
-                if (item.id === rowId) {
-                    return {
-                        ...item,
-                        progress: prevData.progress || '',
-                        status: prevData.status || '',
-                        plan: prevData.plan || '',
-                        rfpInfo: prevData.rfpInfo || '',
-                        proposal: prevData.proposal || '',
-                        pt: prevData.pt || '',
-                        clientInfo: prevData.clientInfo || '',
-                        rowHeight: prevData.rowHeight || 80
-                    };
-                }
-                return item;
+            // 3. Identification of projects to carry over
+            // Filter Master projects that are 'Ongoing'
+            const ongoingMaster = masterProjects.filter(p => {
+                const status = String(p.status || '').normalize('NFC').trim();
+                const isOngoing = status === '진행중' || status === '수행' || status === 'active';
+                return isOngoing && p.type === 'Client';
             });
 
-            setReportData(newRows);
-            setFocusedCell(null); // Force clear focus to ensure all cells update their local state
+            // 4. Merge logic
+            // Map column labels to their actual keys dynamically just in case the user customized columns
+            const getColKey = (keywords, defaultKey, ignoreKeys = []) => {
+                const col = columns.find(c => {
+                    if (ignoreKeys.includes(c.key)) return false;
+                    const lbl = (c.label || '').toUpperCase();
+                    const key = (c.key || '').toUpperCase();
+                    return keywords.some(k => lbl.includes(k) || key.includes(k));
+                });
+                return col ? col.key : defaultKey;
+            };
+
+            // STRICT Mapping: Prevent overlapping labels (like "보고자/담당") from swallowing both PD and PM keys.
+            const pdKey = getColKey(['PD', '보고자'], 'pd');
+            const pmKey = getColKey(['PM', '담당'], 'pm', [pdKey]); // pmKey must not steal pdKey's column
+            const startKey = getColKey(['시작', '기간', 'KICKOFF', 'START'], 'kickoff');
+            const endKey = getColKey(['종료', '특이', 'RFP', 'END'], 'rfpInfo', [startKey]); // endKey must not steal startKey
+            const contractorKey = getColKey(['사업자', 'CONTRACTOR'], 'mainContractor');
+            const amountKey = getColKey(['금액', 'AMOUNT'], 'estimatedAmount');
+            const clientInfoKey = getColKey(['고객', 'CLIENTINFO'], 'clientInfo');
+
+            // 1. Update metadata for EXISTING rows from Master (Broad Search)
+            newRows = newRows.map(row => {
+                const targetName = normalizeProjectName(row.projectName);
+                // Look in ALL Master projects to ensure metadata is synced even if status/type is irregular
+                const master = masterProjects.find(m => normalizeProjectName(m.name || m.projectName) === targetName);
+                if (master) {
+                    const getMasterVal = (mObj, fields) => {
+                        for (let f of fields) {
+                            if (mObj[f] && mObj[f] !== '-' && mObj[f] !== '') return mObj[f];
+                        }
+                        return null;
+                    };
+
+                    return {
+                        ...row,
+                        [pdKey]: getMasterVal(master, ['pd', 'PD', 'pD', 'Pd']) || row[pdKey] || row.pd,
+                        [pmKey]: getMasterVal(master, ['pm', 'PM', 'pM', 'Pm']) || row[pmKey] || row.pm,
+                        [startKey]: normalizeToDashDate(getMasterVal(master, ['start_date', 'startDate', 'kickoff', 'startDay'])) || row[startKey] || row.kickoff,
+                        [endKey]: normalizeToDashDate(getMasterVal(master, ['end_date', 'endDate', 'rfpInfo', 'endDay'])) || row[endKey] || row.rfpInfo,
+                        type: master.type || row.type,
+                        project_group: master.project_group || row.project_group
+                    };
+                }
+                return row;
+            });
+
+            // 2. Add missing 'Ongoing' Client projects from Master
+            ongoingMaster.forEach(m => {
+                const masterName = normalizeProjectName(m.name);
+                if (!newRows.some(row => normalizeProjectName(row.projectName) === masterName)) {
+                    newRows.push({
+                        id: Date.now() + Math.random(),
+                        category: '진행중',
+                        projectName: m.name,
+                        [pdKey]: m.pd || m.PD || '',
+                        [pmKey]: m.pm || m.PM || '',
+                        [startKey]: normalizeToDashDate(m.start_date || m.startDate) || '-',
+                        [endKey]: normalizeToDashDate(m.end_date || m.endDate) || '-',
+                        [contractorKey]: '-',
+                        [amountKey]: '-',
+                        project_group: m.project_group || '',
+                        progress: '-',
+                        proposal: '-',
+                        pt: '-',
+                        status: '',
+                        plan: '-',
+                        [clientInfoKey]: m.clientInfo || m.client_info || '-',
+                        type: m.type || 'Client'
+                    });
+                }
+            });
+
+
+            // 3. Copy progress/status from previous week for projects that have no current content
+            newRows = newRows.map(row => {
+                const prev = prevRows.find(p => normalizeProjectName(p.projectName) === normalizeProjectName(row.projectName));
+                const hasContent = (row.progress && row.progress !== '-' && row.progress !== '') || 
+                                   (row.status && row.status !== '') || 
+                                   (row.plan && row.plan !== '-' && row.plan !== '');
+                
+                if (prev && !hasContent) {
+                    // Only overwrite with prev data if it's not a placeholder
+                    const getVal = (pVal, currentVal) => (pVal && pVal !== '-' && pVal !== '') ? pVal : currentVal;
+                    
+                    return {
+                        ...row,
+                        progress: getVal(prev.progress, row.progress || '-'),
+                        status: getVal(prev.status, row.status || ''),
+                        plan: getVal(prev.plan, row.plan || '-'),
+                        // DO NOT OVERWRITE Master Data Date Fields (startKey/endKey) or Client Info with prev rows! Master rules 100%!
+                        proposal: getVal(prev.proposal, row.proposal || '-'),
+                        pt: getVal(prev.pt, row.pt || '-')
+                        // type is maintained from Step 1
+                    };
+                }
+                return row;
+            });
+
+            // 4. SMART SORT: Put Client projects on top -> Group -> Alphabetical
+            newRows.sort((a, b) => {
+                const typePriority = { 'Client': 1, 'Internal': 2, 'Annual': 3, 'Leave': 4 };
+                const pA = typePriority[a.type] || 99;
+                const pB = typePriority[b.type] || 99;
+                if (pA !== pB) return pA - pB;
+                
+                const groupPriority = { '구축': 1, 'ISG1': 2, 'ISD': 3 };
+                const gA = groupPriority[a.project_group] || 99;
+                const gB = groupPriority[b.project_group] || 99;
+                if (gA !== gB) return gA - gB;
+                
+                const nameA = normalizeProjectName(a.projectName);
+                const nameB = normalizeProjectName(b.projectName);
+                return nameA.localeCompare(nameB, 'ko');
+            });
+
+            // 5. Layout Sync (Widths/Heights) from last week
+            const prevColWidths = (!Array.isArray(resPrev.data) && resPrev.data?.columnWidths) ? resPrev.data.columnWidths : null;
+            const prevRowHeights = (!Array.isArray(resPrev.data) && resPrev.data?.rowHeights) ? resPrev.data.rowHeights : null;
             
-            setAutoSaveStatus('Saving...');
-            await handleSave(true, newRows);
-        } else {
-            alert(`지난주 데이터에 이 프로젝트(${projectName})가 존재하지 않거나 내용이 없습니다.`);
+            if (prevColWidths) setColumnWidths(prevColWidths);
+            if (prevRowHeights) setRowHeights(prevRowHeights);
+
+            setReportData(newRows);
+            alert('✨ 스마트 캐리오버 및 최적화가 완료되었습니다!\n\n1. 진행 중인 클라이언트 프로젝트 우선 확보\n2. 마스터 DB의 최신 담당자/일정 반영\n3. 지난주 보고 내용 중 비어있던 항목 자동 채움\n4. 유형별(클라이언트 우선) 가나다 정렬\n5. 지난주 시트 레이아웃(너비/높이) 동기화');
+        } catch (error) {
+            console.error('Smart carry-over failed:', error);
+            alert('데이터를 처리하는 중 오류가 발생했습니다.');
+        } finally {
+            setIsLoading(false);
         }
-    }, [reportData, lastWeekProjects, handleSave]);
+    };
 
     const [columns, setColumns] = useState(() => {
         const saved = localStorage.getItem(COLUMNS_CONFIG_KEY);
@@ -1501,8 +1617,8 @@ const ProjectReport = () => {
                     const pm = typeof projectData === 'object' ? (projectData.pm || '') : '';
                     
                     // The user uses the kickoff and rfpInfo columns for start_date and end_date respectively
-                    const startDate = typeof projectData === 'object' && projectData.start_date ? projectData.start_date : (item.kickoff !== '-' ? item.kickoff : '');
-                    const endDate = typeof projectData === 'object' && projectData.end_date ? projectData.end_date : (item.rfpInfo !== '-' ? item.rfpInfo : '');
+                    const startDate = typeof projectData === 'object' && projectData.start_date ? normalizeToDashDate(projectData.start_date) : (item.kickoff !== '-' ? item.kickoff : '');
+                    const endDate = typeof projectData === 'object' && projectData.end_date ? normalizeToDashDate(projectData.end_date) : (item.rfpInfo !== '-' ? item.rfpInfo : '');
 
                     return { 
                         ...item, 
@@ -1510,7 +1626,8 @@ const ProjectReport = () => {
                         pd: pd || item.pd,
                         pm: pm || item.pm,
                         kickoff: startDate || '-',
-                        rfpInfo: endDate || '-'
+                        rfpInfo: endDate || '-',
+                        type: typeof projectData === 'object' ? projectData.type : item.type
                     };
                 }
             }
@@ -1528,7 +1645,7 @@ const ProjectReport = () => {
     }, []);
 
     const addNewRow = () => {
-        const newRow = { id: Date.now(), category: '진행중', projectName: '', pd: '', mainContractor: '-', estimatedAmount: '-', progress: '-', kickoff: '-', rfpInfo: '-', proposal: '-', pt: '-', status: '', plan: '', clientInfo: '-', rowHeight: 80 };
+        const newRow = { id: Date.now(), category: '진행중', projectName: '', pd: '', mainContractor: '-', estimatedAmount: '-', progress: '-', kickoff: '-', rfpInfo: '-', proposal: '-', pt: '-', status: '', plan: '', clientInfo: '-', rowHeight: 80, type: 'Client' };
         setReportData([newRow, ...reportData]);
     };
 
@@ -1544,7 +1661,7 @@ const ProjectReport = () => {
         
         const normalize = (val) => {
             const str = String(val || '').normalize('NFC').trim();
-            if (str === '수행') return '진행중';
+            if (str === '수행' || str === 'active' || str === 'Active') return '진행중';
             if (['수주', '드롭', '탈락'].includes(str)) return '종료';
             return str || '진행중';
         };
@@ -1555,7 +1672,12 @@ const ProjectReport = () => {
                 const matchesCategory = selectedCategories.includes(cat);
                 const matchesSearch = (item.projectName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                                       (item.pd || '').toLowerCase().includes(searchTerm.toLowerCase());
-                return matchesCategory && matchesSearch;
+                
+                // User requirement: Only show "Client" projects
+                // Allow empty projectName rows for new entries
+                const isClient = item.type === 'Client' || !item.projectName || item.projectName === '';
+                
+                return matchesCategory && matchesSearch && isClient;
             })
             .sort((a, b) => {
                 const weights = { '진행중': 1, '홀딩': 2, '종료': 3 };
@@ -1737,6 +1859,7 @@ const ProjectReport = () => {
                     .btn-excel:hover { color: #16a34a !important; background: rgba(22, 163, 74, 0.15) !important; filter: drop-shadow(0 0 5px rgba(22, 163, 74, 0.5)); }
                     .btn-week:hover { color: #f472b6 !important; background: rgba(244, 114, 182, 0.15) !important; filter: drop-shadow(0 0 5px rgba(244, 114, 182, 0.5)); }
                     .btn-clone:hover { color: #60a5fa !important; background: rgba(96, 165, 250, 0.15) !important; filter: drop-shadow(0 0 5px rgba(96, 165, 250, 0.5)); }
+                    .btn-smart:hover { color: #facc15 !important; background: rgba(250, 204, 21, 0.15) !important; filter: drop-shadow(0 0 8px rgba(250, 204, 21, 0.6)); }
                     .btn-reset:hover { color: #f43f5e !important; background: rgba(244, 63, 94, 0.15) !important; filter: drop-shadow(0 0 5px rgba(244, 63, 94, 0.5)); }
 
                     .report-transition-wrapper {
@@ -1766,7 +1889,7 @@ const ProjectReport = () => {
                 <div className="flex items-center gap-2">
                     <button onClick={handleSave} className="premium-icon-btn btn-save" title="저장 (Save)"><Save size={16} /></button>
                     <button onClick={addNewRow} className="premium-icon-btn btn-add" title="행 추가 (Add Row)"><Plus size={16} /></button>
-                    <button onClick={handleClonePrevious} className="premium-icon-btn btn-clone" title="지난주 스마트 병합 (가져오기)"><ClipboardCopy size={16} /></button>
+                    <button onClick={handleSmartCarryOver} className="premium-icon-btn btn-smart" title="스마트 캐리 오버 (마스터+지난주 최적화)"><Sparkles size={16} /></button>
                     <button onClick={() => setIsSettingsModalOpen(true)} className="premium-icon-btn btn-cols" title="열 설정 (Columns)"><Columns size={16} /></button>
                     <button onClick={() => setIsResetConfirmOpen(true)} className="premium-icon-btn btn-reset" title="레이아웃 초기화 (Reset Layout)"><RotateCcw size={16} /></button>
                     
@@ -1901,7 +2024,6 @@ const ProjectReport = () => {
                                         onOpenLibrary={handleOpenMasterLibrary} 
                                         onDelete={deleteRow} 
                                         onRowResize={handleRowMouseDown} 
-                                        onRowCopyPrevious={handleRowCopyPrevious}
                                         theme={theme} 
                                         lastWeekProjects={lastWeekProjects} 
                                         masterProjects={masterProjects} 
