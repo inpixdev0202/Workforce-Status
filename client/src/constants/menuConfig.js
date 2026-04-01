@@ -5,6 +5,7 @@ export const ROLES = {
     GROUP_LEADER: 'GroupLeader',
     TEAM_LEADER: 'TeamLeader',
     PD: 'PD',
+    PM: 'PM',
     GM: 'GM'
 };
 
@@ -14,7 +15,7 @@ export const MENU_ITEMS = [
         label: '대시보드',
         path: '/',
         icon: LayoutDashboard,
-        allowedRoles: [ROLES.ADMIN, ROLES.GROUP_LEADER, ROLES.TEAM_LEADER, ROLES.PD, ROLES.GM],
+        allowedRoles: [ROLES.ADMIN, ROLES.GROUP_LEADER, ROLES.TEAM_LEADER, ROLES.PD, ROLES.PM, ROLES.GM],
         permissionKey: 'dashboard'
     },
     {
@@ -22,7 +23,7 @@ export const MENU_ITEMS = [
         label: '영업현황',
         path: '/sales',
         icon: TrendingUp,
-        allowedRoles: [ROLES.ADMIN, ROLES.GROUP_LEADER, ROLES.TEAM_LEADER, ROLES.PD, ROLES.GM],
+        allowedRoles: [ROLES.ADMIN, ROLES.GROUP_LEADER, ROLES.TEAM_LEADER, ROLES.PD, ROLES.PM, ROLES.GM],
         permissionKey: 'sales'
     },
     {
@@ -30,7 +31,7 @@ export const MENU_ITEMS = [
         label: '프로젝트 배정',
         path: '/projects',
         icon: Briefcase,
-        allowedRoles: [ROLES.ADMIN, ROLES.GROUP_LEADER, ROLES.TEAM_LEADER, ROLES.PD, ROLES.GM],
+        allowedRoles: [ROLES.ADMIN, ROLES.GROUP_LEADER, ROLES.TEAM_LEADER, ROLES.PD, ROLES.PM, ROLES.GM],
         permissionKey: 'projects'
     },
     {
@@ -38,7 +39,7 @@ export const MENU_ITEMS = [
         label: '프로젝트 보고',
         path: '/project-report',
         icon: FileText,
-        allowedRoles: [ROLES.ADMIN, ROLES.GROUP_LEADER, ROLES.TEAM_LEADER, ROLES.PD, ROLES.GM],
+        allowedRoles: [ROLES.ADMIN, ROLES.GROUP_LEADER, ROLES.TEAM_LEADER, ROLES.PD, ROLES.PM, ROLES.GM],
         permissionKey: 'project-report'
     },
     {
@@ -46,7 +47,7 @@ export const MENU_ITEMS = [
         label: '프로젝트 마스터',
         path: '/project-master',
         icon: Briefcase,
-        allowedRoles: [ROLES.ADMIN, ROLES.GROUP_LEADER, ROLES.TEAM_LEADER, ROLES.PD],
+        allowedRoles: [ROLES.ADMIN, ROLES.GROUP_LEADER, ROLES.TEAM_LEADER, ROLES.PD, ROLES.PM],
         permissionKey: 'project-master'
     },
     {
@@ -54,7 +55,7 @@ export const MENU_ITEMS = [
         label: '설정',
         path: '/settings',
         icon: Settings,
-        allowedRoles: [ROLES.ADMIN, ROLES.GROUP_LEADER, ROLES.TEAM_LEADER, ROLES.PD],
+        allowedRoles: [ROLES.ADMIN, ROLES.GROUP_LEADER, ROLES.TEAM_LEADER, ROLES.PD, ROLES.PM],
         permissionKey: 'settings'
     }
 ];

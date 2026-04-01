@@ -272,6 +272,7 @@ export default function UserManagement() {
                                         <option value={ROLES.GROUP_LEADER}>그룹장 (Group Leader)</option>
                                         <option value={ROLES.TEAM_LEADER}>팀장 (Team Leader)</option>
                                         <option value={ROLES.PD}>PD (Project Director)</option>
+                                        <option value={ROLES.PM}>PM (Project Manager)</option>
                                         <option value={ROLES.GM}>GM (General Manager)</option>
                                     </select>
                                     <Shield className="premium-input-icon" size={18} />
@@ -435,12 +436,14 @@ export default function UserManagement() {
                                         u.role === ROLES.ADMIN ? 'premium-badge-admin' : 
                                         u.role === ROLES.GROUP_LEADER ? 'premium-badge-leader' :
                                         u.role === ROLES.TEAM_LEADER ? 'premium-badge-leader' :
-                                        u.role === ROLES.PD ? 'premium-badge-pd' : 'premium-badge-gm'
+                                        u.role === ROLES.PD ? 'premium-badge-pd' : 
+                                        u.role === ROLES.PM ? 'premium-badge-pd' : 'premium-badge-gm'
                                     }`}>
                                         {u.role === ROLES.ADMIN && <><Shield size={12} className="mr-1.5" /> 관리자</>}
                                         {u.role === ROLES.GROUP_LEADER && <><Users size={12} className="mr-1.5" /> 그룹장</>}
                                         {u.role === ROLES.TEAM_LEADER && <><Users size={12} className="mr-1.5" /> 팀장</>}
                                         {u.role === ROLES.PD && <><Briefcase size={12} className="mr-1.5" /> PD</>}
+                                        {u.role === ROLES.PM && <><Briefcase size={12} className="mr-1.5" /> PM</>}
                                         {u.role === ROLES.GM && <><TrendingUp size={12} className="mr-1.5" /> GM</>}
                                     </span>
                                 </td>
