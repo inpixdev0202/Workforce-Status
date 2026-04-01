@@ -1690,10 +1690,17 @@ const ProjectReport = () => {
 
                 if (weightA !== weightB) return weightA - weightB;
                 
-                const idA = Number(a.id);
-                const idB = Number(b.id);
-                if (!isNaN(idA) && !isNaN(idB)) return idA - idB;
-                return String(a.id).localeCompare(String(b.id));
+                // Prioritize Project Group within the same category
+                const groupPriority = { '구축': 1, 'ISG1': 2, 'ISD': 3 };
+                const gA = groupPriority[a.project_group] || 99;
+                const gB = groupPriority[b.project_group] || 99;
+                
+                if (gA !== gB) return gA - gB;
+
+                // Then sort alphabetically by project name
+                const nameA = normalizeProjectName(a.projectName);
+                const nameB = normalizeProjectName(b.projectName);
+                return nameA.localeCompare(nameB, 'ko');
             });
     }, [reportData, searchTerm, selectedCategories]);
 
