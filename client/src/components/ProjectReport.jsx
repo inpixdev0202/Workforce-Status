@@ -1690,10 +1690,18 @@ const ProjectReport = () => {
 
                 if (weightA !== weightB) return weightA - weightB;
                 
+                // Helper to get group from item or master DB (covers old reports too)
+                const getGroupVal = (item) => {
+                    if (item.project_group) return item.project_group;
+                    const normalizedName = normalizeProjectName(item.projectName);
+                    const master = masterProjects.find(m => normalizeProjectName(m.name) === normalizedName);
+                    return master?.project_group || '';
+                };
+
                 // Prioritize Project Group within the same category
                 const groupPriority = { '구축': 1, 'ISG1': 2, 'ISD': 3 };
-                const gA = groupPriority[a.project_group] || 99;
-                const gB = groupPriority[b.project_group] || 99;
+                const gA = groupPriority[getGroupVal(a)] || 99;
+                const gB = groupPriority[getGroupVal(b)] || 99;
                 
                 if (gA !== gB) return gA - gB;
 
@@ -1702,7 +1710,7 @@ const ProjectReport = () => {
                 const nameB = normalizeProjectName(b.projectName);
                 return nameA.localeCompare(nameB, 'ko');
             });
-    }, [reportData, searchTerm, selectedCategories]);
+    }, [reportData, searchTerm, selectedCategories, masterProjects]);
 
     const handleExportExcel = async () => {
         const workbook = new ExcelJS.Workbook();
