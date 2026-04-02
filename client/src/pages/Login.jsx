@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { UserCircle, Lock, Mail, AlertCircle, ArrowRight, Eye, EyeOff } from 'lucide-react';
+import Logo from '../components/Logo';
+import { Lock, Mail, AlertCircle, ArrowRight, Eye, EyeOff } from 'lucide-react';
 
 export default function Login() {
     const [email, setEmail] = useState('');
@@ -38,7 +39,7 @@ export default function Login() {
             <div className="glass-login-card">
                 <div className="login-logo-container">
                     <div className="login-logo-icon">
-                        <UserCircle size={40} strokeWidth={2.5} />
+                        <Logo size={80} />
                     </div>
                     <h1 className="login-title">Workforce Status</h1>
                     <h2 className="login-subtitle">인력 현황 관리 시스템</h2>

@@ -14,6 +14,7 @@ function EmployeeList() {
         group_id: '',
         status: 'active',
         position: '',
+        employment_type: '',
         search: ''
     });
 
@@ -57,6 +58,11 @@ function EmployeeList() {
         // Position (Rank) Filter
         if (filters.position) {
             filtered = filtered.filter(emp => emp.position === filters.position);
+        }
+
+        // Employment Type Filter
+        if (filters.employment_type) {
+            filtered = filtered.filter(emp => emp.employment_type === filters.employment_type);
         }
 
         // Search Filter (Name, Position, Email, Phone)
@@ -150,14 +156,19 @@ function EmployeeList() {
                 </button>
             </div>
 
-            <div className="card mb-lg">
-                <div className="grid grid-4" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
-                    <div className="form-group">
-                        <label className="form-label">그룹</label>
+            <div className="card mb-lg pb-lg">
+                <div className="grid" style={{ 
+                    display: 'grid', 
+                    gridTemplateColumns: 'repeat(5, 1fr)', 
+                    gap: '1rem' 
+                }}>
+                    <div className="form-group mb-0">
+                        <label className="form-label" style={{ fontSize: '0.75rem', fontWeight: '800', color: 'var(--text-muted)', marginBottom: '0.5rem', display: 'block' }}>그룹</label>
                         <select
                             className="form-control"
                             value={filters.group_id}
                             onChange={(e) => setFilters({ ...filters, group_id: e.target.value })}
+                            style={{ height: '42px' }}
                         >
                             <option value="">전체</option>
                             {groups.map((group) => (
@@ -168,12 +179,13 @@ function EmployeeList() {
                         </select>
                     </div>
 
-                    <div className="form-group">
-                        <label className="form-label">직급</label>
+                    <div className="form-group mb-0">
+                        <label className="form-label" style={{ fontSize: '0.75rem', fontWeight: '800', color: 'var(--text-muted)', marginBottom: '0.5rem', display: 'block' }}>직급</label>
                         <select
                             className="form-control"
                             value={filters.position}
                             onChange={(e) => setFilters({ ...filters, position: e.target.value })}
+                            style={{ height: '42px' }}
                         >
                             <option value="">전체</option>
                             <option value="대표이사">대표이사</option>
@@ -189,12 +201,13 @@ function EmployeeList() {
                         </select>
                     </div>
 
-                    <div className="form-group">
-                        <label className="form-label">상태</label>
+                    <div className="form-group mb-0">
+                        <label className="form-label" style={{ fontSize: '0.75rem', fontWeight: '800', color: 'var(--text-muted)', marginBottom: '0.5rem', display: 'block' }}>상태</label>
                         <select
                             className="form-control"
                             value={filters.status}
                             onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+                            style={{ height: '42px' }}
                         >
                             <option value="">전체</option>
                             <option value="active">재직</option>
@@ -202,14 +215,29 @@ function EmployeeList() {
                         </select>
                     </div>
 
-                    <div className="form-group">
-                        <label className="form-label">검색</label>
+                    <div className="form-group mb-0">
+                        <label className="form-label" style={{ fontSize: '0.75rem', fontWeight: '800', color: 'var(--text-muted)', marginBottom: '0.5rem', display: 'block' }}>고용</label>
+                        <select
+                            className="form-control"
+                            value={filters.employment_type}
+                            onChange={(e) => setFilters({ ...filters, employment_type: e.target.value })}
+                            style={{ height: '42px' }}
+                        >
+                            <option value="">전체</option>
+                            <option value="정규직">정규직</option>
+                            <option value="계약직">계약직</option>
+                        </select>
+                    </div>
+
+                    <div className="form-group mb-0">
+                        <label className="form-label" style={{ fontSize: '0.75rem', fontWeight: '800', color: 'var(--text-muted)', marginBottom: '0.5rem', display: 'block' }}>검색</label>
                         <input
                             type="text"
                             className="form-control"
                             placeholder="이름, 연락처 검색..."
                             value={filters.search}
                             onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+                            style={{ height: '42px' }}
                         />
                     </div>
                 </div>

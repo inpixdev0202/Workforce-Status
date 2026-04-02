@@ -411,20 +411,24 @@ app.get('/api/dashboard/stats', async (req, res) => {
                 }
 
                 if (isExcluded) {
-                    other++;
-                    otherNames.push(`${emp.name} (제외됨)`);
+                    if (isRegular) {
+                        other++;
+                        otherNames.push(`${emp.name} (제외됨)`);
+                    }
                 } else if (projectType === 'Client') {
                     client++;
                 } else if (projectType === 'Leave') {
-                    other++;
-                    otherNames.push(`${emp.name} (휴직)`);
+                    if (isRegular) {
+                        other++;
+                        otherNames.push(`${emp.name} (휴직)`);
+                    }
                 } else if (isRegular && (!projectType || ['Internal', 'Bench', 'Annual'].includes(projectType))) {
                     bench++;
                     benchNames.push(emp.name);
                 } else {
-                    // Contractors without Client project or Non-regular internal
-                    other++;
-                    otherNames.push(emp.name);
+                    // This block captures Non-Regulars Not in Client projects,
+                    // and Non-Regulars in Internal/Bench/Annual projects.
+                    // User requested to exclude non-regulars from 'Other'.
                 }
             });
 

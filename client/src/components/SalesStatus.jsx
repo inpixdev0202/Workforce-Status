@@ -132,9 +132,10 @@ const getCategoryStyle = (category, isDark) => {
     
     if (!isDark) {
         switch (cat) {
+            case '진행예정': return { bg: '#ebf8ff', text: '#2563eb' };   // Light Blue
             case '진행중': return { bg: '#e6fffa', text: '#059669' }; // Light Emerald
             case '홀딩': return { bg: '#fffaf0', text: '#d97706' };   // Light Amber
-            case '수주': return { bg: '#ebf8ff', text: '#2563eb' };   // Light Blue
+            case '수주': return { bg: '#f0f9ff', text: '#0369a1' };   // Sky Blue
             case '드롭': return { bg: '#fff5f5', text: '#dc2626' };   // Light Red
             case '탈락': return { bg: '#f7fafc', text: '#4b5563' };   // Light Gray
             default: return { bg: 'transparent', text: 'inherit' };
@@ -143,6 +144,12 @@ const getCategoryStyle = (category, isDark) => {
 
     // Neon Styles for Dark Mode
     switch (cat) {
+        case '진행예정':
+            return {
+                bg: 'rgba(59, 130, 246, 0.12)',
+                text: '#3b82f6',
+                shadow: '0 0 8px rgba(59, 130, 246, 0.5)'
+            };
         case '진행중':
             return {
                 bg: 'rgba(0, 255, 127, 0.12)',
@@ -223,7 +230,7 @@ const SalesDataRow = React.memo(({
                 }
 
                 if (col.key === 'category') {
-                    const categoryOptions = ['진행중', '홀딩', '수주', '드롭', '탈락'];
+                    const categoryOptions = ['진행예정', '진행중', '홀딩', '수주', '드롭', '탈락'];
                     const displayValue = item[col.key] === '수행' ? '진행중' : item[col.key];
                     return (
                         <td 
@@ -679,7 +686,7 @@ const SalesStatus = () => {
     };
 
     const filteredData = useMemo(() => {
-        const order = ['진행중', '홀딩', '수주', '드롭', '탈락'];
+        const order = ['진행예정', '진행중', '홀딩', '수주', '드롭', '탈락'];
         
         return salesData
             .filter(item => 
@@ -688,6 +695,7 @@ const SalesStatus = () => {
             )
             .sort((a, b) => {
                 const weights = {
+                    '진행예정': 0,
                     '진행중': 1,
                     '홀딩': 2,
                     '수주': 3,
@@ -772,12 +780,14 @@ const SalesStatus = () => {
             };
             const cat = normalize(categoryValue);
 
-            if (cat === '진행중') {
+            if (cat === '진행예정') {
+                bgColor = 'FFEBF8FF'; textColor = 'FF2563EB';
+            } else if (cat === '진행중') {
                 bgColor = 'FFE6FFFA'; textColor = 'FF059669';
             } else if (cat === '홀딩') {
                 bgColor = 'FFFFFAF0'; textColor = 'FFD97706';
             } else if (cat === '수주') {
-                bgColor = 'FFEBF8FF'; textColor = 'FF2563EB';
+                bgColor = 'FFF0F9FF'; textColor = 'FF0369A1';
             } else if (cat === '드롭') {
                 bgColor = 'FFFFF5F5'; textColor = 'FFDC2626';
             } else if (cat === '탈락') {

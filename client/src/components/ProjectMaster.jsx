@@ -32,7 +32,7 @@ const ProjectMaster = () => {
     const [employees, setEmployees] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
-    const [statusFilter, setStatusFilter] = useState('all'); // all, 진행중, 종료
+    const [statusFilter, setStatusFilter] = useState('all'); // all, 진행예정, 진행중, 종료
     const [typeFilter, setTypeFilter] = useState('all');
     
     // Dropdown state for PD/PM search
@@ -180,8 +180,7 @@ const ProjectMaster = () => {
             
             const matchesStatus = 
                 statusFilter === 'all' || 
-                (statusFilter === '진행중' && p.status === '진행중') ||
-                (statusFilter === '종료' && p.status === '종료');
+                p.status === statusFilter;
 
             const matchesType = 
                 typeFilter === 'all' || p.type === typeFilter;
@@ -230,7 +229,11 @@ const ProjectMaster = () => {
         if (status === '종료') {
             return <span className="badge badge-secondary">종료됨</span>;
         }
-        
+
+        if (status === '진행예정') {
+            return <span className="badge badge-info" style={{ color: '#3b82f6' }}>진행예정</span>;
+        }
+
         if (isExpired) {
             return <span className="badge badge-danger">기한만료</span>;
         }
@@ -326,6 +329,7 @@ const ProjectMaster = () => {
                         onChange={(e) => setStatusFilter(e.target.value)}
                     >
                         <option value="all">모든 상태</option>
+                        <option value="진행예정">진행예정</option>
                         <option value="진행중">진행중</option>
                         <option value="종료">종료됨</option>
                     </select>
@@ -608,6 +612,7 @@ const ProjectMaster = () => {
                                         onFocus={(e) => { e.currentTarget.style.borderColor = 'rgba(34, 211, 238, 0.5)'; e.currentTarget.style.boxShadow = '0 0 0 4px rgba(34, 211, 238, 0.1)'; }}
                                         onBlur={(e) => { e.currentTarget.style.borderColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'var(--border)'; e.currentTarget.style.boxShadow = 'none'; }}
                                     >
+                                        <option value="진행예정">진행예정 (Upcoming)</option>
                                         <option value="진행중">진행중 (Ongoing)</option>
                                         <option value="종료">프로젝트 종료 (Completed)</option>
                                     </select>

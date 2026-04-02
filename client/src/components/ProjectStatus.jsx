@@ -920,6 +920,7 @@ const ProjectStatus = () => {
                         id: project.id,
                         name: project.name,
                         type: project.type,
+                        status: project.status,
                         assignments: []
                     };
                 }
@@ -961,6 +962,15 @@ const ProjectStatus = () => {
                 const pA = typePriority[a.type] || 99;
                 const pB = typePriority[b.type] || 99;
                 if (pA !== pB) return pA - pB;
+                
+                // For Client projects in Assignment menu, Ongoing > Upcoming
+                if (a.type === 'Client') {
+                    const statusWeights = { '진행중': 1, '진행예정': 2, '종료': 3 };
+                    const sA = statusWeights[a.status] || 99;
+                    const sB = statusWeights[b.status] || 99;
+                    if (sA !== sB) return sA - sB;
+                }
+                
                 return (a.name || '').localeCompare(b.name || '', 'ko');
             });
 
@@ -1035,6 +1045,15 @@ const ProjectStatus = () => {
             const pA = typePriority[a.type] || 99;
             const pB = typePriority[b.type] || 99;
             if (pA !== pB) return pA - pB;
+            
+            // For Client projects in Assignment menu, Ongoing > Upcoming
+            if (a.type === 'Client') {
+                const statusWeights = { '진행중': 1, '진행예정': 2, '종료': 3 };
+                const sA = statusWeights[a.status] || 99;
+                const sB = statusWeights[b.status] || 99;
+                if (sA !== sB) return sA - sB;
+            }
+            
             return (a.name || '').localeCompare(b.name || '', 'ko');
         };
 

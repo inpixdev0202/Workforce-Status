@@ -22,11 +22,15 @@ const getSkillStyle = (level) => {
 const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
         return (
-            <div className="custom-tooltip">
-                <p className="label">{`${label || ''}`}</p>
+            <div className="custom-tooltip glass-card p-3 shadow-premium" style={{ 
+                backgroundColor: 'var(--surface-high)', 
+                border: '1px solid var(--border)',
+                borderRadius: '12px'
+            }}>
+                <p className="font-bold mb-2 text-primary" style={{ fontSize: '1rem' }}>{`${label || ''}`}</p>
                 {payload.map((entry, index) => (
-                    <p key={index} className="intro" style={{ color: entry.color }}>
-                        {`${entry.name}: ${entry.value}`}
+                    <p key={index} className="text-sm font-semibold" style={{ color: entry.color, marginBottom: '4px' }}>
+                        {`${entry.name}: ${entry.value}명`}
                     </p>
                 ))}
             </div>
@@ -181,6 +185,11 @@ function Dashboard() {
         });
     }, [stats?.benchList, benchSort]);
 
+    const activeBenchCount = useMemo(() => {
+        if (!stats?.benchList) return 0;
+        return stats.benchList.filter(item => !item.leave_status).length;
+    }, [stats?.benchList]);
+
     const handleLegendClick = (e) => {
         const { value } = e;
 
@@ -251,12 +260,37 @@ function Dashboard() {
         if (!stats?.idleStats) return null;
 
         const chartData = stats.idleStats.map(period => {
-            const dataPoint = { name: period.label, Total: parseFloat(period.totalIdleRate) };
+            const dataPoint = { 
+                name: period.label, 
+                Total: parseFloat(period.totalIdleRate),
+                Total_count: period.totalIdleCount
+            };
             period.byGroup.forEach(g => {
                 dataPoint[g.name] = parseFloat(g.idleRate);
+                dataPoint[`${g.name}_count`] = g.idleCount;
             });
             return dataPoint;
         });
+
+        const IdleTooltip = ({ active, payload, label }) => {
+            if (active && payload && payload.length) {
+                return (
+                    <div className="custom-tooltip glass-card p-3 shadow-premium" style={{ 
+                        backgroundColor: 'var(--surface-high)', 
+                        border: '1px solid var(--border)',
+                        borderRadius: '12px'
+                    }}>
+                        <p className="font-bold mb-2 text-primary" style={{ fontSize: '1rem' }}>{label}</p>
+                        {payload.map((entry, index) => (
+                            <p key={index} className="text-sm font-semibold" style={{ color: entry.color, marginBottom: '4px' }}>
+                                {`${entry.name} : ${entry.payload[`${entry.name}_count`] || 0}명, ${entry.value}%`}
+                            </p>
+                        ))}
+                    </div>
+                );
+            }
+            return null;
+        };
 
         if (idleViewMode === 'refined') {
             return (
@@ -278,7 +312,7 @@ function Dashboard() {
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" opacity={0.4} />
                             <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={11} tickLine={false} axisLine={false} />
                             <YAxis stroke="var(--text-muted)" fontSize={11} tickLine={false} axisLine={false} unit="%" domain={[0, 100]} />
-                            <Tooltip contentStyle={{ backgroundColor: 'var(--surface-highest)', borderRadius: '16px', border: 'none', boxShadow: 'var(--shadow-xl)' }} />
+                            <Tooltip content={<IdleTooltip />} />
                             <Area type="monotone" dataKey="Total" stroke="#ef4444" strokeWidth={3} fillOpacity={1} fill="url(#colorTotal)" className="recharts-area-refined" />
                             {stats.idleStats[0]?.byGroup?.map((group, index) => (
                                 <Area 
@@ -305,7 +339,7 @@ function Dashboard() {
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
                         <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={12} tickLine={false} axisLine={false} />
                         <YAxis stroke="var(--text-muted)" fontSize={12} tickLine={false} axisLine={false} unit="%" domain={[0, 100]} />
-                        <Tooltip contentStyle={{ backgroundColor: 'var(--surface-highest)', borderRadius: '12px', boxShadow: 'var(--shadow-lg)', border: 'none' }} />
+                        <Tooltip content={<IdleTooltip />} />
                         <Legend wrapperStyle={{ paddingTop: '10px' }} onClick={handleLegendClick} />
                         <Line type="monotone" dataKey="Total" stroke="#ef4444" strokeWidth={4} dot={{ r: 5, fill: '#ef4444' }} hide={hiddenSeries.includes('Total')} />
                         {stats.idleStats[0]?.byGroup?.map((group, index) => (
@@ -553,7 +587,7 @@ function Dashboard() {
                 </div>
                 <div className="stat-card premium">
                     <div className="stat-value text-gradient-info">
-                        {stats?.benchList?.length || 0}
+                        {activeBenchCount}
                     </div>
                     <div className="stat-label"><BilingualText en="Non-Client Workforce" ko="미투입/내부 투입 인력" /></div>
                 </div>
@@ -780,7 +814,7 @@ function Dashboard() {
                                         layout="vertical"
                                         margin={{ top: 20, right: 30, left: 40, bottom: 5 }}
                                     >
-                                        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="rgba(255,255,255,0.05)" />
+                                        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)"} />
                                         <XAxis type="number" hide />
                                         <YAxis
                                             dataKey="name"
@@ -790,13 +824,18 @@ function Dashboard() {
                                             width={100}
                                         />
                                         <Tooltip
-                                            cursor={{ fill: 'rgba(255,255,255,0.05)' }}
+                                            cursor={{ fill: 'var(--surface-low)', opacity: 0.2 }}
                                             content={({ active, payload, label }) => {
                                                 if (active && payload && payload.length) {
                                                     const dataItem = stats.groupWorkforceDetails.find(d => d.name === label);
                                                     return (
-                                                        <div className="custom-tooltip glass-card p-3" style={{ border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(15, 23, 42, 0.95)', minWidth: '220px' }}>
-                                                            <p className="font-bold mb-2 text-white text-lg">{label}</p>
+                                                        <div className="custom-tooltip glass-card p-3 shadow-premium" style={{ 
+                                                            border: '1px solid var(--border)', 
+                                                            background: 'var(--surface-high)', 
+                                                            minWidth: '220px',
+                                                            borderRadius: '12px'
+                                                        }}>
+                                                            <p className="font-bold mb-3 text-primary text-base border-b border-border pb-2">{label}</p>
                                                             {payload.map((entry, index) => {
                                                                 const names = entry.dataKey === 'bench' ? dataItem?.benchNames :
                                                                     entry.dataKey === 'other' ? dataItem?.otherNames : null;
@@ -807,7 +846,11 @@ function Dashboard() {
                                                                             <span>{entry.value}명</span>
                                                                         </div>
                                                                         {names && names.length > 0 && (
-                                                                            <div className="text-[11px] text-gray-300 pl-2 border-l-2" style={{ borderColor: entry.color, opacity: 0.8 }}>
+                                                                            <div className="text-[11px] pl-2 border-l-2 leading-relaxed" style={{ 
+                                                                                borderColor: entry.color, 
+                                                                                color: 'var(--text-secondary)',
+                                                                                fontWeight: '500'
+                                                                            }}>
                                                                                 {names.join(', ')}
                                                                             </div>
                                                                         )}
@@ -957,8 +1000,8 @@ function Dashboard() {
                         <h3 className="card-title">
                             <BilingualText
                                 className="text-gradient-danger"
-                                en={`Bench / Low Utilization (${stats?.benchList?.length || 0})`}
-                                ko={`유휴 인력 현황 (Bench) - ${stats?.benchList?.length || 0}명`}
+                                en={`Bench / Low Utilization (${activeBenchCount})`}
+                                ko={`유휴 인력 현황 (Bench) - ${activeBenchCount}명`}
                             />
                         </h3>
                     </div>

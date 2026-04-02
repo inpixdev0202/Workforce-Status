@@ -412,10 +412,17 @@ h6 {
 .navbar-brand span:first-child {
   font-size: 1.75rem;
   filter: drop-shadow(0 0 12px var(--primary));
-  transition: transform var(--transition-normal);
+  display: inline-flex;
+  align-items: center;
+  line-height: 0;
 }
 
-.navbar-brand:hover span:first-child {
+.navbar-brand .logo-container {
+  transition: transform var(--transition-normal);
+  cursor: pointer;
+}
+
+.navbar-brand .logo-container:hover {
   transform: rotate(10deg) scale(1.1);
 }
 
@@ -2884,16 +2891,22 @@ select.form-control {
 }
 
 .login-logo-icon {
-  width: 64px;
-  height: 64px;
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-  border-radius: 18px;
+  width: 96px;
+  height: 96px;
+  background: transparent;
+  border: none;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
   margin-bottom: 1.25rem;
-  box-shadow: 0 10px 20px -5px rgba(37, 99, 235, 0.5);
+  padding: 0;
+  box-shadow: none;
+}
+
+.nav-logo-svg {
+  display: block;
+  margin-right: 0.5rem;
+  transition: var(--transition-normal);
 }
 
 .login-title {

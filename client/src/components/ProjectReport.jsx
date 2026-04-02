@@ -225,6 +225,7 @@ const getCategoryStyle = (category, isDark) => {
     const cat = normalize(category);
     
     switch (cat) {
+        case '진행예정': return { class: 'glow-pill-info', text: '진행예정' };
         case '진행중': return { class: 'glow-pill-emerald', text: '진행중' };
         case '홀딩': return { class: 'glow-pill-teal', text: '홀딩' };
         case '종료': return { class: 'glow-pill-coral', text: '종료' };
@@ -578,7 +579,7 @@ const ReportDataRow = React.memo(({
                 }
 
                 if (col.key === 'category') {
-                    const categoryOptions = ['진행중', '홀딩', '종료'];
+                    const categoryOptions = ['진행예정', '진행중', '홀딩', '종료'];
                     const normalize = (val) => {
                         const str = String(val || '').normalize('NFC').trim();
                         if (str === '수행') return '진행중';
@@ -1396,7 +1397,7 @@ const ProjectReport = () => {
     }, [columns]);
 
     const [searchTerm, setSearchTerm] = useState('');
-    const [selectedCategories, setSelectedCategories] = useState(['진행중', '홀딩', '종료']);
+    const [selectedCategories, setSelectedCategories] = useState(['진행예정', '진행중', '홀딩', '종료']);
     const [showSaveToast, setShowSaveToast] = useState(false);
     const [focusedCell, setFocusedCell] = useState(null);
     const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
@@ -1620,7 +1621,7 @@ const ProjectReport = () => {
 
 
     const filteredData = useMemo(() => {
-        const orderArr = ['진행중', '홀딩', '종료'];
+        const orderArr = ['진행예정', '진행중', '홀딩', '종료'];
         
         const normalize = (val) => {
             const str = String(val || '').normalize('NFC').trim();
@@ -1643,7 +1644,7 @@ const ProjectReport = () => {
                 return matchesCategory && matchesSearch && isClient;
             })
             .sort((a, b) => {
-                const weights = { '진행중': 1, '홀딩': 2, '종료': 3 };
+                const weights = { '진행예정': 0, '진행중': 1, '홀딩': 2, '종료': 3 };
                 
                 const catA = normalize(a.category);
                 const catB = normalize(b.category);

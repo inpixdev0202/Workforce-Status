@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Routes, Route, NavLink, Link, Navigate, useLocation } from 'react-router-dom';
 import { LayoutDashboard, Users, Briefcase, Settings as SettingsIcon, UserCircle, LogOut, TrendingUp, ChevronDown, Key, Eye, EyeOff, Lock, Shield, X, User, Check, ShieldCheck, Sun, Moon } from 'lucide-react';
+import Logo from './components/Logo';
 import { useAuth } from './context/AuthContext';
 import { authAPI } from './api';
 import Dashboard from './components/Dashboard';
@@ -420,7 +421,7 @@ const MainLayout = () => {
                 <div className="container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '2.5rem' }}>
                         <Link to="/" className="navbar-brand" style={{ fontFamily: 'Manrope, sans-serif' }}>
-                            <span style={{ color: 'var(--primary)', filter: 'drop-shadow(0 0 8px var(--primary-glow))' }}><UserCircle size={28} /></span>
+                            <span style={{ filter: 'drop-shadow(0 0 8px var(--primary-glow))' }}><Logo size={64} className="nav-logo-svg" /></span>
                             <span style={{ fontWeight: 800 }}>Workforce Status</span>
                         </Link>
                         <ul className="navbar-nav">
@@ -475,7 +476,7 @@ const MainLayout = () => {
                         </ul>
                     </div>
                     {/* User Profile, Theme Toggle & Logout */}
-                    <div className="flex items-center gap-4 text-sm">
+                    <div className="flex items-center gap-4 text-sm" style={{ flexShrink: 0 }}>
                         {/* Theme Toggle Button */}
                         <button
                             onClick={toggleTheme}
@@ -514,7 +515,10 @@ const MainLayout = () => {
                                     cursor: 'pointer',
                                     transition: '0.3s',
                                     boxShadow: 'var(--shadow-sm)',
-                                    transform: isProfileOpen ? 'translateY(-1px)' : 'translateY(0)'
+                                    transform: isProfileOpen ? 'translateY(-1px)' : 'translateY(0)',
+                                    whiteSpace: 'nowrap',
+                                    flexWrap: 'nowrap',
+                                    flexShrink: 0
                                 }}
                             >
                                 <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--tertiary)', boxShadow: '0 0 10px var(--tertiary-glow)' }}></div>

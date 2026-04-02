@@ -11,7 +11,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
-      <Route path="/*" element={<MainLayout />} />
+      <Route path="/*" element={user ? <MainLayout /> : <Navigate to="/login" replace />} />
     </Routes>
   );
 }
