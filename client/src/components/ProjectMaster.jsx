@@ -23,8 +23,11 @@ import {
 } from 'lucide-react';
 import { projectsAPI, employeesAPI } from '../api';
 import { format, parseISO, isAfter, isBefore, isValid } from 'date-fns';
+import { useTheme } from '../context/ThemeContext';
 
 const ProjectMaster = () => {
+    const { theme } = useTheme();
+    const isDark = theme === 'dark';
     const [projects, setProjects] = useState([]);
     const [employees, setEmployees] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -313,7 +316,7 @@ const ProjectMaster = () => {
                 </div>
 
                 <div className="flex items-center gap-3">
-                    <div className="p-2 bg-white/5 rounded-lg text-gray-400">
+                    <div className="p-2 rounded-lg" style={{ backgroundColor: 'var(--surface-high)', color: 'var(--text-muted)' }}>
                         <Filter size={16} />
                     </div>
                     
@@ -372,26 +375,27 @@ const ProjectMaster = () => {
                             </tr>
                         ) : (
                             filteredProjects.map((project, index) => (
-                                <tr key={project.id} className="hover:bg-white/5 transition-colors group">
+                                <tr key={project.id} className="transition-colors group" style={{ cursor: 'default' }}>
                                     <td className="text-center text-gray-500 font-mono text-xs">{index + 1}</td>
-                                    <td className="py-6">
+                                    <td className="py-6 align-middle">
                                         <div className="flex flex-col">
-                                            <span className="text-white font-bold text-base group-hover:text-primary transition-colors cursor-pointer" onClick={() => handleOpenModal(project)}>
+                                            <span className="font-bold text-base group-hover:text-primary transition-colors cursor-pointer" style={{ color: 'var(--text-primary)' }} onClick={() => handleOpenModal(project)}>
                                                 {project.name}
                                             </span>
                                         </div>
                                     </td>
                                     <td className="text-center align-middle">
                                         <div className="flex flex-col items-center justify-center gap-1.5">
-                                            <span className={`px-2 py-1 rounded text-[10px] font-black uppercase tracking-tighter ${
-                                                project.type === 'Client' ? 'bg-blue-500/20 text-blue-400' :
-                                                project.type === 'Internal' ? 'bg-emerald-500/20 text-emerald-400' :
-                                                'bg-yellow-500/20 text-yellow-500'
+                                            <span className={`text-[10px] font-black uppercase tracking-tighter ${
+                                                project.type === 'Client' ? 'text-blue-500' :
+                                                project.type === 'Internal' ? 'text-emerald-500' :
+                                                project.type === 'Annual' ? 'text-yellow-500' :
+                                                'text-gray-400'
                                             }`}>
                                                 {project.type}
                                             </span>
                                             {project.project_group && (
-                                                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold tracking-tight bg-white/10 text-gray-300 border border-white/10">
+                                                <span className="text-[9px] font-bold tracking-tight" style={{ color: 'var(--text-muted)' }}>
                                                     {project.project_group}
                                                 </span>
                                             )}
@@ -401,17 +405,17 @@ const ProjectMaster = () => {
                                         {getStatusBadge(project.status, project.end_date)}
                                     </td>
                                     <td className="text-center">
-                                        <span className="text-white font-medium text-sm">{project.pd || '-'}</span>
+                                        <span className="font-medium text-sm" style={{ color: 'var(--text-primary)' }}>{project.pd || '-'}</span>
                                     </td>
                                     <td className="text-center">
-                                        <span className="text-white font-medium text-sm">{project.pm || '-'}</span>
+                                        <span className="font-medium text-sm" style={{ color: 'var(--text-primary)' }}>{project.pm || '-'}</span>
                                     </td>
                                     <td className="text-center">
                                         <div className="flex flex-col gap-1">
-                                            <div className="flex items-center justify-center gap-2 text-xs text-white bg-black/20 py-1 px-3 rounded-full border border-white/5">
-                                                <Calendar size={12} className="text-gray-500" />
+                                            <div className="flex items-center justify-center gap-2 text-xs py-1 px-3 rounded-full" style={{ color: 'var(--text-secondary)', backgroundColor: 'var(--surface-high)', border: '1px solid var(--border)' }}>
+                                                <Calendar size={12} style={{ color: 'var(--text-muted)' }} />
                                                 <span>{formatDateStr(project.start_date)}</span>
-                                                <ChevronRight size={10} className="text-gray-700" />
+                                                <ChevronRight size={10} style={{ color: 'var(--text-muted)' }} />
                                                 <span>{formatDateStr(project.end_date)}</span>
                                             </div>
                                         </div>
@@ -449,7 +453,7 @@ const ProjectMaster = () => {
                     left: 0,
                     width: '100vw',
                     height: '100vh',
-                    backgroundColor: 'rgba(5, 8, 20, 0.9)',
+                    backgroundColor: isDark ? 'rgba(5, 8, 20, 0.9)' : 'rgba(0, 0, 0, 0.4)',
                     backdropFilter: 'blur(16px)',
                     WebkitBackdropFilter: 'blur(16px)',
                     display: 'flex',
@@ -458,16 +462,18 @@ const ProjectMaster = () => {
                     zIndex: 100000,
                     padding: '20px'
                 }}>
-                    <div style={{ 
+                    <div
+                        className={isDark ? '' : 'light-theme'}
+                        style={{ 
                         width: '100%', 
                         maxWidth: '680px', 
-                        backgroundColor: 'rgba(21, 28, 48, 0.95)', 
+                        backgroundColor: isDark ? 'rgba(21, 28, 48, 0.97)' : '#ffffff',
                         borderRadius: '24px',
-                        border: '1px solid rgba(255, 255, 255, 0.1)',
-                        boxShadow: '0 40px 100px -20px rgba(0, 0, 0, 0.8)',
+                        border: isDark ? '1px solid rgba(255, 255, 255, 0.1)' : '1px solid var(--border)',
+                        boxShadow: isDark ? '0 40px 100px -20px rgba(0, 0, 0, 0.8)' : '0 40px 100px -20px rgba(0, 0, 0, 0.15)',
                         overflow: 'hidden',
                         position: 'relative',
-                        color: 'white',
+                        color: 'var(--text-primary)',
                         fontFamily: 'Inter, system-ui, sans-serif'
                     }}>
                         {/* Close Button */}
@@ -483,15 +489,15 @@ const ProjectMaster = () => {
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                                backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)',
                                 border: 'none',
-                                color: '#94a3b8',
+                                color: 'var(--text-muted)',
                                 cursor: 'pointer',
                                 transition: '0.2s',
                                 zIndex: 10
                             }}
-                            onMouseOver={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'; e.currentTarget.style.color = '#fff'; }}
-                            onMouseOut={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)'; e.currentTarget.style.color = '#94a3b8'; }}
+                            onMouseOver={(e) => { e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
+                            onMouseOut={(e) => { e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)'; e.currentTarget.style.color = 'var(--text-muted)'; }}
                         >
                             <X size={18} />
                         </button>
@@ -525,16 +531,16 @@ const ProjectMaster = () => {
                         <form onSubmit={handleSave} style={{ padding: '0 32px 40px' }}>
                             <div className="grid grid-2 gap-x-6 gap-y-5">
                                 <div className="form-group col-span-full">
-                                    <label style={{ fontSize: '12px', fontWeight: '600', color: '#94a3b8', paddingLeft: '4px', marginBottom: '8px', display: 'block' }}>프로젝트명</label>
+                                    <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-muted)', paddingLeft: '4px', marginBottom: '8px', display: 'block' }}>프로젝트명</label>
                                     <input 
                                         type="text" 
                                         style={{
                                             width: '100%',
-                                            backgroundColor: '#0f172a',
-                                            border: '1px solid rgba(255, 255, 255, 0.1)',
+                                            backgroundColor: isDark ? '#0f172a' : 'var(--surface-high)',
+                                            border: isDark ? '1px solid rgba(255, 255, 255, 0.1)' : '1px solid var(--border)',
                                             borderRadius: '14px',
                                             padding: '14px 20px',
-                                            color: 'white',
+                                            color: 'var(--text-primary)',
                                             fontSize: '16px',
                                             fontWeight: '700',
                                             outline: 'none',
@@ -550,19 +556,19 @@ const ProjectMaster = () => {
                                 </div>
 
                                 <div className="form-group">
-                                    <label style={{ fontSize: '12px', fontWeight: '600', color: '#94a3b8', paddingLeft: '4px', marginBottom: '8px', display: 'block' }}>프로젝트 유형</label>
+                                    <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-muted)', paddingLeft: '4px', marginBottom: '8px', display: 'block' }}>프로젝트 유형</label>
                                     <select 
                                         style={{
                                             width: '100%',
-                                            backgroundColor: '#0f172a',
-                                            border: '1px solid rgba(255, 255, 255, 0.1)',
+                                            backgroundColor: isDark ? '#0f172a' : 'var(--surface-high)',
+                                            border: isDark ? '1px solid rgba(255, 255, 255, 0.1)' : '1px solid var(--border)',
                                             borderRadius: '14px',
                                             padding: '14px 20px',
-                                            color: 'white',
+                                            color: 'var(--text-primary)',
                                             fontSize: '14px',
                                             outline: 'none',
                                             appearance: 'none',
-                                            backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%2364748b\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")',
+                                            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23${isDark ? '64748b' : '94a3b8'}'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`,
                                             backgroundRepeat: 'no-repeat',
                                             backgroundPosition: 'right 16px center',
                                             backgroundSize: '16px'
@@ -570,7 +576,7 @@ const ProjectMaster = () => {
                                         value={formData.type}
                                         onChange={e => setFormData({...formData, type: e.target.value})}
                                         onFocus={(e) => { e.currentTarget.style.borderColor = 'rgba(34, 211, 238, 0.5)'; e.currentTarget.style.boxShadow = '0 0 0 4px rgba(34, 211, 238, 0.1)'; }}
-                                        onBlur={(e) => { e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)'; e.currentTarget.style.boxShadow = 'none'; }}
+                                        onBlur={(e) => { e.currentTarget.style.borderColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'var(--border)'; e.currentTarget.style.boxShadow = 'none'; }}
                                     >
                                         <option value="Client">고객사 프로젝트 (Client)</option>
                                         <option value="Internal">내부 운영 프로젝트 (Internal)</option>
@@ -580,19 +586,19 @@ const ProjectMaster = () => {
                                 </div>
 
                                 <div className="form-group">
-                                    <label style={{ fontSize: '12px', fontWeight: '600', color: '#94a3b8', paddingLeft: '4px', marginBottom: '8px', display: 'block' }}>현재 상태</label>
+                                    <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-muted)', paddingLeft: '4px', marginBottom: '8px', display: 'block' }}>현재 상태</label>
                                     <select 
                                         style={{
                                             width: '100%',
-                                            backgroundColor: '#0f172a',
-                                            border: '1px solid rgba(255, 255, 255, 0.1)',
+                                            backgroundColor: isDark ? '#0f172a' : 'var(--surface-high)',
+                                            border: isDark ? '1px solid rgba(255, 255, 255, 0.1)' : '1px solid var(--border)',
                                             borderRadius: '14px',
                                             padding: '14px 20px',
-                                            color: 'white',
+                                            color: 'var(--text-primary)',
                                             fontSize: '14px',
                                             outline: 'none',
                                             appearance: 'none',
-                                            backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%2364748b\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")',
+                                            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23${isDark ? '64748b' : '94a3b8'}'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`,
                                             backgroundRepeat: 'no-repeat',
                                             backgroundPosition: 'right 16px center',
                                             backgroundSize: '16px'
@@ -600,7 +606,7 @@ const ProjectMaster = () => {
                                         value={formData.status}
                                         onChange={e => setFormData({...formData, status: e.target.value})}
                                         onFocus={(e) => { e.currentTarget.style.borderColor = 'rgba(34, 211, 238, 0.5)'; e.currentTarget.style.boxShadow = '0 0 0 4px rgba(34, 211, 238, 0.1)'; }}
-                                        onBlur={(e) => { e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)'; e.currentTarget.style.boxShadow = 'none'; }}
+                                        onBlur={(e) => { e.currentTarget.style.borderColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'var(--border)'; e.currentTarget.style.boxShadow = 'none'; }}
                                     >
                                         <option value="진행중">진행중 (Ongoing)</option>
                                         <option value="종료">프로젝트 종료 (Completed)</option>
@@ -608,72 +614,72 @@ const ProjectMaster = () => {
                                 </div>
 
                                 <div className="form-group">
-                                    <label style={{ fontSize: '12px', fontWeight: '600', color: '#94a3b8', paddingLeft: '4px', marginBottom: '8px', display: 'block' }}>시작일</label>
+                                    <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-muted)', paddingLeft: '4px', marginBottom: '8px', display: 'block' }}>시작일</label>
                                     <div className="relative flex items-center">
                                         <Calendar style={{ position: 'absolute', left: '16px', color: '#64748b', zIndex: 10 }} size={18} />
                                         <input 
                                             type="date" 
                                             style={{
                                                 width: '100%',
-                                                backgroundColor: '#0f172a',
-                                                border: '1px solid rgba(255, 255, 255, 0.1)',
+                                                backgroundColor: isDark ? '#0f172a' : 'var(--surface-high)',
+                                                border: isDark ? '1px solid rgba(255, 255, 255, 0.1)' : '1px solid var(--border)',
                                                 borderRadius: '14px',
                                                 padding: '14px 16px 14px 48px',
-                                                color: 'white',
+                                                color: 'var(--text-primary)',
                                                 fontSize: '14px',
                                                 outline: 'none',
                                                 transition: '0.2s',
-                                                colorScheme: 'dark'
+                                                colorScheme: isDark ? 'dark' : 'light'
                                             }}
                                             required
                                             value={formData.start_date}
                                             onChange={e => setFormData({...formData, start_date: e.target.value})}
                                             onFocus={(e) => { e.currentTarget.style.borderColor = 'rgba(34, 211, 238, 0.5)'; e.currentTarget.style.boxShadow = '0 0 0 4px rgba(34, 211, 238, 0.1)'; }}
-                                            onBlur={(e) => { e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)'; e.currentTarget.style.boxShadow = 'none'; }}
+                                            onBlur={(e) => { e.currentTarget.style.borderColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'var(--border)'; e.currentTarget.style.boxShadow = 'none'; }}
                                         />
                                     </div>
                                 </div>
 
                                 <div className="form-group">
-                                    <label style={{ fontSize: '12px', fontWeight: '600', color: '#94a3b8', paddingLeft: '4px', marginBottom: '8px', display: 'block' }}>종료 예정일</label>
+                                    <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-muted)', paddingLeft: '4px', marginBottom: '8px', display: 'block' }}>종료 예정일</label>
                                     <div className="relative flex items-center">
                                         <Clock style={{ position: 'absolute', left: '16px', color: '#64748b', zIndex: 10 }} size={18} />
                                         <input 
                                             type="date" 
                                             style={{
                                                 width: '100%',
-                                                backgroundColor: '#0f172a',
-                                                border: '1px solid rgba(255, 255, 255, 0.1)',
+                                                backgroundColor: isDark ? '#0f172a' : 'var(--surface-high)',
+                                                border: isDark ? '1px solid rgba(255, 255, 255, 0.1)' : '1px solid var(--border)',
                                                 borderRadius: '14px',
                                                 padding: '14px 16px 14px 48px',
-                                                color: 'white',
+                                                color: 'var(--text-primary)',
                                                 fontSize: '14px',
                                                 outline: 'none',
                                                 transition: '0.2s',
-                                                colorScheme: 'dark'
+                                                colorScheme: isDark ? 'dark' : 'light'
                                             }}
                                             required
                                             value={formData.end_date}
                                             onChange={e => setFormData({...formData, end_date: e.target.value})}
                                             onFocus={(e) => { e.currentTarget.style.borderColor = 'rgba(34, 211, 238, 0.5)'; e.currentTarget.style.boxShadow = '0 0 0 4px rgba(34, 211, 238, 0.1)'; }}
-                                            onBlur={(e) => { e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)'; e.currentTarget.style.boxShadow = 'none'; }}
+                                            onBlur={(e) => { e.currentTarget.style.borderColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'var(--border)'; e.currentTarget.style.boxShadow = 'none'; }}
                                         />
                                     </div>
                                 </div>
 
                                 <div className="form-group relative">
-                                    <label style={{ fontSize: '12px', fontWeight: '600', color: '#94a3b8', paddingLeft: '4px', marginBottom: '8px', display: 'block' }}>PD</label>
+                                    <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-muted)', paddingLeft: '4px', marginBottom: '8px', display: 'block' }}>PD</label>
                                     <div className="relative">
                                         <User style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#64748b', zIndex: 10 }} size={18} />
                                         <input 
                                             type="text" 
                                             style={{
                                                 width: '100%',
-                                                backgroundColor: '#0f172a',
-                                                border: '1px solid rgba(255, 255, 255, 0.1)',
+                                                backgroundColor: isDark ? '#0f172a' : 'var(--surface-high)',
+                                                border: isDark ? '1px solid rgba(255, 255, 255, 0.1)' : '1px solid var(--border)',
                                                 borderRadius: '14px',
                                                 padding: '14px 16px 14px 48px',
-                                                color: 'white',
+                                                color: 'var(--text-primary)',
                                                 fontSize: '14px',
                                                 outline: 'none',
                                                 transition: '0.2s',
@@ -692,7 +698,7 @@ const ProjectMaster = () => {
                                                 e.currentTarget.style.boxShadow = '0 0 0 4px rgba(34, 211, 238, 0.1)';
                                             }}
                                             onBlur={(e) => { 
-                                                e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)'; 
+                                                e.currentTarget.style.borderColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'var(--border)'; 
                                                 e.currentTarget.style.boxShadow = 'none'; 
                                             }}
                                         />
@@ -705,11 +711,11 @@ const ProjectMaster = () => {
                                                 marginTop: '8px',
                                                 maxHeight: '200px',
                                                 overflowY: 'auto',
-                                                backgroundColor: 'rgba(21, 28, 48, 0.98)',
+                                                backgroundColor: isDark ? 'rgba(21, 28, 48, 0.98)' : 'var(--surface-highest)',
                                                 backdropFilter: 'blur(10px)',
-                                                border: '1px solid rgba(255, 255, 255, 0.1)',
+                                                border: isDark ? '1px solid rgba(255, 255, 255, 0.1)' : '1px solid var(--border)',
                                                 borderRadius: '16px',
-                                                boxShadow: '0 20px 40px -10px rgba(0, 0, 0, 0.5)',
+                                                boxShadow: isDark ? '0 20px 40px -10px rgba(0, 0, 0, 0.5)' : '0 20px 40px -10px rgba(0, 0, 0, 0.1)',
                                             }}>
                                                 {filteredEmployees.length > 0 ? (
                                                     filteredEmployees.map(emp => (
@@ -721,7 +727,7 @@ const ProjectMaster = () => {
                                                                 display: 'flex',
                                                                 justifyContent: 'space-between',
                                                                 alignItems: 'center',
-                                                                borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+                                                                borderBottom: isDark ? '1px solid rgba(255, 255, 255, 0.05)' : '1px solid var(--border)',
                                                                 transition: '0.2s'
                                                             }}
                                                             onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(34, 211, 238, 0.1)'}
@@ -729,14 +735,14 @@ const ProjectMaster = () => {
                                                             onClick={() => handleEmployeeSelect(emp, 'pd')}
                                                         >
                                                             <div className="flex flex-col">
-                                                                <span style={{ color: 'white', fontWeight: '700', fontSize: '14px' }}>{emp.name}</span>
-                                                                <span style={{ color: '#64748b', fontSize: '11px' }}>{emp.group_name} / {emp.position}</span>
+                                                                <span style={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '14px' }}>{emp.name}</span>
+                                                                <span style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>{emp.group_name} / {emp.position}</span>
                                                             </div>
-                                                            <ChevronRight size={14} style={{ color: '#475569' }} />
+                                                            <ChevronRight size={14} style={{ color: 'var(--text-muted)' }} />
                                                         </div>
                                                     ))
                                                 ) : (
-                                                    <div style={{ padding: '20px', textAlign: 'center', color: '#64748b', fontStyle: 'italic', fontSize: '13px' }}>
+                                                    <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '13px' }}>
                                                         일치하는 직원이 없습니다.
                                                     </div>
                                                 )}
@@ -746,18 +752,18 @@ const ProjectMaster = () => {
                                 </div>
 
                                 <div className="form-group relative">
-                                    <label style={{ fontSize: '12px', fontWeight: '600', color: '#94a3b8', paddingLeft: '4px', marginBottom: '8px', display: 'block' }}>PM</label>
+                                    <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-muted)', paddingLeft: '4px', marginBottom: '8px', display: 'block' }}>PM</label>
                                     <div className="relative">
                                         <User style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#64748b', zIndex: 10 }} size={18} />
                                         <input 
                                             type="text" 
                                             style={{
                                                 width: '100%',
-                                                backgroundColor: '#0f172a',
-                                                border: '1px solid rgba(255, 255, 255, 0.1)',
+                                                backgroundColor: isDark ? '#0f172a' : 'var(--surface-high)',
+                                                border: isDark ? '1px solid rgba(255, 255, 255, 0.1)' : '1px solid var(--border)',
                                                 borderRadius: '14px',
                                                 padding: '14px 16px 14px 48px',
-                                                color: 'white',
+                                                color: 'var(--text-primary)',
                                                 fontSize: '14px',
                                                 outline: 'none',
                                                 transition: '0.2s',
@@ -776,7 +782,7 @@ const ProjectMaster = () => {
                                                 e.currentTarget.style.boxShadow = '0 0 0 4px rgba(34, 211, 238, 0.1)';
                                             }}
                                             onBlur={(e) => { 
-                                                e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)'; 
+                                                e.currentTarget.style.borderColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'var(--border)'; 
                                                 e.currentTarget.style.boxShadow = 'none'; 
                                             }}
                                         />
@@ -789,11 +795,11 @@ const ProjectMaster = () => {
                                                 marginTop: '8px',
                                                 maxHeight: '200px',
                                                 overflowY: 'auto',
-                                                backgroundColor: 'rgba(21, 28, 48, 0.98)',
+                                                backgroundColor: isDark ? 'rgba(21, 28, 48, 0.98)' : 'var(--surface-highest)',
                                                 backdropFilter: 'blur(10px)',
-                                                border: '1px solid rgba(255, 255, 255, 0.1)',
+                                                border: isDark ? '1px solid rgba(255, 255, 255, 0.1)' : '1px solid var(--border)',
                                                 borderRadius: '16px',
-                                                boxShadow: '0 20px 40px -10px rgba(0, 0, 0, 0.5)',
+                                                boxShadow: isDark ? '0 20px 40px -10px rgba(0, 0, 0, 0.5)' : '0 20px 40px -10px rgba(0, 0, 0, 0.1)',
                                             }}>
                                                 {filteredEmployees.length > 0 ? (
                                                     filteredEmployees.map(emp => (
@@ -805,7 +811,7 @@ const ProjectMaster = () => {
                                                                 display: 'flex',
                                                                 justifyContent: 'space-between',
                                                                 alignItems: 'center',
-                                                                borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+                                                                borderBottom: isDark ? '1px solid rgba(255, 255, 255, 0.05)' : '1px solid var(--border)',
                                                                 transition: '0.2s'
                                                             }}
                                                             onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(34, 211, 238, 0.1)'}
@@ -813,14 +819,14 @@ const ProjectMaster = () => {
                                                             onClick={() => handleEmployeeSelect(emp, 'pm')}
                                                         >
                                                             <div className="flex flex-col">
-                                                                <span style={{ color: 'white', fontWeight: '700', fontSize: '14px' }}>{emp.name}</span>
-                                                                <span style={{ color: '#64748b', fontSize: '11px' }}>{emp.group_name} / {emp.position}</span>
+                                                                <span style={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '14px' }}>{emp.name}</span>
+                                                                <span style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>{emp.group_name} / {emp.position}</span>
                                                             </div>
-                                                            <ChevronRight size={14} style={{ color: '#475569' }} />
+                                                            <ChevronRight size={14} style={{ color: 'var(--text-muted)' }} />
                                                         </div>
                                                     ))
                                                 ) : (
-                                                    <div style={{ padding: '20px', textAlign: 'center', color: '#64748b', fontStyle: 'italic', fontSize: '13px' }}>
+                                                    <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '13px' }}>
                                                         일치하는 직원이 없습니다.
                                                     </div>
                                                 )}
@@ -830,17 +836,17 @@ const ProjectMaster = () => {
                                 </div>
 
                                 <div className="form-group col-span-full">
-                                    <label style={{ fontSize: '12px', fontWeight: '600', color: '#94a3b8', paddingLeft: '4px', marginBottom: '8px', display: 'block' }}>프로젝트 그룹</label>
+                                    <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-muted)', paddingLeft: '4px', marginBottom: '8px', display: 'block' }}>프로젝트 그룹</label>
                                     <div className="relative">
                                         <Layers style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} size={18} />
                                         <select
                                             style={{
                                                 width: '100%',
-                                                backgroundColor: '#0f172a',
-                                                border: '1px solid rgba(255, 255, 255, 0.1)',
+                                                backgroundColor: isDark ? '#0f172a' : 'var(--surface-high)',
+                                                border: isDark ? '1px solid rgba(255, 255, 255, 0.1)' : '1px solid var(--border)',
                                                 borderRadius: '14px',
                                                 padding: '14px 16px 14px 48px',
-                                                color: 'white',
+                                                color: 'var(--text-primary)',
                                                 fontSize: '14px',
                                                 outline: 'none',
                                                 transition: '0.2s',
@@ -850,7 +856,7 @@ const ProjectMaster = () => {
                                             value={formData.project_group}
                                             onChange={e => setFormData({...formData, project_group: e.target.value})}
                                             onFocus={(e) => { e.currentTarget.style.borderColor = 'rgba(34, 211, 238, 0.5)'; e.currentTarget.style.boxShadow = '0 0 0 4px rgba(34, 211, 238, 0.1)'; }}
-                                            onBlur={(e) => { e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)'; e.currentTarget.style.boxShadow = 'none'; }}
+                                            onBlur={(e) => { e.currentTarget.style.borderColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'var(--border)'; e.currentTarget.style.boxShadow = 'none'; }}
                                         >
                                             <option value="">선택 안함</option>
                                             <option value="구축">구축</option>
@@ -862,15 +868,15 @@ const ProjectMaster = () => {
                                 </div>
 
                                 <div className="form-group col-span-full">
-                                    <label style={{ fontSize: '12px', fontWeight: '600', color: '#94a3b8', paddingLeft: '4px', marginBottom: '8px', display: 'block' }}>비고 (Notes)</label>
+                                    <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-muted)', paddingLeft: '4px', marginBottom: '8px', display: 'block' }}>비고 (Notes)</label>
                                     <textarea 
                                         style={{
                                             width: '100%',
-                                            backgroundColor: '#0f172a',
-                                            border: '1px solid rgba(255, 255, 255, 0.1)',
+                                            backgroundColor: isDark ? '#0f172a' : 'var(--surface-high)',
+                                            border: isDark ? '1px solid rgba(255, 255, 255, 0.1)' : '1px solid var(--border)',
                                             borderRadius: '14px',
                                             padding: '14px 20px',
-                                            color: 'white',
+                                            color: 'var(--text-primary)',
                                             fontSize: '14px',
                                             outline: 'none',
                                             transition: '0.2s',
@@ -881,7 +887,7 @@ const ProjectMaster = () => {
                                         value={formData.note}
                                         onChange={e => setFormData({...formData, note: e.target.value})}
                                         onFocus={(e) => { e.currentTarget.style.borderColor = 'rgba(34, 211, 238, 0.5)'; e.currentTarget.style.boxShadow = '0 0 0 4px rgba(34, 211, 238, 0.1)'; }}
-                                        onBlur={(e) => { e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)'; e.currentTarget.style.boxShadow = 'none'; }}
+                                        onBlur={(e) => { e.currentTarget.style.borderColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'var(--border)'; e.currentTarget.style.boxShadow = 'none'; }}
                                     ></textarea>
                                 </div>
                             </div>
@@ -894,16 +900,16 @@ const ProjectMaster = () => {
                                         flex: 1,
                                         padding: '16px',
                                         borderRadius: '14px',
-                                        background: 'rgba(255, 255, 255, 0.05)',
-                                        border: '1px solid rgba(255, 255, 255, 0.05)',
-                                        color: '#94a3b8',
+                                        background: isDark ? 'rgba(255, 255, 255, 0.05)' : 'var(--surface-high)',
+                                        border: isDark ? '1px solid rgba(255, 255, 255, 0.05)' : '1px solid var(--border)',
+                                        color: 'var(--text-muted)',
                                         fontWeight: '700',
                                         fontSize: '15px',
                                         cursor: 'pointer',
                                         transition: '0.2s'
                                     }}
-                                    onMouseOver={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'; e.currentTarget.style.color = '#fff'; }}
-                                    onMouseOut={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)'; e.currentTarget.style.color = '#94a3b8'; }}
+                                    onMouseOver={(e) => { e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'var(--surface-highest)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
+                                    onMouseOut={(e) => { e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.05)' : 'var(--surface-high)'; e.currentTarget.style.color = 'var(--text-muted)'; }}
                                 >
                                     취소
                                 </button>
@@ -942,7 +948,7 @@ const ProjectMaster = () => {
                     left: 0,
                     width: '100vw',
                     height: '100vh',
-                    backgroundColor: 'rgba(5, 8, 20, 0.9)',
+                    backgroundColor: isDark ? 'rgba(5, 8, 20, 0.9)' : 'rgba(0, 0, 0, 0.4)',
                     backdropFilter: 'blur(16px)',
                     WebkitBackdropFilter: 'blur(16px)',
                     display: 'flex',
@@ -954,13 +960,13 @@ const ProjectMaster = () => {
                     <div style={{ 
                         width: '100%', 
                         maxWidth: '420px', 
-                        backgroundColor: 'rgba(21, 28, 48, 0.95)', 
+                        backgroundColor: isDark ? 'rgba(21, 28, 48, 0.97)' : '#ffffff',
                         borderRadius: '24px',
-                        border: '1px solid rgba(255, 255, 255, 0.1)',
-                        boxShadow: '0 40px 100px -20px rgba(0, 0, 0, 0.8)',
+                        border: isDark ? '1px solid rgba(255, 255, 255, 0.1)' : '1px solid var(--border)',
+                        boxShadow: isDark ? '0 40px 100px -20px rgba(0, 0, 0, 0.8)' : '0 40px 100px -20px rgba(0, 0, 0, 0.15)',
                         overflow: 'hidden',
                         position: 'relative',
-                        color: 'white'
+                        color: 'var(--text-primary)'
                     }}>
                         {/* Close Button */}
                         <button 
@@ -975,15 +981,15 @@ const ProjectMaster = () => {
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                                backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)',
                                 border: 'none',
-                                color: '#94a3b8',
+                                color: 'var(--text-muted)',
                                 cursor: 'pointer',
                                 transition: '0.2s',
                                 zIndex: 10
                             }}
-                            onMouseOver={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'; e.currentTarget.style.color = '#fff'; }}
-                            onMouseOut={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)'; e.currentTarget.style.color = '#94a3b8'; }}
+                            onMouseOver={(e) => { e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
+                            onMouseOut={(e) => { e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)'; e.currentTarget.style.color = 'var(--text-muted)'; }}
                         >
                             <X size={18} />
                         </button>
@@ -1008,10 +1014,10 @@ const ProjectMaster = () => {
                             
                             <h2 style={{ fontSize: '24px', fontWeight: '800', letterSpacing: '-0.02em', margin: '0 0 12px' }}>프로젝트 삭제</h2>
                             
-                            <p style={{ color: '#94a3b8', fontSize: '14px', lineHeight: '1.6', margin: 0, textAlign: 'center' }}>
-                                <span style={{ color: '#fff', fontWeight: '700' }}>"{deleteConfirm.projectName}"</span><br />
+                            <p style={{ color: 'var(--text-secondary)', fontSize: '14px', lineHeight: '1.6', margin: 0, textAlign: 'center' }}>
+                                <span style={{ color: 'var(--text-primary)', fontWeight: '700' }}>"{deleteConfirm.projectName}"</span><br />
                                 이 프로젝트를 정말로 삭제하시겠습니까?<br />
-                                <span style={{ color: '#f87171', fontWeight: '600' }}>배정 및 보고서 데이터가 모두 소멸되며 복구가 불가능합니다.</span>
+                                <span style={{ color: '#ef4444', fontWeight: '600' }}>배정 및 보고서 데이터가 모두 소멸되며 복구가 불가능합니다.</span>
                             </p>
                         </div>
 

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { employeesAPI, groupsAPI } from '../api';
 import EmployeeForm from './EmployeeForm';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Info } from 'lucide-react';
 
 function EmployeeList() {
     const [allEmployees, setAllEmployees] = useState([]);
@@ -114,7 +114,30 @@ function EmployeeList() {
             <div className="flex justify-between items-center mb-lg">
                 <div>
                     <h1>직원 관리</h1>
-                    <p className="text-muted">총 {filteredEmployees.length}명 / 전체 {allEmployees.length}명</p>
+                    <div className="flex items-center gap-xs text-muted" style={{ fontSize: '0.875rem' }}>
+                        <span>총 {filteredEmployees.length}명 / 전체 {allEmployees.length}명</span>
+                        <div className="info-tooltip-wrapper">
+                            <Info size={14} className="info-icon-trigger" />
+                            <div className="info-tooltip-content glass-card">
+                                <div className="tooltip-header">인원 구성 상세</div>
+                                <div className="tooltip-row">
+                                    <span className="label">전체 등록 인원 (DB)</span>
+                                    <span className="value">{allEmployees.length}명</span>
+                                </div>
+                                <div className="tooltip-row">
+                                    <span className="label">현재 재직 인력 (Active)</span>
+                                    <span className="value">{allEmployees.filter(e => e.status === 'active').length}명</span>
+                                </div>
+                                <div className="tooltip-row highlight">
+                                    <span className="label">실무 통계 대상 (Stats)</span>
+                                    <span className="value">{allEmployees.filter(e => e.status === 'active' && (!e.exclude_from_stats || e.exclude_from_stats === 0)).length}명</span>
+                                </div>
+                                <div className="tooltip-footer">
+                                    * 실무 통계 대상은 재직자 중 관리직/지원부서 등 통계 제외 설정된 인원(9명)을 뺀 수치입니다.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <button 
                     onClick={handleAdd} 

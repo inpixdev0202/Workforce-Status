@@ -72,10 +72,10 @@ app.get('/api/dashboard/stats', async (req, res) => {
             SELECT COUNT(DISTINCT pa.employee_id) as count 
             FROM project_assignments pa
             JOIN projects p ON pa.project_id = p.id
-            WHERE p.status = 'active'
+            WHERE (p.status = 'active' OR p.status = '진행중')
               AND (pa.input_start_date <= ? OR pa.input_start_date IS NULL)
               AND (pa.input_end_date >= ? OR pa.input_end_date IS NULL)
-              AND p.type = 'Client'
+              AND (LOWER(p.type) = 'client' OR p.type = '수행')
         `, [todayStr, todayStr]);
 
         // 1. Basic Distributions
@@ -377,7 +377,7 @@ app.get('/api/dashboard/stats', async (req, res) => {
                 JOIN projects p ON pa.project_id = p.id
                 WHERE (pa.input_end_date >= ? OR pa.input_end_date IS NULL) 
                   AND (pa.input_start_date <= ? OR pa.input_start_date IS NULL)
-                  AND p.type = 'Client'
+                  AND (LOWER(p.type) = 'client' OR p.type = '수행')
             )
             AND (e.exclude_from_stats IS NULL OR e.exclude_from_stats = 0)
         `, [todayStr, todayStr, todayStr, todayStr, todayStr, todayStr]);

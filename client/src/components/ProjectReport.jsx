@@ -4,6 +4,7 @@ import { Table, TrendingUp, Search, Plus, Save, Trash2, CheckCircle2, ChevronsLe
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import { projectsAPI, projectReportsAPI, employeesAPI } from '../api';
+import { useTheme } from '../context/ThemeContext';
 
 const SpreadsheetCellInput = React.memo(({ initialValue, onCommit, onFocus, isFocused, className = "", isMultilineField = false, type = "text", align = "left", readOnly = false }) => {
     const [localValue, setLocalValue] = useState(initialValue || '');
@@ -172,39 +173,46 @@ const RowResizeHandle = React.memo(({ rowId, onMouseDown }) => (
     </div>
 ));
 
-const SpreadsheetCellSelect = React.memo(({ value, options, onCommit, onFocus, onBlur, isFocused, className = "", readOnly = false }) => {
+const SpreadsheetCellSelect = React.memo(({ value, options, onCommit, onFocus, onBlur, isFocused, className = "", style = {}, pillClass = "", readOnly = false }) => {
     if (readOnly) {
         return (
             <div 
-                className={`w-full h-full flex items-center justify-center text-[var(--text-muted)] opacity-80 cursor-default select-none ${className}`}
-                style={{ fontSize: 'inherit', fontWeight: 'inherit', textAlign: 'center' }}
+                className={`w-full h-full flex items-center justify-center text-[var(--text-muted)] opacity-80 cursor-default select-none ${className} ${pillClass}`}
+                style={{ fontSize: 'inherit', fontWeight: 'inherit', textAlign: 'center', ...style }}
             >
                 {value || '-'}
             </div>
         );
     }
     return (
-        <select
-            value={value || ''}
-            onChange={(e) => onCommit(e.target.value)}
-            onFocus={onFocus}
-            onBlur={onBlur}
-            className={`grid-input ${isFocused ? 'focused-field' : ''} ${className}`}
-            style={{ 
-                appearance: 'none',
-                WebkitAppearance: 'none',
-                background: 'transparent',
-                textAlign: 'center',
-                textAlignLast: 'center'
-            }}
-        >
-            <option value="" disabled hidden>-</option>
-            {options.map(opt => (
-                <option key={opt} value={opt} style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>{opt}</option>
-            ))}
-        </select>
+        <div className={`w-full h-full flex items-center justify-center p-1 ${isFocused ? 'focused-field' : ''}`}>
+            <select
+                value={value || ''}
+                onChange={(e) => onCommit(e.target.value)}
+                onFocus={onFocus}
+                onBlur={onBlur}
+                className={`glow-pill ${pillClass} ${className} cursor-pointer text-center outline-none border-none bg-transparent`}
+                style={{ 
+                    appearance: 'none',
+                    WebkitAppearance: 'none',
+                    width: '100%',
+                    padding: '2px 0',
+                    ...style
+                }}
+            >
+                <option value="" disabled hidden>-</option>
+                {options.map(opt => (
+                    <option key={opt} value={opt} style={{ background: 'var(--surface-high)', color: 'var(--text-primary)' }}>
+                        {opt}
+                    </option>
+                ))}
+            </select>
+        </div>
     );
 });
+
+
+
 
 const getCategoryStyle = (category, isDark) => {
     const normalize = (val) => {
@@ -216,89 +224,51 @@ const getCategoryStyle = (category, isDark) => {
     
     const cat = normalize(category);
     
-    if (!isDark) {
-        switch (cat) {
-            case '진행중': return { bg: '#e6fffa', text: '#059669' }; 
-            case '홀딩': return { bg: '#fffaf0', text: '#d97706' };   
-            case '종료': return { bg: '#f1f5f9', text: '#475569' };   
-            default: return { bg: 'transparent', text: 'inherit' };
-        }
-    }
-
     switch (cat) {
-        case '진행중':
-            return {
-                bg: 'rgba(0, 255, 127, 0.12)',
-                text: '#00ff7f',
-                shadow: '0 0 8px rgba(0, 255, 127, 0.5)'
-            };
-        case '홀딩':
-            return {
-                bg: 'rgba(255, 215, 0, 0.12)',
-                text: '#ffd700',
-                shadow: '0 0 8px rgba(255, 215, 0, 0.5)'
-            };
-        case '종료':
-            return {
-                bg: 'rgba(148, 163, 184, 0.12)',
-                text: '#94a3b8',
-                shadow: 'none'
-            };
-        default:
-            return { bg: 'transparent', text: 'inherit', shadow: 'none' };
+        case '진행중': return { class: 'glow-pill-emerald', text: '진행중' };
+        case '홀딩': return { class: 'glow-pill-teal', text: '홀딩' };
+        case '종료': return { class: 'glow-pill-coral', text: '종료' };
+        default: return { class: '', text: cat };
     }
 };
 
-const getHealthStyle = (health, isDark) => {
+const getHealthStyle = (health) => {
     const normalize = (val) => String(val || '').trim();
     const h = normalize(health);
     
-    if (!isDark) {
-        if (h.includes('🟢')) return { bg: 'transparent', text: '#059669' };
-        if (h.includes('🟡')) return { bg: 'transparent', text: '#d97706' };
-        if (h.includes('🔴')) return { bg: 'transparent', text: '#dc2626' };
-        return { bg: 'transparent', text: 'inherit' };
-    }
-
-    if (h.includes('🟢')) return { bg: 'transparent', text: '#10b981', shadow: '0 0 10px rgba(16, 185, 129, 0.5)' };
-    if (h.includes('🟡')) return { bg: 'transparent', text: '#f59e0b', shadow: '0 0 10px rgba(245, 158, 11, 0.5)' };
-    if (h.includes('🔴')) return { bg: 'transparent', text: '#ef4444', shadow: '0 0 10px rgba(239, 68, 68, 0.5)' };
-    return { bg: 'transparent', text: 'inherit', shadow: 'none' };
+    if (h.includes('🟢')) return { class: 'glow-pill-emerald', text: '정상' };
+    if (h.includes('🟡')) return { class: 'glow-pill-teal', text: '주의' };
+    if (h.includes('🔴')) return { class: 'glow-pill-coral', text: '위험' };
+    return { class: '', text: h };
 };
 
 const HealthSelect = React.memo(({ value, onCommit, onFocus, onBlur, isFocused, theme }) => {
     const options = ['🟢 정상', '🟡 주의', '🔴 위험'];
-    const hStyle = getHealthStyle(value, theme === 'dark');
+    const hStyle = getHealthStyle(value);
 
     return (
-        <select
-            value={value || ''}
-            onChange={(e) => onCommit(e.target.value)}
-            onFocus={onFocus}
-            onBlur={onBlur}
-            className={`w-full h-full cursor-pointer transition-all font-bold text-[11px] ${isFocused ? 'focused-field' : ''}`}
-            style={{ 
-                appearance: 'none',
-                WebkitAppearance: 'none',
-                backgroundColor: 'transparent',
-                background: 'transparent',
-                border: 'none',
-                boxShadow: 'none',
-                outline: 'none',
-                color: hStyle.text,
-                textShadow: theme === 'dark' ? hStyle.shadow : 'none',
-                padding: '0 4px',
-                textAlign: 'center',
-                textAlignLast: 'center'
-            }}
-        >
-            <option value="" disabled hidden>-</option>
-            {options.map(opt => (
-                <option key={opt} value={opt} style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>
-                    {opt}
-                </option>
-            ))}
-        </select>
+        <div className={`w-full h-full flex items-center justify-center p-1 ${isFocused ? 'focused-field' : ''}`}>
+            <select
+                value={value || ''}
+                onChange={(e) => onCommit(e.target.value)}
+                onFocus={onFocus}
+                onBlur={onBlur}
+                className={`glow-pill ${hStyle.class} cursor-pointer text-center outline-none border-none bg-transparent`}
+                style={{ 
+                    appearance: 'none',
+                    WebkitAppearance: 'none',
+                    width: '100%',
+                    padding: '2px 0'
+                }}
+            >
+                <option value="" disabled hidden>-</option>
+                {options.map(opt => (
+                    <option key={opt} value={opt} style={{ background: 'var(--surface-high)', color: 'var(--text-primary)' }}>
+                        {opt}
+                    </option>
+                ))}
+            </select>
+        </div>
     );
 });
 
@@ -553,7 +523,7 @@ const ReportDataRow = React.memo(({
     return (
         <tr className="group hover:bg-white/[0.01]">
             <td 
-                className="w-10 bg-[var(--bg-tertiary)] border border-[var(--border)] p-0 text-[9px] font-bold text-[var(--text-muted)] text-center select-none sticky left-0 z-20 relative"
+                className="w-10 bg-[var(--surface-high)] p-0 text-[10px] font-extrabold text-[var(--text-muted)] text-center select-none sticky left-0 z-20 relative opacity-50"
                 style={{ height: rowHeight }}
             >
                 {rowIndex + 1}
@@ -565,7 +535,7 @@ const ReportDataRow = React.memo(({
 
                 if (col.key === 'manage') {
                     return (
-                        <td key={col.key} className="border border-[var(--border)] p-0 text-center w-[60px] relative" style={{ height: rowHeight }}>
+                        <td key={col.key} className="p-0 text-center w-[60px] relative" style={{ height: rowHeight }}>
                             <button 
                                 onClick={() => onDelete(item.id)}
                                 className="trash-delete-btn relative z-10 w-full h-full flex items-center justify-center cursor-pointer"
@@ -592,7 +562,7 @@ const ReportDataRow = React.memo(({
 
                 if (col.key === 'projectName') {
                     return (
-                        <td key={col.key} className={`border border-[var(--border)] p-0 relative ${isReadOnly ? 'bg-white/[0.02]' : ''}`} style={{ width: columnWidths[col.key], height: rowHeight }}>
+                        <td key={col.key} className={`p-0 relative ${isReadOnly ? 'bg-white/[0.02]' : ''}`} style={{ width: columnWidths[col.key], height: rowHeight }}>
                             <ProjectAutocomplete 
                                 value={item[col.key]}
                                 onSelect={(p, isFull) => onProjectSelect(item.id, p, isFull)}
@@ -617,7 +587,7 @@ const ReportDataRow = React.memo(({
                     };
                     const displayValue = normalize(item[col.key]);
                     return (
-                        <td key={col.key} className="border border-[var(--border)] p-0 relative transition-colors duration-200" style={{ width: columnWidths[col.key], height: rowHeight, backgroundColor: catStyle.bg }}>
+                        <td key={col.key} className="p-0 relative transition-colors duration-200" style={{ width: columnWidths[col.key], height: rowHeight }}>
                             <SpreadsheetCellSelect
                                 value={displayValue}
                                 options={categoryOptions}
@@ -626,7 +596,7 @@ const ReportDataRow = React.memo(({
                                 onBlur={() => setFocusedCell(null)}
                                 isFocused={focusedCell?.field === cellId}
                                 className="font-bold text-center text-[11px]"
-                                style={{ color: catStyle.text, textShadow: theme === 'dark' ? catStyle.shadow : 'none' }}
+                                pillClass={catStyle.class}
                                 readOnly={isReadOnly}
                             />
                         </td>
@@ -667,7 +637,7 @@ const ReportDataRow = React.memo(({
                     const options = isPM ? pmList : pdList;
                     if (options.length > 0) {
                         return (
-                            <td key={col.key} className={`border border-[var(--border)] p-0 relative align-middle ${isReadOnly ? 'bg-white/[0.02]' : ''}`} style={{ width: columnWidths[col.key], height: rowHeight }}>
+                            <td key={col.key} className={`p-0 relative align-middle ${isReadOnly ? 'bg-white/[0.02]' : ''}`} style={{ width: columnWidths[col.key], height: rowHeight }}>
                                 <SpreadsheetCellSelect
                                     value={item[col.key]}
                                     options={options}
@@ -675,7 +645,7 @@ const ReportDataRow = React.memo(({
                                     onFocus={() => setFocusedCell({ rowId: item.id, field: cellId })}
                                     onBlur={() => setFocusedCell(null)}
                                     isFocused={focusedCell?.field === cellId}
-                                    className="text-center text-[13px] font-bold"
+                                    className="text-center text-[12px] font-extrabold"
                                     readOnly={isReadOnly}
                                 />
                             </td>
@@ -690,13 +660,13 @@ const ReportDataRow = React.memo(({
                 );
 
                 return (
-                    <td key={col.key} className={`border border-[var(--border)] p-0 relative ${isPDPM ? 'align-middle' : ''} ${isReadOnly ? 'bg-white/[0.02]' : ''}`} style={{ width: columnWidths[col.key], height: rowHeight }}>
+                    <td key={col.key} className={`p-0 relative ${isPDPM ? 'align-middle' : ''} ${isReadOnly ? 'bg-white/[0.02]' : ''}`} style={{ width: columnWidths[col.key], height: rowHeight }}>
                         <SpreadsheetCellInput 
                             initialValue={item[col.key]}
                             onCommit={(v) => onCellChange(item.id, col.key, v)}
                             onFocus={() => setFocusedCell({ rowId: item.id, field: cellId })}
                             isFocused={focusedCell?.field === cellId}
-                            className={`text-[var(--text-muted)] ${col.key === 'status' ? 'text-[10px]' : (isPDPM ? 'text-[13px] font-bold text-[var(--text-primary)]' : 'text-[11px]')}`}
+                            className={`text-[var(--text-muted)] ${col.key === 'status' ? 'text-[10px]' : (isPDPM ? 'text-[12px] font-extrabold text-[var(--text-primary)]' : 'text-[11px]')}`}
                             align={isPDPM ? 'center' : 'left'}
                             type={isDate ? 'date' : 'text'}
                             isMultilineField={isMultiline}
@@ -1490,14 +1460,7 @@ const ProjectReport = () => {
         return 40 + colTotal; 
     }, [columns, getSafeWidth]);
 
-    const THEME_KEY = 'project_report_theme';
-    const [theme, setTheme] = useState(() => localStorage.getItem(THEME_KEY) || 'dark');
-
-    useEffect(() => {
-        localStorage.setItem(THEME_KEY, theme);
-    }, [theme]);
-
-    const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+    const { theme, toggleTheme } = useTheme();
 
     const [rowHeights, setRowHeights] = useState(() => {
         const saved = localStorage.getItem(ROW_HEIGHTS_KEY);
@@ -1937,7 +1900,7 @@ const ProjectReport = () => {
                     <div className="w-px h-5 bg-[var(--border)] mx-1"></div>
                     <button onClick={handleExportExcel} className="premium-icon-btn btn-excel" title="엑셀로 다운로드"><Download size={16} /></button>
                     <div className="w-px h-5 bg-[var(--border)] mx-1"></div>
-                    <div className="flex items-center gap-1.5 p-1 bg-[var(--bg-tertiary)] border border-[var(--border)] rounded-lg mr-1 scale-95 origin-right">
+                    <div className="flex items-center gap-2 p-1.5 bg-white/[0.03] border border-white/[0.05] rounded-xl shadow-inner mr-2 scale-90 origin-right">
                         {['진행중', '홀딩', '종료'].map(cat => {
                             const isActive = selectedCategories.includes(cat);
                             const style = getCategoryStyle(cat, theme === 'dark');
@@ -1951,16 +1914,12 @@ const ProjectReport = () => {
                                                 : [...prev, cat]
                                         );
                                     }}
-                                    className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all duration-200 border-none ${
+                                    className={`px-4 py-1.5 rounded-lg text-[10px] font-extrabold transition-all duration-300 border-none ${
                                         isActive 
-                                            ? 'scale-100' 
-                                            : 'opacity-40 grayscale scale-95 hover:opacity-100 hover:grayscale-0'
+                                            ? `glow-pill ${style.class} scale-100 shadow-lg` 
+                                            : 'opacity-30 grayscale scale-95 hover:opacity-100 hover:grayscale-0'
                                     }`}
                                     style={{
-                                        backgroundColor: isActive ? style.bg : 'transparent',
-                                        color: isActive ? style.text : 'var(--text-muted)',
-                                        boxShadow: isActive && theme === 'dark' ? style.shadow : 'none',
-                                        border: 'none',
                                         outline: 'none'
                                     }}
                                 >
@@ -1969,10 +1928,27 @@ const ProjectReport = () => {
                             );
                         })}
                     </div>
-                    <div className="search-input-wrapper">
-                        <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="시트 내 검색..." spellCheck={false} className="premium-search-input" />
-                        <Search size={14} className="search-icon-glass" />
-                        {searchTerm && <button onClick={() => setSearchTerm('')} className="search-clear-btn" title="검색어 지우기"><X size={14} /></button>}
+                    <div className="search-container-premium min-w-[200px]">
+                        <div className="sunken-input-wrapper w-full">
+                            <input 
+                                type="text" 
+                                value={searchTerm} 
+                                onChange={(e) => setSearchTerm(e.target.value)} 
+                                placeholder="Sheet Logistics Search..." 
+                                spellCheck={false} 
+                                className="sunken-input pl-10 text-[12px] font-bold" 
+                            />
+                            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/40" />
+                            <div className="sunken-input-active-bar" />
+                            {searchTerm && (
+                                <button 
+                                    onClick={() => setSearchTerm('')} 
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 opacity-40 hover:opacity-100 text-muted-foreground"
+                                >
+                                    <X size={14} />
+                                </button>
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1991,21 +1967,21 @@ const ProjectReport = () => {
                             ))}
                         </colgroup>
                         <thead className="z-40">
-                            <tr className="bg-[var(--bg-tertiary)]">
-                                <th className="w-10 h-7 border border-[var(--border)] bg-[var(--bg-tertiary)] flex items-center justify-center text-[9px] font-bold text-[var(--text-muted)] select-none">#</th>
+                            <tr className="bg-[var(--surface-highest)]">
+                                <th className="w-10 h-7 border-none bg-[var(--surface-highest)] flex items-center justify-center text-[9px] font-bold text-[var(--text-muted)] select-none">#</th>
                                 {columnLetters.map((le, idx) => (
-                                    <th key={idx} className="border border-[var(--border)] text-[9px] font-bold text-[var(--text-muted)] text-center h-7 relative p-0 select-none" style={{ width: getSafeWidth(columns[idx]?.key) }}>
+                                    <th key={idx} className="border-none text-[9px] font-bold text-[var(--text-muted)] text-center h-7 relative p-0 select-none" style={{ width: getSafeWidth(columns[idx]?.key) }}>
                                         {le}
                                         <ColumnResizeHandle column={columns[idx]?.key} onMouseDown={handleColumnMouseDown} />
                                     </th>
                                 ))}
                             </tr>
-                            <tr className="bg-[var(--bg-tertiary)]">
-                                <th className="w-10 border border-[var(--border)] bg-[var(--bg-tertiary)] select-none relative" style={{ height: rowHeights.header || 36 }}>
+                            <tr className="bg-[var(--surface-highest)]">
+                                <th className="w-10 border-none bg-[var(--surface-highest)] select-none relative" style={{ height: rowHeights.header || 36 }}>
                                     <RowResizeHandle rowId="header" onMouseDown={handleRowMouseDown} />
                                 </th>
                                 {columns.map((col, idx) => (
-                                    <th key={idx} className={`border border-[var(--border)] p-0 text-[10px] font-bold uppercase tracking-tight text-[var(--text-primary)] text-center relative truncate select-none ${col.key === 'plan' ? 'bg-blue-500/5' : ''}`} style={{ width: getSafeWidth(col.key), height: rowHeights.header || 36 }}>
+                                    <th key={idx} className={`border-none p-0 text-[11px] font-extrabold uppercase tracking-[0.1em] text-[var(--text-primary)] text-center relative truncate select-none ${col.key === 'plan' ? 'bg-blue-500/5' : ''}`} style={{ width: getSafeWidth(col.key), height: rowHeights.header || 36, fontFamily: 'Manrope, sans-serif' }}>
                                         {col.key === 'manage' ? (
                                             <span className="p-1.5 inline-block">{col.label}</span>
                                         ) : (

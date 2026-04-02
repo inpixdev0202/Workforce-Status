@@ -3,6 +3,7 @@ import { Table, TrendingUp, Search, Plus, Save, Trash2, CheckCircle2, ChevronsLe
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import { salesAPI } from '../api';
+import { useTheme } from '../context/ThemeContext';
 
 const SpreadsheetCellInput = React.memo(({ initialValue, onCommit, onFocus, isFocused, className = "", isMultilineField = false }) => {
     const [localValue, setLocalValue] = useState(initialValue || '');
@@ -481,10 +482,7 @@ const SalesStatus = () => {
     const dataLoaded = useRef(false);
     const isInitialMount = useRef(true);
 
-    const THEME_KEY = 'sales_status_theme';
-    const [theme, setTheme] = useState(() => localStorage.getItem(THEME_KEY) || 'dark');
-    useEffect(() => { localStorage.setItem(THEME_KEY, theme); }, [theme]);
-    const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+    const { theme, toggleTheme } = useTheme();
 
     const [searchTerm, setSearchTerm] = useState('');
     const [showSaveToast, setShowSaveToast] = useState(false);

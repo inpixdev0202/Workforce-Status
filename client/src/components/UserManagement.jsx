@@ -3,9 +3,11 @@ import { usersAPI, groupsAPI } from '../api';
 import { Edit2, Trash2, UserPlus, Plus, Shield, Users, Mail, Lock, User as UserIcon, Check, X, Search, Briefcase, TrendingUp, Eye, EyeOff, ChevronDown, LayoutDashboard, FileText, Settings as SettingsIcon } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { ROLES } from '../constants/menuConfig';
+import { useTheme } from '../context/ThemeContext';
 
 export default function UserManagement() {
     const { user } = useAuth();
+    const { theme } = useTheme();
     const topRef = useRef(null);
     const [usersList, setUsersList] = useState([]);
     const [groups, setGroups] = useState([]);
@@ -205,31 +207,33 @@ export default function UserManagement() {
                         <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-10">
                             <div className="premium-input-group">
                                 <label className="premium-input-label">사용자 이름 (Full Name)</label>
-                                <div className="premium-input-wrapper has-icon-left">
+                                <div className="sunken-input-wrapper with-icon-left">
                                     <input
                                         type="text"
-                                        className="premium-input"
-                                        placeholder="홍길동"
+                                        className="sunken-input"
+                                        placeholder="Name of Personnel..."
                                         value={formData.name}
                                         onChange={e => setFormData({ ...formData, name: e.target.value })}
                                         required
                                     />
-                                    <UserIcon className="premium-input-icon" size={18} />
+                                    <UserIcon className="sunken-input-icon-left" size={18} />
+                                    <div className="sunken-input-active-bar" />
                                 </div>
                             </div>
 
                             <div className="premium-input-group">
                                 <label className="premium-input-label">이메일 계정 (Email Address)</label>
-                                <div className="premium-input-wrapper has-icon-left">
+                                <div className="sunken-input-wrapper with-icon-left">
                                     <input
                                         type="email"
-                                        className="premium-input"
-                                        placeholder="user@example.com"
+                                        className="sunken-input"
+                                        placeholder="Observatory Identifier (Email)..."
                                         value={formData.email}
                                         onChange={e => setFormData({ ...formData, email: e.target.value })}
                                         required
                                     />
-                                    <Mail className="premium-input-icon" size={18} />
+                                    <Mail className="sunken-input-icon-left" size={18} />
+                                    <div className="sunken-input-active-bar" />
                                 </div>
                             </div>
 
@@ -238,12 +242,12 @@ export default function UserManagement() {
                                     보안 비밀번호
                                     {editingUser && <span className="text-[10px] text-gray-500 ml-2 font-bold uppercase tracking-wider">(공란 시 기존 비밀번호 유지)</span>}
                                 </label>
-                                <div className="premium-input-wrapper has-icon-left has-icon-right">
-                                    <Lock className="premium-input-icon" size={18} />
+                                <div className="sunken-input-wrapper with-icon-left with-icon-right">
+                                    <Lock className="sunken-input-icon-left" size={18} />
                                     <input
                                         type={showPassword ? "text" : "password"}
-                                        className="premium-input"
-                                        placeholder="••••••••"
+                                        className="sunken-input"
+                                        placeholder="Access Credentials..."
                                         value={formData.password}
                                         onChange={e => setFormData({ ...formData, password: e.target.value })}
                                         required={!editingUser}
@@ -251,52 +255,55 @@ export default function UserManagement() {
                                     <button
                                         type="button"
                                         onClick={() => setShowPassword(!showPassword)}
-                                        className="premium-input-action"
-                                        style={{ position: 'absolute', zIndex: 20, pointerEvents: 'auto' }}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 opacity-40 hover:opacity-100 text-muted-foreground transition-all"
+                                        style={{ zIndex: 20, pointerEvents: 'auto' }}
                                         title={showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
                                     >
                                         {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                                     </button>
+                                    <div className="sunken-input-active-bar" />
                                 </div>
                             </div>
 
                             <div className="premium-input-group">
                                 <label className="premium-input-label">시스템 접근 역할 (Role)</label>
-                                <div className="premium-input-wrapper has-icon-left has-icon-right">
+                                <div className="sunken-input-wrapper with-icon-left with-icon-right">
                                     <select
-                                        className="premium-input appearance-none"
+                                        className="sunken-input appearance-none bg-transparent"
                                         value={formData.role}
                                         onChange={e => setFormData({ ...formData, role: e.target.value })}
                                     >
-                                        <option value={ROLES.ADMIN}>전체 관리자 (Administrator)</option>
-                                        <option value={ROLES.GROUP_LEADER}>그룹장 (Group Leader)</option>
-                                        <option value={ROLES.TEAM_LEADER}>팀장 (Team Leader)</option>
-                                        <option value={ROLES.PD}>PD (Project Director)</option>
-                                        <option value={ROLES.PM}>PM (Project Manager)</option>
-                                        <option value={ROLES.GM}>GM (General Manager)</option>
+                                        <option value={ROLES.ADMIN} className="bg-[#0f172a] text-white">전체 관리자 (Administrator)</option>
+                                        <option value={ROLES.GROUP_LEADER} className="bg-[#0f172a] text-white">그룹장 (Group Leader)</option>
+                                        <option value={ROLES.TEAM_LEADER} className="bg-[#0f172a] text-white">팀장 (Team Leader)</option>
+                                        <option value={ROLES.PD} className="bg-[#0f172a] text-white">PD (Project Director)</option>
+                                        <option value={ROLES.PM} className="bg-[#0f172a] text-white">PM (Project Manager)</option>
+                                        <option value={ROLES.GM} className="bg-[#0f172a] text-white">GM (General Manager)</option>
                                     </select>
-                                    <Shield className="premium-input-icon" size={18} />
-                                    <ChevronDown className="premium-input-icon right" size={16} />
+                                    <Shield className="sunken-input-icon-left" size={18} />
+                                    <ChevronDown className="sunken-input-icon-right" size={16} />
+                                    <div className="sunken-input-active-bar" />
                                 </div>
                             </div>
 
                             {formData.role !== ROLES.ADMIN && (
                                 <div className="premium-input-group md:col-span-2">
                                     <label className="premium-input-label">배정 그룹 (Group Assignment)</label>
-                                    <div className="premium-input-wrapper has-icon-left has-icon-right">
+                                    <div className="sunken-input-wrapper with-icon-left with-icon-right">
                                         <select
-                                            className="premium-input appearance-none"
+                                            className="sunken-input appearance-none bg-transparent"
                                             value={formData.group_id}
                                             onChange={e => setFormData({ ...formData, group_id: e.target.value })}
                                             required={formData.role === ROLES.GROUP_LEADER}
                                         >
-                                            <option value="">그룹을 선택해 주세요</option>
+                                            <option value="" className="bg-[#0f172a] text-white">그룹을 선택해 주세요</option>
                                             {groups.map(g => (
-                                                <option key={g.id} value={g.id}>{g.name}</option>
+                                                <option key={g.id} value={g.id} className="bg-[#0f172a] text-white">{g.name}</option>
                                             ))}
                                         </select>
-                                        <Users className="premium-input-icon" size={18} />
-                                        <ChevronDown className="premium-input-icon right" size={16} />
+                                        <Users className="sunken-input-icon-left" size={18} />
+                                        <ChevronDown className="sunken-input-icon-right" size={16} />
+                                        <div className="sunken-input-active-bar" />
                                     </div>
                                 </div>
                             )}
@@ -405,21 +412,21 @@ export default function UserManagement() {
                     </thead>
                     <tbody>
                         {filteredUsers.map(u => (
-                            <tr key={u.id} className="group hover:bg-white/[0.03]">
+                            <tr key={u.id} className="group hover:bg-[var(--surface-high)]">
                                 <td className="pl-10">
                                     <div className="flex items-center gap-4">
                                         <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500/20 to-purple-500/20 flex items-center justify-center text-blue-400 font-extrabold text-lg shadow-inner group-hover:scale-110 transition-transform">
                                             {u.name.substring(0, 1)}
                                         </div>
                                         <div>
-                                            <div className="font-extrabold text-white text-md tracking-tight leading-tight">{u.name || 'Unknown'}</div>
-                                            <div className="text-gray-400 text-[11px] font-medium flex items-center gap-1.5 mt-0.5 opacity-80">
+                                            <div className="font-extrabold text-[var(--text-primary)] text-md tracking-tight leading-tight">{u.name || 'Unknown'}</div>
+                                            <div className="text-[var(--text-secondary)] text-[11px] font-medium flex items-center gap-1.5 mt-0.5 opacity-80">
                                                 <Mail size={10} className="text-blue-500/50" />
                                                 {u.email}
                                             </div>
-                                            <div className="text-[10px] text-gray-500 font-bold uppercase mt-1 tracking-widest leading-none flex items-center gap-2">
+                                            <div className="text-[10px] text-[var(--text-muted)] font-bold uppercase mt-1 tracking-widest leading-none flex items-center gap-2">
                                                 <span>ID: {u.id.toString().padStart(4, '0')}</span>
-                                                <span className="w-1 h-1 bg-gray-700 rounded-full"></span>
+                                                <span className="w-1 h-1 bg-[var(--border)] rounded-full"></span>
                                                 <span className="text-blue-500/60 lowercase">{u.role}</span>
                                             </div>
                                         </div>

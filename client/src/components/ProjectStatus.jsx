@@ -4,6 +4,7 @@ import { projectsAPI, employeesAPI } from '../api';
 import { ChevronLeft, ChevronRight, Calendar, Settings, Plus, LayoutGrid, LayoutDashboard, Users, Search, X, Check, ChevronDown, Briefcase, Clock, User, AlertCircle, Shield, Key } from 'lucide-react';
 import { format, addWeeks, addDays, startOfWeek, endOfWeek, eachWeekOfInterval, parseISO, isWithinInterval, startOfDay, endOfDay, areIntervalsOverlapping } from 'date-fns';
 import { ko } from 'date-fns/locale';
+import { useTheme } from '../context/ThemeContext';
 
 // --- Memoized Sub-components for Performance ---
 
@@ -49,7 +50,7 @@ const AllocationInput = React.memo(({
             className={`grid-input ${inRange ? 'in-range' : ''} ${isCurrent ? 'current-week' : ''}`}
             style={{
                 border: isFocused ? '2px solid var(--primary)' : 'none',
-                backgroundColor: localValue ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
+                backgroundColor: 'transparent',
                 fontWeight: localValue ? 'bold' : 'normal',
                 color: isCurrent ? '#ef4444' : (inRange ? 'var(--text-primary)' : 'var(--text-muted)'),
                 width: '100%',
@@ -113,7 +114,7 @@ const DateInput = React.memo(({
                 border: isFocused ? '2px solid var(--primary)' : 'none',
                 fontSize: '0.85em',
                 textAlign: 'center',
-                backgroundColor: readOnly ? 'var(--bg-secondary)' : 'transparent',
+                backgroundColor: readOnly ? 'var(--surface-low)' : 'transparent',
                 cursor: readOnly ? 'not-allowed' : 'text'
             }}
             value={localValue}
@@ -255,7 +256,7 @@ const MemberRow = React.memo(({
     isCompleted
 }) => {
     const opacity = isCompleted ? 0.5 : 1;
-    const bgColor = isCompleted ? 'var(--bg-tertiary)' : 'var(--bg-primary)';
+    const bgColor = isCompleted ? 'var(--surface-low)' : 'var(--bg-primary)';
 
     return (
         <tr key={`mem-${member.id}`} style={{ opacity, borderBottom: '1px solid var(--border)' }}>
@@ -359,7 +360,7 @@ const MemberRow = React.memo(({
                             minWidth: `${columnWidths.week}px`,
                             maxWidth: `${columnWidths.week}px`,
                             borderLeft: '1px solid var(--border)',
-                            backgroundColor: isCurrent ? 'rgba(239, 68, 68, 0.05)' : (inRange ? (isCompleted ? 'rgba(59, 130, 246, 0.03)' : 'rgba(59, 130, 246, 0.08)') : 'transparent'),
+                            backgroundColor: isCurrent ? 'rgba(239, 68, 68, 0.05)' : 'transparent',
                             borderRight: isCurrent ? '2px solid #ef4444' : 'none',
                             borderBottom: '1px solid var(--border)',
                             overflow: 'hidden'
@@ -482,7 +483,7 @@ const GroupMemberRow = React.memo(({
                         minWidth: `${columnWidths.week}px`,
                         maxWidth: `${columnWidths.week}px`,
                         borderLeft: '1px solid var(--border)',
-                        backgroundColor: isCurrent ? 'rgba(239, 68, 68, 0.05)' : (inRange ? 'rgba(59, 130, 246, 0.08)' : 'transparent'),
+                        backgroundColor: isCurrent ? 'rgba(239, 68, 68, 0.05)' : 'transparent',
                         borderRight: isCurrent ? '2px solid #ef4444' : 'none',
                         borderBottom: '1px solid var(--border)',
                         overflow: 'hidden'
@@ -613,7 +614,7 @@ const ProjectItem = React.memo(({
     // If it's a completed project and not expanded, we only show the header
     const showMembers = !isCompleted || isExpanded;
     const opacity = isCompleted ? 0.6 : 1;
-    const bgColor = isCompleted ? 'var(--bg-tertiary)' : 'var(--bg-secondary)';
+    const bgColor = isCompleted ? 'var(--surface-low)' : 'var(--surface-high)';
 
     return (
         <React.Fragment key={project.id}>
@@ -955,6 +956,14 @@ const ProjectStatus = () => {
                 });
             }
 
+            const typePriority = { 'Client': 1, 'Internal': 2, 'Annual': 3, 'Leave': 4 };
+            filteredProjects.sort((a, b) => {
+                const pA = typePriority[a.type] || 99;
+                const pB = typePriority[b.type] || 99;
+                if (pA !== pB) return pA - pB;
+                return (a.name || '').localeCompare(b.name || '', 'ko');
+            });
+
             return {
                 name: g.name,
                 color: g.color,
@@ -1020,6 +1029,17 @@ const ProjectStatus = () => {
                 active.push(p);
             }
         });
+
+        const typePriority = { 'Client': 1, 'Internal': 2, 'Annual': 3, 'Leave': 4 };
+        const sortFn = (a, b) => {
+            const pA = typePriority[a.type] || 99;
+            const pB = typePriority[b.type] || 99;
+            if (pA !== pB) return pA - pB;
+            return (a.name || '').localeCompare(b.name || '', 'ko');
+        };
+
+        active.sort(sortFn);
+        completed.sort(sortFn);
 
         return { active, completed };
     }, [data, projectSearchTerm]);
@@ -2417,10 +2437,10 @@ const ProjectStatus = () => {
                             <col key={w.toString()} style={{ width: columnWidths.week }} />
                         ))}
                     </colgroup>
-                    <thead style={{ position: 'sticky', top: 0, zIndex: 200, backgroundColor: 'var(--bg-tertiary)' }}>
+                    <thead style={{ position: 'sticky', top: 0, zIndex: 200, backgroundColor: 'var(--surface-high)' }}>
                         {/* Month Group Header Row */}
                         <tr>
-                            <th colSpan={viewMode === 'project' ? 8 : 7} style={{ position: 'sticky', left: 0, zIndex: 201, backgroundColor: 'var(--bg-tertiary)', borderBottom: '1px solid var(--border)' }}></th>
+                            <th colSpan={viewMode === 'project' ? 8 : 7} style={{ position: 'sticky', left: 0, zIndex: 201, backgroundColor: 'var(--surface-high)', borderBottom: '1px solid var(--border)' }}></th>
                             {monthGroups.map((group, idx) => (
                                 <th
                                     key={`month-${idx}`}
@@ -2429,7 +2449,7 @@ const ProjectStatus = () => {
                                     style={{
                                         textAlign: 'center',
                                         borderLeft: '1px solid var(--border)',
-                                        backgroundColor: 'var(--bg-tertiary)',
+                                        backgroundColor: 'var(--surface-high)',
                                         fontSize: '0.85em',
                                         padding: '4px 0',
                                         width: `${columnWidths.week * group.weekCount}px`,
@@ -2447,56 +2467,56 @@ const ProjectStatus = () => {
                         <tr>
                             {viewMode === 'project' ? (
                                 <>
-                                    <th style={{ position: 'sticky', left: getStickyLeft('group', 'project'), zIndex: 201, minWidth: columnWidths.group, width: columnWidths.group, backgroundColor: 'var(--bg-tertiary)' }}>
+                                    <th style={{ position: 'sticky', left: getStickyLeft('group', 'project'), zIndex: 201, minWidth: columnWidths.group, width: columnWidths.group, backgroundColor: 'var(--surface-high)' }}>
                                         <div className="flex items-center justify-between">
                                             <span>소속</span>
                                             {isResizeMode && <input type="number" className="width-input" value={columnWidths.group} onChange={(e) => handleWidthInputChange('group', e.target.value)} />}
                                             <div className="resize-handle" onMouseDown={(e) => startResizing('group', e)}></div>
                                         </div>
                                     </th>
-                                    <th style={{ position: 'sticky', left: getStickyLeft('position', 'project'), zIndex: 201, minWidth: columnWidths.position, width: columnWidths.position, backgroundColor: 'var(--bg-tertiary)' }}>
+                                    <th style={{ position: 'sticky', left: getStickyLeft('position', 'project'), zIndex: 201, minWidth: columnWidths.position, width: columnWidths.position, backgroundColor: 'var(--surface-high)' }}>
                                         <div className="flex items-center justify-between">
                                             <span>직급</span>
                                             {isResizeMode && <input type="number" className="width-input" value={columnWidths.position} onChange={(e) => handleWidthInputChange('position', e.target.value)} />}
                                             <div className="resize-handle" onMouseDown={(e) => startResizing('position', e)}></div>
                                         </div>
                                     </th>
-                                    <th style={{ position: 'sticky', left: getStickyLeft('grade', 'project'), zIndex: 201, minWidth: columnWidths.grade, width: columnWidths.grade, backgroundColor: 'var(--bg-tertiary)' }}>
+                                    <th style={{ position: 'sticky', left: getStickyLeft('grade', 'project'), zIndex: 201, minWidth: columnWidths.grade, width: columnWidths.grade, backgroundColor: 'var(--surface-high)' }}>
                                         <div className="flex items-center justify-between">
                                             <span>등급</span>
                                             {isResizeMode && <input type="number" className="width-input" value={columnWidths.grade} onChange={(e) => handleWidthInputChange('grade', e.target.value)} />}
                                             <div className="resize-handle" onMouseDown={(e) => startResizing('grade', e)}></div>
                                         </div>
                                     </th>
-                                    <th style={{ position: 'sticky', left: getStickyLeft('employmentType', 'project'), zIndex: 201, minWidth: columnWidths.employmentType, width: columnWidths.employmentType, backgroundColor: 'var(--bg-tertiary)' }}>
+                                    <th style={{ position: 'sticky', left: getStickyLeft('employmentType', 'project'), zIndex: 201, minWidth: columnWidths.employmentType, width: columnWidths.employmentType, backgroundColor: 'var(--surface-high)' }}>
                                         <div className="flex items-center justify-between">
                                             <span>고용</span>
                                             {isResizeMode && <input type="number" className="width-input" value={columnWidths.employmentType} onChange={(e) => handleWidthInputChange('employmentType', e.target.value)} />}
                                             <div className="resize-handle" onMouseDown={(e) => startResizing('employmentType', e)}></div>
                                         </div>
                                     </th>
-                                    <th style={{ position: 'sticky', left: getStickyLeft('name', 'project'), zIndex: 201, minWidth: columnWidths.name, width: columnWidths.name, backgroundColor: 'var(--bg-tertiary)' }}>
+                                    <th style={{ position: 'sticky', left: getStickyLeft('name', 'project'), zIndex: 201, minWidth: columnWidths.name, width: columnWidths.name, backgroundColor: 'var(--surface-high)' }}>
                                         <div className="flex items-center justify-between">
                                             <span>이름</span>
                                             {isResizeMode && <input type="number" className="width-input" value={columnWidths.name} onChange={(e) => handleWidthInputChange('name', e.target.value)} />}
                                             <div className="resize-handle" onMouseDown={(e) => startResizing('name', e)}></div>
                                         </div>
                                     </th>
-                                    <th style={{ position: 'sticky', left: getStickyLeft('workLocation', 'project'), zIndex: 201, minWidth: columnWidths.workLocation, width: columnWidths.workLocation, backgroundColor: 'var(--bg-tertiary)' }}>
+                                    <th style={{ position: 'sticky', left: getStickyLeft('workLocation', 'project'), zIndex: 201, minWidth: columnWidths.workLocation, width: columnWidths.workLocation, backgroundColor: 'var(--surface-high)' }}>
                                         <div className="flex items-center justify-between">
                                             <span>근무</span>
                                             {isResizeMode && <input type="number" className="width-input" value={columnWidths.workLocation} onChange={(e) => handleWidthInputChange('workLocation', e.target.value)} />}
                                             <div className="resize-handle" onMouseDown={(e) => startResizing('workLocation', e)}></div>
                                         </div>
                                     </th>
-                                    <th style={{ position: 'sticky', left: getStickyLeft('startDate', 'project'), zIndex: 201, minWidth: columnWidths.startDate, width: columnWidths.startDate, backgroundColor: 'var(--bg-tertiary)', fontSize: '0.8em', borderLeft: '1px solid var(--border)' }}>
+                                    <th style={{ position: 'sticky', left: getStickyLeft('startDate', 'project'), zIndex: 201, minWidth: columnWidths.startDate, width: columnWidths.startDate, backgroundColor: 'var(--surface-high)', fontSize: '0.8em', borderLeft: '1px solid var(--border)' }}>
                                         <div className="flex items-center justify-between">
                                             <span>투입일</span>
                                             {isResizeMode && <input type="number" className="width-input" value={columnWidths.startDate} onChange={(e) => handleWidthInputChange('startDate', e.target.value)} />}
                                             <div className="resize-handle" onMouseDown={(e) => startResizing('startDate', e)}></div>
                                         </div>
                                     </th>
-                                    <th style={{ position: 'sticky', left: getStickyLeft('endDate', 'project'), zIndex: 201, minWidth: columnWidths.endDate, width: columnWidths.endDate, backgroundColor: 'var(--bg-tertiary)', fontSize: '0.8em' }}>
+                                    <th style={{ position: 'sticky', left: getStickyLeft('endDate', 'project'), zIndex: 201, minWidth: columnWidths.endDate, width: columnWidths.endDate, backgroundColor: 'var(--surface-high)', fontSize: '0.8em' }}>
                                         <div className="flex items-center justify-between">
                                             <span>종료일</span>
                                             {isResizeMode && <input type="number" className="width-input" value={columnWidths.endDate} onChange={(e) => handleWidthInputChange('endDate', e.target.value)} />}
@@ -2641,7 +2661,7 @@ const ProjectStatus = () => {
                                             <>
                                                 <tr className="completed-section-header" onClick={() => setIsCompletedSectionExpanded(!isCompletedSectionExpanded)}>
                                                     <td colSpan={8 + weeks.length} style={{
-                                                        backgroundColor: 'var(--bg-tertiary)',
+                                                        backgroundColor: 'var(--surface-high)',
                                                         padding: '10px 16px',
                                                         cursor: 'pointer',
                                                         borderTop: '2px solid var(--border)',
@@ -2721,9 +2741,9 @@ const ProjectStatus = () => {
                                     return (
                                         <React.Fragment key={group.name}>
                                             {/* Group Header Row */}
-                                            <tr key={`group-h-${group.name}`} style={{ backgroundColor: 'var(--bg-secondary)' }}>
+                                            <tr key={`group-h-${group.name}`} style={{ backgroundColor: 'var(--surface-high)' }}>
                                                 <td
-                                                    style={{ position: 'sticky', left: 0, zIndex: 12, backgroundColor: 'var(--bg-secondary)', fontWeight: 'bold' }}
+                                                    style={{ position: 'sticky', left: 0, zIndex: 12, backgroundColor: 'var(--surface-high)', fontWeight: 'bold' }}
                                                     colSpan={7}
                                                 >
                                                     <div className="flex items-center gap-md">
@@ -2738,7 +2758,7 @@ const ProjectStatus = () => {
                                                         <td key={wIdx} style={{
                                                             textAlign: 'center',
                                                             fontWeight: 'bold',
-                                                            backgroundColor: 'var(--bg-secondary)',
+                                                            backgroundColor: 'var(--surface-high)',
                                                             color: total > group.memberCount ? '#ef4444' : (total > 0 ? 'var(--primary)' : 'var(--text-muted)'),
                                                             borderRight: isCurrent ? '2px solid #ef4444' : 'none'
                                                         }}>
@@ -2751,7 +2771,7 @@ const ProjectStatus = () => {
                                             {group.projects.map((p) => (
                                                 <React.Fragment key={p.id}>
                                                     <tr className="sub-header">
-                                                        <td colSpan={7} style={{ position: 'sticky', left: 0, zIndex: 11, backgroundColor: 'rgba(59, 130, 246, 0.05)', paddingLeft: '2rem', fontSize: '0.9em' }}>
+                                                        <td colSpan={7} style={{ position: 'sticky', left: 0, zIndex: 11, backgroundColor: 'var(--primary-glow)', paddingLeft: '2rem', fontSize: '0.9em' }}>
                                                             <div className="flex items-center gap-xs">
                                                                 <span>📁 {p.name}</span>
                                                                 <span className={`badge ${p.type === 'Internal' ? 'badge-primary' : (p.type === 'Leave' || p.type === 'Annual' ? 'badge-neutral' : 'badge-success')}`} style={{ fontSize: '0.7em', opacity: 0.8 }}>

@@ -1,7 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Routes, Route, NavLink, Link, Navigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, Briefcase, Settings as SettingsIcon, UserCircle, LogOut, TrendingUp, ChevronDown, Key, Eye, EyeOff, Lock, Shield, X, User, Check, ShieldCheck } from 'lucide-react';
+import { LayoutDashboard, Users, Briefcase, Settings as SettingsIcon, UserCircle, LogOut, TrendingUp, ChevronDown, Key, Eye, EyeOff, Lock, Shield, X, User, Check, ShieldCheck, Sun, Moon } from 'lucide-react';
 import { useAuth } from './context/AuthContext';
 import { authAPI } from './api';
 import Dashboard from './components/Dashboard';
@@ -131,17 +131,17 @@ const ChangePasswordModal = ({ isOpen, onClose }) => {
             zIndex: 100000,
             padding: '20px'
         }}>
-            <div style={{ 
+            <div className="premium-glass" style={{ 
                 width: '100%', 
                 maxWidth: '420px', 
-                backgroundColor: 'rgba(21, 28, 48, 0.95)', 
-                borderRadius: '24px',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                boxShadow: '0 40px 100px -20px rgba(0, 0, 0, 0.8)',
+                backgroundColor: 'var(--surface-highest)', 
+                borderRadius: 'var(--radius-2xl)',
+                border: '1px solid var(--outline-variant)',
+                boxShadow: 'var(--shadow-xl)',
                 overflow: 'hidden',
                 position: 'relative',
-                color: 'white',
-                fontFamily: 'Inter, system-ui, sans-serif'
+                color: 'var(--text-primary)',
+                fontFamily: 'Inter, sans-serif'
             }}>
                 {/* Close Button */}
                 <button 
@@ -176,13 +176,13 @@ const ChangePasswordModal = ({ isOpen, onClose }) => {
                             width: '48px', 
                             height: '48px', 
                             borderRadius: '16px', 
-                            backgroundColor: 'rgba(34, 211, 238, 0.1)', 
+                            backgroundColor: 'rgba(93, 214, 243, 0.1)', 
                             display: 'flex', 
                             alignItems: 'center', 
                             justifyContent: 'center', 
-                            color: '#22d3ee',
-                            border: '1px solid rgba(34, 211, 238, 0.2)',
-                            boxShadow: '0 0 20px rgba(34, 211, 238, 0.15)'
+                            color: 'var(--primary)',
+                            border: '1px solid rgba(93, 214, 243, 0.2)',
+                            boxShadow: '0 0 20px var(--primary-glow)'
                         }}>
                             <ShieldCheck size={28} />
                         </div>
@@ -210,29 +210,19 @@ const ChangePasswordModal = ({ isOpen, onClose }) => {
                         {/* Current */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                             <label style={{ fontSize: '12px', fontWeight: '600', color: '#94a3b8', paddingLeft: '4px' }}>Current Password</label>
-                            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                                <Key style={{ position: 'absolute', left: '16px', color: '#64748b', zIndex: 10 }} size={18} />
+                            <div className="sunken-input-wrapper">
+                                <Key style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', zIndex: 10 }} size={18} />
                                 <input
                                     type={showPasswords.current ? "text" : "password"}
-                                    style={{
-                                        width: '100%',
-                                        backgroundColor: '#0f172a',
-                                        border: '1px solid rgba(255, 255, 255, 0.1)',
-                                        borderRadius: '14px',
-                                        padding: '14px 48px 14px 48px',
-                                        color: 'white',
-                                        fontSize: '14px',
-                                        outline: 'none',
-                                        transition: '0.2s',
-                                    }}
+                                    className="sunken-input"
+                                    style={{ paddingLeft: '48px', paddingRight: '48px' }}
                                     placeholder="••••••••"
                                     value={currentPassword}
                                     onChange={e => setCurrentPassword(e.target.value)}
-                                    onFocus={(e) => { e.currentTarget.style.borderColor = 'rgba(34, 211, 238, 0.5)'; e.currentTarget.style.boxShadow = '0 0 0 4px rgba(34, 211, 238, 0.1)'; }}
-                                    onBlur={(e) => { e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)'; e.currentTarget.style.boxShadow = 'none'; }}
                                     required
                                 />
-                                <button type="button" onClick={() => toggleVisibility('current')} style={{ position: 'absolute', right: '16px', background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', display: 'flex', zIndex: 10 }}>
+                                <div className="sunken-input-active-bar"></div>
+                                <button type="button" onClick={() => toggleVisibility('current')} style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', zIndex: 10 }}>
                                     {showPasswords.current ? <EyeOff size={18} /> : <Eye size={18} />}
                                 </button>
                             </div>
@@ -241,29 +231,19 @@ const ChangePasswordModal = ({ isOpen, onClose }) => {
                         {/* New */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                             <label style={{ fontSize: '12px', fontWeight: '600', color: '#94a3b8', paddingLeft: '4px' }}>New Password</label>
-                            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                                <Shield style={{ position: 'absolute', left: '16px', color: '#64748b', zIndex: 10 }} size={18} />
+                            <div className="sunken-input-wrapper">
+                                <Shield style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', zIndex: 10 }} size={18} />
                                 <input
                                     type={showPasswords.new ? "text" : "password"}
-                                    style={{
-                                        width: '100%',
-                                        backgroundColor: '#0f172a',
-                                        border: '1px solid rgba(255, 255, 255, 0.1)',
-                                        borderRadius: '14px',
-                                        padding: '14px 48px 14px 48px',
-                                        color: 'white',
-                                        fontSize: '14px',
-                                        outline: 'none',
-                                        transition: '0.2s',
-                                    }}
+                                    className="sunken-input"
+                                    style={{ paddingLeft: '48px', paddingRight: '48px' }}
                                     placeholder="••••••••"
                                     value={newPassword}
                                     onChange={e => setNewPassword(e.target.value)}
-                                    onFocus={(e) => { e.currentTarget.style.borderColor = 'rgba(34, 211, 238, 0.5)'; e.currentTarget.style.boxShadow = '0 0 0 4px rgba(34, 211, 238, 0.1)'; }}
-                                    onBlur={(e) => { e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)'; e.currentTarget.style.boxShadow = 'none'; }}
                                     required
                                 />
-                                <button type="button" onClick={() => toggleVisibility('new')} style={{ position: 'absolute', right: '16px', background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', display: 'flex', zIndex: 10 }}>
+                                <div className="sunken-input-active-bar"></div>
+                                <button type="button" onClick={() => toggleVisibility('new')} style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', zIndex: 10 }}>
                                     {showPasswords.new ? <EyeOff size={18} /> : <Eye size={18} />}
                                 </button>
                             </div>
@@ -311,29 +291,19 @@ const ChangePasswordModal = ({ isOpen, onClose }) => {
                         {/* Confirm */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                             <label style={{ fontSize: '12px', fontWeight: '600', color: '#94a3b8', paddingLeft: '4px' }}>Confirm Password</label>
-                            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                                <Lock style={{ position: 'absolute', left: '16px', color: '#64748b', zIndex: 10 }} size={18} />
+                            <div className="sunken-input-wrapper">
+                                <Lock style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', zIndex: 10 }} size={18} />
                                 <input
                                     type={showPasswords.confirm ? "text" : "password"}
-                                    style={{
-                                        width: '100%',
-                                        backgroundColor: '#0f172a',
-                                        border: '1px solid rgba(255, 255, 255, 0.1)',
-                                        borderRadius: '14px',
-                                        padding: '14px 48px 14px 48px',
-                                        color: 'white',
-                                        fontSize: '14px',
-                                        outline: 'none',
-                                        transition: '0.2s',
-                                    }}
+                                    className="sunken-input"
+                                    style={{ paddingLeft: '48px', paddingRight: '48px' }}
                                     placeholder="••••••••"
                                     value={confirmPassword}
                                     onChange={e => setConfirmPassword(e.target.value)}
-                                    onFocus={(e) => { e.currentTarget.style.borderColor = 'rgba(34, 211, 238, 0.5)'; e.currentTarget.style.boxShadow = '0 0 0 4px rgba(34, 211, 238, 0.1)'; }}
-                                    onBlur={(e) => { e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)'; e.currentTarget.style.boxShadow = 'none'; }}
                                     required
                                 />
-                                <button type="button" onClick={() => toggleVisibility('confirm')} style={{ position: 'absolute', right: '16px', background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', display: 'flex', zIndex: 10 }}>
+                                <div className="sunken-input-active-bar"></div>
+                                <button type="button" onClick={() => toggleVisibility('confirm')} style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', zIndex: 10 }}>
                                     {showPasswords.confirm ? <EyeOff size={18} /> : <Eye size={18} />}
                                 </button>
                             </div>
@@ -397,14 +367,17 @@ const ChangePasswordModal = ({ isOpen, onClose }) => {
     );
 };
 
+import { useTheme } from './context/ThemeContext';
+
 // Main Layout Component
 const MainLayout = () => {
     const { user, logout } = useAuth();
+    const { theme, toggleTheme } = useTheme();
     const [openDropdown, setOpenDropdown] = useState(null);
     const [isProfileOpen, setIsProfileOpen] = useState(false);
     const [showChangePassword, setShowChangePassword] = useState(false);
     const timeoutRef = useRef(null);
-    const profileTimeoutRef = useRef(null);
+    const profileRef = useRef(null);
 
     if (!user) {
         return <Navigate to="/login" replace />;
@@ -419,23 +392,36 @@ const MainLayout = () => {
         timeoutRef.current = setTimeout(() => setOpenDropdown(null), 150);
     };
 
-    const handleProfileEnter = () => {
-        if (profileTimeoutRef.current) clearTimeout(profileTimeoutRef.current);
-        setIsProfileOpen(true);
-    };
+    // Handle click outside to close the profile dropdown
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (profileRef.current && !profileRef.current.contains(event.target)) {
+                setIsProfileOpen(false);
+            }
+        };
 
-    const handleProfileLeave = () => {
-        profileTimeoutRef.current = setTimeout(() => setIsProfileOpen(false), 200);
+        if (isProfileOpen) {
+            document.addEventListener('mousedown', handleClickOutside);
+        } else {
+            document.removeEventListener('mousedown', handleClickOutside);
+        }
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [isProfileOpen]);
+
+    const toggleProfileDropdown = (e) => {
+        setIsProfileOpen(!isProfileOpen);
     };
 
     return (
         <div className="app">
-            <nav className="navbar">
+            <nav className="navbar premium-glass" style={{ border: 'none', borderBottom: '1px solid var(--outline-variant)', borderRadius: 0, overflow: 'visible' }}>
                 <div className="container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
-                        <Link to="/" className="navbar-brand">
-                            <span><UserCircle size={28} /></span>
-                            <span>Workforce Status</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '2.5rem' }}>
+                        <Link to="/" className="navbar-brand" style={{ fontFamily: 'Manrope, sans-serif' }}>
+                            <span style={{ color: 'var(--primary)', filter: 'drop-shadow(0 0 8px var(--primary-glow))' }}><UserCircle size={28} /></span>
+                            <span style={{ fontWeight: 800 }}>Workforce Status</span>
                         </Link>
                         <ul className="navbar-nav">
                             {MENU_ITEMS.filter(item => hasAccess(user, item)).map(item => {
@@ -488,60 +474,82 @@ const MainLayout = () => {
                             })}
                         </ul>
                     </div>
-                    {/* User Profile & Logout */}
+                    {/* User Profile, Theme Toggle & Logout */}
                     <div className="flex items-center gap-4 text-sm">
+                        {/* Theme Toggle Button */}
+                        <button
+                            onClick={toggleTheme}
+                            className="premium-icon-btn"
+                            style={{ 
+                                width: '38px', 
+                                height: '38px', 
+                                borderRadius: '12px',
+                                background: 'var(--surface-high)',
+                                border: 'none',
+                                color: 'var(--primary)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer',
+                                transition: '0.3s'
+                            }}
+                            title={theme === 'dark' ? 'Switch to Editorial Light' : 'Switch to Mission Dark'}
+                        >
+                            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+                        </button>
                         <div 
-                            className="relative group py-2"
-                            onMouseEnter={handleProfileEnter}
-                            onMouseLeave={handleProfileLeave}
+                            ref={profileRef}
+                            className="relative py-2"
                         >
                             <div 
+                                onClick={toggleProfileDropdown}
                                 style={{ 
                                     display: 'flex', 
-                                    backgroundColor: 'rgba(30, 41, 59, 0.4)', 
+                                    backgroundColor: isProfileOpen ? 'var(--surface-bright)' : 'var(--surface-high)', 
                                     padding: '6px 16px', 
                                     borderRadius: '99px', 
-                                    border: '1px solid rgba(255, 255, 255, 0.08)', 
+                                    border: 'none', 
                                     gap: '10px', 
                                     alignItems: 'center', 
                                     cursor: 'pointer',
-                                    transition: '0.3s'
+                                    transition: '0.3s',
+                                    boxShadow: 'var(--shadow-sm)',
+                                    transform: isProfileOpen ? 'translateY(-1px)' : 'translateY(0)'
                                 }}
-                                onMouseOver={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)'; e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.15)'; }}
-                                onMouseOut={(e) => { e.currentTarget.style.backgroundColor = 'rgba(30, 41, 59, 0.4)'; e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)'; }}
                             >
-                                <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981', boxShadow: '0 0 10px rgba(16, 185, 129, 0.5)' }}></div>
-                                <span style={{ color: '#fff', fontWeight: '700', fontSize: '14px', letterSpacing: '-0.01em' }}>{user.name}</span>
-                                <span style={{ color: '#94a3b8', fontSize: '10px', fontWeight: '800', letterSpacing: '0.05em', textTransform: 'uppercase', backgroundColor: 'rgba(0,0,0,0.3)', padding: '2px 8px', borderRadius: '4px' }}>
+                                <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--tertiary)', boxShadow: '0 0 10px var(--tertiary-glow)' }}></div>
+                                <span style={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '14px', letterSpacing: '-0.01em' }}>{user.name}</span>
+                                <span className="glow-pill glow-pill-teal" style={{ fontSize: '9px', padding: '1px 6px' }}>
                                     {user.role === ROLES.ADMIN ? '관리자' : 
                                      user.role === ROLES.GROUP_LEADER ? '그룹장' :
                                      user.role === ROLES.TEAM_LEADER ? '팀장' : user.role}
                                 </span>
-                                <ChevronDown size={14} style={{ color: '#64748b', transition: '0.3s', transform: isProfileOpen ? 'rotate(180deg)' : 'rotate(0deg)' }} />
+                                <ChevronDown size={14} style={{ color: 'var(--text-muted)', transition: '0.3s', transform: isProfileOpen ? 'rotate(180deg)' : 'rotate(0deg)' }} />
                             </div>
 
                             {/* Profile Dropdown */}
                             {isProfileOpen && (
-                                <div style={{ 
-                                    position: 'absolute', 
-                                    right: 0, 
-                                    top: '100%', 
-                                    paddingTop: '12px', 
-                                    zIndex: 10000 
-                                }}>
-                                    <div style={{ 
+                                <div 
+                                    onClick={(e) => e.stopPropagation()}
+                                    style={{ 
+                                        position: 'absolute', 
+                                        right: 0, 
+                                        top: '100%', 
+                                        paddingTop: '12px', 
+                                        zIndex: 10000 
+                                    }}
+                                >
+                                    <div className="premium-glass" style={{ 
                                         minWidth: '240px', 
-                                        backgroundColor: 'rgba(21, 28, 48, 0.95)', 
-                                        backdropFilter: 'blur(24px)', 
-                                        WebkitBackdropFilter: 'blur(24px)',
-                                        borderRadius: '24px', 
-                                        border: '1px solid rgba(255, 255, 255, 0.1)', 
-                                        boxShadow: '0 40px 100px -20px rgba(0, 0, 0, 0.9)', 
+                                        backgroundColor: 'var(--surface-highest)', 
+                                        borderRadius: 'var(--radius-xl)', 
+                                        border: '1px solid var(--outline-variant)', 
+                                        boxShadow: 'var(--shadow-xl)', 
                                         overflow: 'hidden' 
                                     }}>
                                         <div style={{ padding: '24px 24px 16px', borderBottom: '1px solid rgba(255, 255, 255, 0.05)', background: 'rgba(255, 255, 255, 0.02)' }}>
-                                            <p style={{ fontSize: '10px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '6px' }}>내 정보</p>
-                                            <p style={{ fontSize: '14px', color: '#fff', fontWeight: '700', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.email}</p>
+                                            <p style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '6px' }}>내 정보</p>
+                                            <p style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: '700', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.email}</p>
                                         </div>
                                         
                                         <div style={{ padding: '8px' }}>
@@ -556,16 +564,16 @@ const MainLayout = () => {
                                                     background: 'transparent',
                                                     border: 'none',
                                                     borderRadius: '16px',
-                                                    color: '#cbd5e1',
+                                                    color: 'var(--text-secondary)',
                                                     cursor: 'pointer',
                                                     transition: '0.2s',
                                                     textAlign: 'left'
                                                 }}
                                                 onMouseOver={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)'; e.currentTarget.style.color = '#fff'; }}
-                                                onMouseOut={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#cbd5e1'; }}
+                                                onMouseOut={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
                                             >
                                                 <div style={{ width: '32px', height: '32px', borderRadius: '10px', backgroundColor: 'rgba(255, 255, 255, 0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                    <Key size={16} style={{ color: '#22d3ee' }} />
+                                                    <Key size={16} style={{ color: 'var(--primary)' }} />
                                                 </div>
                                                 <span style={{ fontSize: '14px', fontWeight: '600' }}>비밀번호 변경</span>
                                             </button>
@@ -581,17 +589,17 @@ const MainLayout = () => {
                                                     background: 'transparent',
                                                     border: 'none',
                                                     borderRadius: '16px',
-                                                    color: '#f87171',
+                                                    color: 'var(--error)',
                                                     opacity: 0.9,
                                                     cursor: 'pointer',
                                                     transition: '0.2s',
                                                     textAlign: 'left',
                                                     marginTop: '4px'
                                                 }}
-                                                onMouseOver={(e) => { e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.08)'; e.currentTarget.style.opacity = '1'; }}
+                                                onMouseOver={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 180, 171, 0.08)'; e.currentTarget.style.opacity = '1'; }}
                                                 onMouseOut={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.opacity = '0.9'; }}
                                             >
-                                                <div style={{ width: '32px', height: '32px', borderRadius: '10px', backgroundColor: 'rgba(239, 68, 68, 0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                <div style={{ width: '32px', height: '32px', borderRadius: '10px', backgroundColor: 'rgba(255, 180, 171, 0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                                     <LogOut size={16} />
                                                 </div>
                                                 <span style={{ fontSize: '14px', fontWeight: '600' }}>로그아웃</span>
