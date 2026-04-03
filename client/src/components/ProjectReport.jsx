@@ -551,9 +551,9 @@ const ReportDataRow = React.memo(({
 
                 const isMasterSourced = [
                     'projectName', 'pd', 'pm', 'kickoff', 'rfpInfo', 
-                    'mainContractor', 'estimatedAmount', 'clientInfo'
+                    'mainContractor', 'estimatedAmount', 'clientInfo', 'category'
                 ].includes(col.key) || (col.label && (
-                    ['프로젝트명', 'PD', 'PM', '시작일', '종료일', '주사업자', '금액(예상)', '고객 정보'].some(l => col.label.includes(l)) ||
+                    ['프로젝트명', 'PD', 'PM', '시작일', '종료일', '주사업자', '금액(예상)', '고객 정보', '구분'].some(l => col.label.includes(l)) ||
                     col.label.toUpperCase().includes('PD') || 
                     col.label.toUpperCase().includes('PM')
                 ));
