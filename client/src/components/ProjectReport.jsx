@@ -885,28 +885,28 @@ const ColumnSettingsModal = ({ isOpen, onClose, columns, onUpdateColumns, onSync
                                 }
                             }}
                             disabled={isSyncing}
-                            className={`w-full py-2.5 rounded-xl text-[11px] font-900 uppercase tracking-wider transition-all border ${isSyncing 
-                                ? 'bg-white/5 border-white/10 text-white/30 cursor-not-allowed' 
-                                : 'bg-transparent border-[#00f2ff]/30 text-[#00f2ff] hover:bg-[#00f2ff]/10 hover:border-[#00f2ff]/50'}`}
+                            className={`w-full py-3 rounded-xl text-[11px] font-900 uppercase tracking-[0.1em] transition-all ${isSyncing 
+                                ? 'bg-white/5 text-white/20 cursor-not-allowed' 
+                                : 'premium-btn-cyan'}`}
                         >
                             {isSyncing ? 'Syncing...' : '모든 주간보고에 너비 적용'}
                         </button>
                     </div>
                 </div>
 
-                <div style={{ padding: '20px 24px', borderTop: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(22, 27, 34, 0.95)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div style={{ padding: '20px 24px', borderTop: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(22, 27, 34, 0.95)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
                     <div style={{ display: 'flex', gap: '12px' }}>
                         <button 
                             onClick={onClose} 
-                            style={{ flex: 1, padding: '12px', backgroundColor: 'transparent', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '14px', color: '#666', fontSize: '11px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.1em', cursor: 'pointer' }}
-                            className="hover:bg-white/[0.05] hover:text-white transition-all"
+                            style={{ flex: 1, padding: '13px', borderRadius: '14px', fontSize: '11px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.1em', cursor: 'pointer' }}
+                            className="premium-btn-outline transition-all"
                         >
                             Cancel
                         </button>
                         <button 
                             onClick={handleSave} 
-                            style={{ flex: 1.5, padding: '12px', backgroundColor: '#2563eb', border: 'none', borderRadius: '14px', color: '#fff', fontSize: '13px', fontWeight: '900', cursor: 'pointer' }}
-                            className="hover:bg-blue-500 shadow-[0_5px_20px_rgba(37,99,235,0.2)] hover:shadow-[0_8px_30px_rgba(37,99,235,0.4)] active:scale-[0.98] transition-all"
+                            style={{ flex: 1.5, padding: '13px', borderRadius: '14px', fontSize: '13px', fontWeight: '900', cursor: 'pointer' }}
+                            className="premium-btn-blue transition-all"
                         >
                             Apply Config
                         </button>
@@ -923,14 +923,13 @@ const ColumnSettingsModal = ({ isOpen, onClose, columns, onUpdateColumns, onSync
                             padding: '8px', 
                             backgroundColor: 'transparent', 
                             border: 'none', 
-                            color: '#94a3b8', 
+                            color: '#475569', 
                             fontSize: '10px', 
                             fontWeight: 'bold', 
                             textDecoration: 'underline',
                             cursor: 'pointer',
-                            opacity: 0.6
                         }}
-                        className="hover:opacity-100 hover:text-red-400 transition-all flex items-center justify-center gap-1.5"
+                        className="hover:text-[#00f2ff] hover:opacity-100 transition-all flex items-center justify-center gap-1.5 opacity-60"
                     >
                         <RotateCcw size={12} />
                         기본 레이아웃으로 변경 (초기화)
@@ -1944,7 +1943,44 @@ const ProjectReport = () => {
                     .report-transition-wrapper {
                         /* Removed fade animations as requested */
                     }
-                    /* removed loading-overlay as it is now using tailwind */
+                    
+                    /* Premium Button Variations */
+                    .premium-btn-cyan {
+                        background: linear-gradient(135deg, #00f2ff 0%, #00d2ff 100%) !important;
+                        color: #000 !important;
+                        box-shadow: 0 0 15px rgba(0, 242, 255, 0.3) !important;
+                        border: none !important;
+                    }
+                    .premium-btn-cyan:hover {
+                        background: linear-gradient(135deg, #40f6ff 0%, #00f2ff 100%) !important;
+                        box-shadow: 0 0 25px rgba(0, 242, 255, 0.5) !important;
+                        transform: translateY(-1px);
+                    }
+                    .premium-btn-cyan:active { transform: translateY(0); }
+
+                    .premium-btn-blue {
+                        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
+                        color: #fff !important;
+                        box-shadow: 0 0 15px rgba(37, 99, 235, 0.3) !important;
+                        border: none !important;
+                    }
+                    .premium-btn-blue:hover {
+                        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%) !important;
+                        box-shadow: 0 0 25px rgba(37, 99, 235, 0.5) !important;
+                        transform: translateY(-1px);
+                    }
+                    
+                    .premium-btn-outline {
+                        background: rgba(255,255,255,0.03) !important;
+                        border: 1px solid rgba(255,255,255,0.1) !important;
+                        color: #94a3b8 !important;
+                    }
+                    .premium-btn-outline:hover {
+                        background: rgba(255,255,255,0.08) !important;
+                        border-color: rgba(255,255,255,0.2) !important;
+                        color: #fff !important;
+                    }
+
                     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
                 `}
             </style>
@@ -1984,9 +2020,6 @@ const ProjectReport = () => {
 
                 </div>
                 <div className="flex items-center gap-3">
-                    <button onClick={toggleTheme} className="premium-icon-btn btn-theme" title={theme === 'dark' ? '라이트 모드로 전환' : '다크 모드로 전환'}>
-                        {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
-                    </button>
                     {autoSaveStatus && (
                         <div className={`text-[10px] font-bold px-2 py-1 rounded-md transition-all animate-pulse ${
                             autoSaveStatus === 'Saving...' ? 'text-blue-400 bg-blue-500/10' : 
