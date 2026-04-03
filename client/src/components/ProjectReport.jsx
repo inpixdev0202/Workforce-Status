@@ -1061,45 +1061,45 @@ const ProjectReport = () => {
                     };
                 }
 
-                // 2. Fetch previous week's data for layout and potential carry-over
+                // 2. Fetch previous week and master data early for repair and carry-over
                 const prevDateStr = offsetDate(selectedDate, -7);
-                const resPrev = await projectReportsAPI.getByDate(prevDateStr);
+                const [resPrev, resMaster] = await Promise.all([
+                    projectReportsAPI.getByDate(prevDateStr),
+                    projectsAPI.getAll()
+                ]);
+                
                 const prevLoaded = resPrev.data;
                 const prevRows = Array.isArray(prevLoaded) ? prevLoaded : (prevLoaded?.rows || []);
-                const prevLayout = (!Array.isArray(prevLoaded) && prevLoaded?.columnWidths) ? prevLoaded : null;
+                const masterProjectsList = resMaster.data || [];
+                setMasterProjects(masterProjectsList);
+
+                // Helper: Robust column mapping for seeding and repair
+                const getColKey = (keywords, defaultKey, ignoreKeys = []) => {
+                    const col = (currentLayout?.columns || columns).find(c => {
+                        if (ignoreKeys.includes(c.key)) return false;
+                        const lbl = (c.label || '').toUpperCase();
+                        const key = (c.key || '').toUpperCase();
+                        return keywords.some(k => lbl.includes(k) || key.includes(k));
+                    });
+                    return col ? col.key : defaultKey;
+                };
+
+                const pdKey = getColKey(['PD', '보고자'], 'pd');
+                const pmKey = getColKey(['PM', '담당'], 'pm', [pdKey]);
+                const startKey = getColKey(['시작', '기간', 'KICKOFF'], 'kickoff');
+                const endKey = getColKey(['종료', '특이', 'RFP'], 'rfpInfo', [startKey]);
+                const clientInfoKey = getColKey(['고객', 'CLIENTINFO'], 'clientInfo');
+
+                const getMasterVal = (obj, fields) => {
+                    if (typeof obj !== 'object' || !obj) return null;
+                    for (let f of fields) {
+                        if (obj[f] !== undefined && obj[f] !== null && obj[f] !== '' && obj[f] !== '-') return obj[f];
+                    }
+                    return null;
+                };
 
                 // 3. AUTO-CARRYOVER: If current week is empty but previous isn't, seed it.
                 if (currentRows.length === 0 && prevRows.length > 0) {
-                    // Fetch master projects early for filtering and metadata
-                    const resMaster = await projectsAPI.getAll();
-                    const masterProjectsList = resMaster.data;
-                    setMasterProjects(masterProjectsList);
-
-                    // Robust column mapping for seeding
-                    const getColKey = (keywords, defaultKey, ignoreKeys = []) => {
-                        const col = (currentLayout?.columns || columns).find(c => {
-                            if (ignoreKeys.includes(c.key)) return false;
-                            const lbl = (c.label || '').toUpperCase();
-                            const key = (c.key || '').toUpperCase();
-                            return keywords.some(k => lbl.includes(k) || key.includes(k));
-                        });
-                        return col ? col.key : defaultKey;
-                    };
-
-                    const pdKey = getColKey(['PD', '보고자'], 'pd');
-                    const pmKey = getColKey(['PM', '담당'], 'pm', [pdKey]);
-                    const startKey = getColKey(['시작', '기간', 'KICKOFF'], 'kickoff');
-                    const endKey = getColKey(['종료', '특이', 'RFP'], 'rfpInfo', [startKey]);
-                    const clientInfoKey = getColKey(['고객', 'CLIENTINFO'], 'clientInfo');
-
-                    const getMasterVal = (obj, fields) => {
-                        if (typeof obj !== 'object' || !obj) return null;
-                        for (let f of fields) {
-                            if (obj[f] !== undefined && obj[f] !== null && obj[f] !== '' && obj[f] !== '-') return obj[f];
-                        }
-                        return null;
-                    };
-
                     // Seed only Client projects
                     currentRows = prevRows
                         .filter(prev => {
@@ -1126,21 +1126,37 @@ const ProjectReport = () => {
                                 type: 'Client'
                             };
 
-                            // Apply robust metadata from master if available, otherwise fallback to prev row
+                            // Apply robust metadata from master
                             if (pdVal !== null) seeded[pdKey] = pdVal;
-                            else if (prev[pdKey]) seeded[pdKey] = prev[pdKey];
-
                             if (pmVal !== null) seeded[pmKey] = pmVal;
-                            else if (prev[pmKey]) seeded[pmKey] = prev[pmKey];
-
                             if (startVal) seeded[startKey] = startVal;
-                            else seeded[startKey] = normalizeToDashDate(prev[startKey]) || '-';
-
                             if (endVal) seeded[endKey] = endVal;
-                            else seeded[endKey] = normalizeToDashDate(prev[endKey]) || '-';
 
                             return seeded;
                         });
+                } else {
+                    // METADATA REPAIR: If rows already exist, fill in missing PM/Date/Status from Master DB
+                    currentRows = currentRows.map(row => {
+                        const master = masterProjectsList.find(m => normalizeProjectName(m.name || m.projectName) === normalizeProjectName(row.projectName));
+                        if (!master) return row;
+
+                        const pdVal = getMasterVal(master, ['pd', 'PD', 'pD', 'Pd']);
+                        const pmVal = getMasterVal(master, ['pm', 'PM', 'pM', 'Pm']);
+                        const startVal = normalizeToDashDate(getMasterVal(master, ['start_date', 'startDate', 'kickoff', 'startDay']));
+                        const endVal = normalizeToDashDate(getMasterVal(master, ['end_date', 'endDate', 'rfpInfo', 'endDay', 'rfp_info']));
+                        const masterStatus = getMasterVal(master, ['status', 'operatingStatus', 'operating_status']);
+
+                        const updated = { ...row };
+                        const isPlaceholder = (v) => !v || v === '-' || v === '';
+
+                        if (pdVal && isPlaceholder(row[pdKey])) updated[pdKey] = pdVal;
+                        if (pmVal && isPlaceholder(row[pmKey])) updated[pmKey] = pmVal;
+                        if (startVal && isPlaceholder(row[startKey])) updated[startKey] = startVal;
+                        if (endVal && isPlaceholder(row[endKey])) updated[endKey] = endVal;
+                        if (masterStatus && isPlaceholder(row.status)) updated.status = masterStatus;
+
+                        return updated;
+                    });
                 }
 
                 setReportData(currentRows || []);
