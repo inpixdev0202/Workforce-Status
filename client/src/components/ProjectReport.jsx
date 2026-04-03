@@ -549,14 +549,16 @@ const ReportDataRow = React.memo(({
                     );
                 }
 
-                const isMasterSourced = [
+                const isProgressCol = (col.label && ['진행상황', '내용'].some(l => col.label.includes(l))) || (col.key && ['progress', 'progress_status'].includes(col.key));
+                
+                const isMasterSourced = !isProgressCol && ([
                     'projectName', 'pd', 'pm', 'kickoff', 'rfpInfo', 
                     'mainContractor', 'estimatedAmount', 'clientInfo', 'category'
                 ].includes(col.key) || (col.label && (
                     ['프로젝트명', 'PD', 'PM', '시작일', '종료일', '주사업자', '금액(예상)', '고객 정보', '구분'].some(l => col.label.includes(l)) ||
                     col.label.toUpperCase().includes('PD') || 
                     col.label.toUpperCase().includes('PM')
-                ));
+                )));
                 
                 const isLinked = !!item.projectName;
                 const isReadOnly = isMasterSourced && isLinked;
