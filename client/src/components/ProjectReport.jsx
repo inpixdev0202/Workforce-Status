@@ -1247,37 +1247,42 @@ const ProjectReport = () => {
                 return col ? col.key : defaultKey;
             };
 
-            // STRICT Mapping: Prevent overlapping labels (like "보고자/담당") from swallowing both PD and PM keys.
             const pdKey = getColKey(['PD', '보고자'], 'pd');
-            const pmKey = getColKey(['PM', '담당'], 'pm', [pdKey]); // pmKey must not steal pdKey's column
+            const pmKey = getColKey(['PM', '담당'], 'pm', [pdKey]);
             const startKey = getColKey(['시작', '기간', 'KICKOFF', 'START'], 'kickoff');
-            const endKey = getColKey(['종료', '특이', 'RFP', 'END'], 'rfpInfo', [startKey]); // endKey must not steal startKey
+            const endKey = getColKey(['종료', '특이', 'RFP', 'END'], 'rfpInfo', [startKey]);
             const contractorKey = getColKey(['사업자', 'CONTRACTOR'], 'mainContractor');
             const amountKey = getColKey(['금액', 'AMOUNT'], 'estimatedAmount');
-            const clientInfoKey = getColKey(['고객', 'CLIENTINFO'], 'clientInfo');
+            const clientInfoKey = getColKey(['고객기대', 'CLIENTEXPECT', '고객 정보'], 'clientInfo');
+
+            // Extraction helper consistent with handleProjectSelect
+            const getMasterVal = (obj, fields) => {
+                if (typeof obj !== 'object' || !obj) return null;
+                for (let f of fields) {
+                    if (obj[f] !== undefined && obj[f] !== null && obj[f] !== '' && obj[f] !== '-') return obj[f];
+                }
+                return null;
+            };
 
             // 1. Update metadata for EXISTING rows from Master (Broad Search)
             newRows = newRows.map(row => {
                 const targetName = normalizeProjectName(row.projectName);
-                // Look in ALL Master projects to ensure metadata is synced even if status/type is irregular
                 const master = masterProjects.find(m => normalizeProjectName(m.name || m.projectName) === targetName);
                 if (master) {
-                    const getMasterVal = (mObj, fields) => {
-                        for (let f of fields) {
-                            if (mObj[f] && mObj[f] !== '-' && mObj[f] !== '') return mObj[f];
-                        }
-                        return null;
-                    };
+                    const pdVal = getMasterVal(master, ['pd', 'PD', 'pD', 'Pd']);
+                    const pmVal = getMasterVal(master, ['pm', 'PM', 'pM', 'Pm']);
+                    const startVal = normalizeToDashDate(getMasterVal(master, ['start_date', 'startDate', 'kickoff', 'startDay']));
+                    const endVal = normalizeToDashDate(getMasterVal(master, ['end_date', 'endDate', 'rfpInfo', 'endDay', 'rfp_info']));
 
-                    return {
-                        ...row,
-                        [pdKey]: getMasterVal(master, ['pd', 'PD', 'pD', 'Pd']) || row[pdKey] || row.pd,
-                        [pmKey]: getMasterVal(master, ['pm', 'PM', 'pM', 'Pm']) || row[pmKey] || row.pm,
-                        [startKey]: normalizeToDashDate(getMasterVal(master, ['start_date', 'startDate', 'kickoff', 'startDay'])) || row[startKey] || row.kickoff,
-                        [endKey]: normalizeToDashDate(getMasterVal(master, ['end_date', 'endDate', 'rfpInfo', 'endDay'])) || row[endKey] || row.rfpInfo,
-                        type: master.type || row.type,
-                        project_group: master.project_group || row.project_group
-                    };
+                    const updated = { ...row };
+                    if (pdVal !== null) updated[pdKey] = pdVal;
+                    if (pmVal !== null) updated[pmKey] = pmVal;
+                    if (startVal) updated[startKey] = startVal;
+                    if (endVal) updated[endKey] = endVal;
+                    
+                    updated.type = master.type || row.type;
+                    updated.project_group = master.project_group || row.project_group;
+                    return updated;
                 }
                 return row;
             });
@@ -1286,14 +1291,19 @@ const ProjectReport = () => {
             ongoingMaster.forEach(m => {
                 const masterName = normalizeProjectName(m.name);
                 if (!newRows.some(row => normalizeProjectName(row.projectName) === masterName)) {
+                    const pdVal = getMasterVal(m, ['pd', 'PD', 'pD', 'Pd']);
+                    const pmVal = getMasterVal(m, ['pm', 'PM', 'pM', 'Pm']);
+                    const startVal = normalizeToDashDate(getMasterVal(m, ['start_date', 'startDate', 'kickoff', 'startDay']));
+                    const endVal = normalizeToDashDate(getMasterVal(m, ['end_date', 'endDate', 'rfpInfo', 'endDay', 'rfp_info']));
+
                     newRows.push({
                         id: Date.now() + Math.random(),
                         category: '진행중',
                         projectName: m.name,
-                        [pdKey]: m.pd || m.PD || '',
-                        [pmKey]: m.pm || m.PM || '',
-                        [startKey]: normalizeToDashDate(m.start_date || m.startDate) || '-',
-                        [endKey]: normalizeToDashDate(m.end_date || m.endDate) || '-',
+                        [pdKey]: pdVal || '',
+                        [pmKey]: pmVal || '',
+                        [startKey]: startVal || '-',
+                        [endKey]: endVal || '-',
                         [contractorKey]: '-',
                         [amountKey]: '-',
                         project_group: m.project_group || '',
@@ -1317,7 +1327,6 @@ const ProjectReport = () => {
                                    (row.plan && row.plan !== '-' && row.plan !== '');
                 
                 if (prev && !hasContent) {
-                    // Only overwrite with prev data if it's not a placeholder
                     const getVal = (pVal, currentVal) => (pVal && pVal !== '-' && pVal !== '') ? pVal : currentVal;
                     
                     return {
@@ -1325,10 +1334,8 @@ const ProjectReport = () => {
                         progress: getVal(prev.progress, row.progress || '-'),
                         status: getVal(prev.status, row.status || ''),
                         plan: getVal(prev.plan, row.plan || '-'),
-                        // DO NOT OVERWRITE Master Data Date Fields (startKey/endKey) or Client Info with prev rows! Master rules 100%!
                         proposal: getVal(prev.proposal, row.proposal || '-'),
                         pt: getVal(prev.pt, row.pt || '-')
-                        // type is maintained from Step 1
                     };
                 }
                 return row;
