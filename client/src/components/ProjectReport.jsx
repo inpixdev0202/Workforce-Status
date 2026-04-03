@@ -1086,6 +1086,7 @@ const ProjectReport = () => {
 
                 const pdKey = getColKey(['PD', '보고자'], 'pd');
                 const pmKey = getColKey(['PM', '담당'], 'pm', [pdKey]);
+                const statusKey = getColKey(['상태', '운영', 'STATUS'], 'status');
                 const startKey = getColKey(['시작', '기간', 'KICKOFF'], 'kickoff');
                 const endKey = getColKey(['종료', '특이', 'RFP'], 'rfpInfo', [startKey]);
                 const clientInfoKey = getColKey(['고객', 'CLIENTINFO'], 'clientInfo');
@@ -1114,12 +1115,13 @@ const ProjectReport = () => {
                             const pmVal = master ? getMasterVal(master, ['pm', 'PM', 'pM', 'Pm']) : null;
                             const startVal = master ? normalizeToDashDate(getMasterVal(master, ['start_date', 'startDate', 'kickoff', 'startDay'])) : null;
                             const endVal = master ? normalizeToDashDate(getMasterVal(master, ['end_date', 'endDate', 'rfpInfo', 'endDay', 'rfp_info'])) : null;
+                            const masterStatus = master ? getMasterVal(master, ['status', 'operatingStatus', 'operating_status']) : null;
 
                             const seeded = {
                                 ...prev,
                                 id: Date.now() + Math.random(),
                                 progress: '-',
-                                status: '',
+                                [statusKey]: '',
                                 plan: '-',
                                 pt: '-',
                                 proposal: '-',
@@ -1131,6 +1133,7 @@ const ProjectReport = () => {
                             if (pmVal !== null) seeded[pmKey] = pmVal;
                             if (startVal) seeded[startKey] = startVal;
                             if (endVal) seeded[endKey] = endVal;
+                            if (masterStatus) seeded[statusKey] = masterStatus;
 
                             return seeded;
                         });
@@ -1149,11 +1152,11 @@ const ProjectReport = () => {
                         const updated = { ...row };
                         const isPlaceholder = (v) => !v || v === '-' || v === '';
 
-                        if (pdVal && isPlaceholder(row[pdKey])) updated[pdKey] = pdVal;
-                        if (pmVal && isPlaceholder(row[pmKey])) updated[pmKey] = pmVal;
-                        if (startVal && isPlaceholder(row[startKey])) updated[startKey] = startVal;
-                        if (endVal && isPlaceholder(row[endKey])) updated[endKey] = endVal;
-                        if (masterStatus && isPlaceholder(row.status)) updated.status = masterStatus;
+                        if (pdVal) updated[pdKey] = pdVal;
+                        if (pmVal) updated[pmKey] = pmVal;
+                        if (startVal) updated[startKey] = startVal;
+                        if (endVal) updated[endKey] = endVal;
+                        if (masterStatus) updated[statusKey] = masterStatus;
 
                         return updated;
                     });
