@@ -1576,28 +1576,57 @@ const ProjectReport = () => {
                         status: ''
                     };
                 } else {
-                    const name = typeof projectData === 'string' ? projectData : (projectData.displayName || projectData.name);
-                    const pd = typeof projectData === 'object' ? (projectData.pd || '') : '';
-                    const pm = typeof projectData === 'object' ? (projectData.pm || '') : '';
+                    const name = typeof projectData === 'string' ? projectData : (projectData.name || projectData.displayName || '');
                     
-                    // The user uses the kickoff and rfpInfo columns for start_date and end_date respectively
-                    const startDate = typeof projectData === 'object' && projectData.start_date ? normalizeToDashDate(projectData.start_date) : (item.kickoff !== '-' ? item.kickoff : '');
-                    const endDate = typeof projectData === 'object' && projectData.end_date ? normalizeToDashDate(projectData.end_date) : (item.rfpInfo !== '-' ? item.rfpInfo : '');
-
-                    return { 
-                        ...item, 
-                        projectName: name,
-                        pd: pd || item.pd,
-                        pm: pm || item.pm,
-                        kickoff: startDate || '-',
-                        rfpInfo: endDate || '-',
-                        type: typeof projectData === 'object' ? projectData.type : item.type
+                    // 1. DYNAMIC COLUMN MAPPING
+                    // Identify the correct destination keys based on column labels
+                    const getColKey = (keywords, defaultKey, ignoreKeys = []) => {
+                        const col = columns.find(c => {
+                            if (ignoreKeys.includes(c.key)) return false;
+                            const lbl = (c.label || '').toUpperCase();
+                            const key = (c.key || '').toUpperCase();
+                            return keywords.some(k => lbl.includes(k) || key.includes(k));
+                        });
+                        return col ? col.key : defaultKey;
                     };
+
+                    const pdKey = getColKey(['PD', '보고자'], 'pd');
+                    const pmKey = getColKey(['PM', '담당'], 'pm', [pdKey]);
+                    const startKey = getColKey(['시작', '기간', 'KICKOFF', 'START'], 'kickoff');
+                    const endKey = getColKey(['종료', '특이', 'RFP', 'END'], 'rfpInfo', [startKey]);
+
+                    // 2. DATA EXTRACTION WITH CASE INSENSITIVITY
+                    const getVal = (obj, fields) => {
+                        if (typeof obj !== 'object' || !obj) return null;
+                        for (let f of fields) {
+                            if (obj[f] !== undefined && obj[f] !== null && obj[f] !== '' && obj[f] !== '-') return obj[f];
+                        }
+                        return null;
+                    };
+
+                    const pdVal = getVal(projectData, ['pd', 'PD', 'pD', 'Pd']);
+                    const pmVal = getVal(projectData, ['pm', 'PM', 'pM', 'Pm']);
+                    const startVal = normalizeToDashDate(getVal(projectData, ['start_date', 'startDate', 'kickoff', 'startDay']));
+                    const endVal = normalizeToDashDate(getVal(projectData, ['end_date', 'endDate', 'rfpInfo', 'endDay', 'rfp_info']));
+
+                    const updatedItem = { ...item, projectName: name };
+
+                    // Only update if we found a value to avoid overwriting with empty
+                    if (pdVal !== null) updatedItem[pdKey] = pdVal;
+                    if (pmVal !== null) updatedItem[pmKey] = pmVal;
+                    if (startVal) updatedItem[startKey] = startVal;
+                    if (endVal) updatedItem[endKey] = endVal;
+
+                    if (typeof projectData === 'object' && projectData.type) {
+                        updatedItem.type = projectData.type;
+                    }
+
+                    return updatedItem;
                 }
             }
             return item;
         }));
-    }, []);
+    }, [columns]);
 
     const handleOpenMasterLibrary = useCallback((id) => {
         setActiveMasterRowId(id);
