@@ -707,7 +707,7 @@ const normalizeToDashDate = (val) => {
     }
 };
 
-const ColumnSettingsModal = ({ isOpen, onClose, columns, onUpdateColumns, onSyncAllWidths, isSyncing }) => {
+const ColumnSettingsModal = ({ isOpen, onClose, columns, onUpdateColumns, onSyncAllWidths, isSyncing, onResetLayout }) => {
     const [localColumns, setLocalColumns] = useState(columns);
     const [newColLabel, setNewColLabel] = useState('');
 
@@ -894,20 +894,46 @@ const ColumnSettingsModal = ({ isOpen, onClose, columns, onUpdateColumns, onSync
                     </div>
                 </div>
 
-                <div style={{ padding: '20px 24px', borderTop: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(22, 27, 34, 0.95)', display: 'flex', gap: '12px' }}>
-                    <button 
-                        onClick={onClose} 
-                        style={{ flex: 1, padding: '12px', backgroundColor: 'transparent', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '14px', color: '#666', fontSize: '11px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.1em', cursor: 'pointer' }}
-                        className="hover:bg-white/[0.05] hover:text-white transition-all"
+                <div style={{ padding: '20px 24px', borderTop: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(22, 27, 34, 0.95)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div style={{ display: 'flex', gap: '12px' }}>
+                        <button 
+                            onClick={onClose} 
+                            style={{ flex: 1, padding: '12px', backgroundColor: 'transparent', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '14px', color: '#666', fontSize: '11px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.1em', cursor: 'pointer' }}
+                            className="hover:bg-white/[0.05] hover:text-white transition-all"
+                        >
+                            Cancel
+                        </button>
+                        <button 
+                            onClick={handleSave} 
+                            style={{ flex: 1.5, padding: '12px', backgroundColor: '#2563eb', border: 'none', borderRadius: '14px', color: '#fff', fontSize: '13px', fontWeight: '900', cursor: 'pointer' }}
+                            className="hover:bg-blue-500 shadow-[0_5px_20px_rgba(37,99,235,0.2)] hover:shadow-[0_8px_30px_rgba(37,99,235,0.4)] active:scale-[0.98] transition-all"
+                        >
+                            Apply Config
+                        </button>
+                    </div>
+                    
+                    <button
+                        onClick={() => {
+                            if (window.confirm('모든 설정을 초기화하고 기본 레이아웃으로 변경하시겠습니까?')) {
+                                onResetLayout();
+                                onClose();
+                            }
+                        }}
+                        style={{ 
+                            padding: '8px', 
+                            backgroundColor: 'transparent', 
+                            border: 'none', 
+                            color: '#94a3b8', 
+                            fontSize: '10px', 
+                            fontWeight: 'bold', 
+                            textDecoration: 'underline',
+                            cursor: 'pointer',
+                            opacity: 0.6
+                        }}
+                        className="hover:opacity-100 hover:text-red-400 transition-all flex items-center justify-center gap-1.5"
                     >
-                        Cancel
-                    </button>
-                    <button 
-                        onClick={handleSave} 
-                        style={{ flex: 1.5, padding: '12px', backgroundColor: '#2563eb', border: 'none', borderRadius: '14px', color: '#fff', fontSize: '13px', fontWeight: '900', cursor: 'pointer' }}
-                        className="hover:bg-blue-500 shadow-[0_5px_20px_rgba(37,99,235,0.2)] hover:shadow-[0_8px_30px_rgba(37,99,235,0.4)] active:scale-[0.98] transition-all"
-                    >
-                        Apply Config
+                        <RotateCcw size={12} />
+                        기본 레이아웃으로 변경 (초기화)
                     </button>
                 </div>
             </div>
@@ -1944,7 +1970,6 @@ const ProjectReport = () => {
                     <button onClick={addNewRow} className="premium-icon-btn btn-add" title="행 추가 (Add Row)"><Plus size={16} /></button>
                     <button onClick={handleSmartCarryOver} className="premium-icon-btn btn-smart" title="스마트 캐리 오버 (마스터+지난주 최적화)"><Sparkles size={16} /></button>
                     <button onClick={() => setIsSettingsModalOpen(true)} className="premium-icon-btn btn-cols" title="열 설정 (Columns)"><Columns size={16} /></button>
-                    <button onClick={() => setIsResetConfirmOpen(true)} className="premium-icon-btn btn-reset" title="레이아웃 초기화 (Reset Layout)"><RotateCcw size={16} /></button>
                     
                     <div className="w-px h-5 bg-[var(--border)] mx-1"></div>
                     
@@ -2128,6 +2153,7 @@ const ProjectReport = () => {
                 onUpdateColumns={handleUpdateColumns} 
                 onSyncAllWidths={handleSyncAllWidths}
                 isSyncing={isSyncingAllWidths}
+                onResetLayout={handleResetLayout}
             />
 
             {/* Custom confirmation for layout reset to avoid blocking browser dialogs */}
