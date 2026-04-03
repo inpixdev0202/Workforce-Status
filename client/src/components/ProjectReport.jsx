@@ -682,37 +682,29 @@ const ReportDataRow = React.memo(({
 
 // --- Utility Helpers ---
 
-// Helper for super-robust project name matching (handles invisible whitespace/tabs/newlines)
-const normalizeProjectName = (name) => String(name || '').replace(/\s+/g, ' ').trim().normalize('NFC');
+// Helper for super-robust project name matching (handles invisible whitespace/tabs/newlines/NFO/NFC)
+const normalizeProjectName = (name) => {
+    if (!name) return '';
+    return String(name).normalize('NFC').replace(/\s+/g, '').trim().toUpperCase();
+};
 
 // Helper to convert Master DB dates (YYYY.MM.DD or Date object) to Report date input format (YYYY-MM-DD)
 const normalizeToDashDate = (val) => {
     if (!val || val === '-' || val === '') return '';
     
-    let d = null;
-    if (val instanceof Date) {
-        d = val;
-    } else {
-        // Try parsing YYYY.MM.DD or YYYY/MM/DD or YYYY-MM-DD
-        const s = String(val).replace(/[\.\/ ]/g, '-').replace(/-+/g, '-').trim();
-        const parts = s.split('-');
-        if (parts.length === 3) {
-            let [year, month, day] = parts;
-            if (year.length === 2) year = '20' + year;
-            d = new Date(year, parseInt(month) - 1, parseInt(day));
-        } else {
-            // Last resort for other formats
-            d = new Date(val);
-        }
-    }
-
-    if (d && !isNaN(d.getTime())) {
+    // If it's already YYYY-MM-DD, return as is to avoid timezone shifts
+    if (/^\d{4}-\d{2}-\d{2}$/.test(String(val))) return String(val);
+    
+    try {
+        const d = new Date(val);
+        if (isNaN(d.getTime())) return '';
         const y = d.getFullYear();
         const m = String(d.getMonth() + 1).padStart(2, '0');
         const day = String(d.getDate()).padStart(2, '0');
         return `${y}-${m}-${day}`;
+    } catch (e) {
+        return '';
     }
-    return '';
 };
 
 const ColumnSettingsModal = ({ isOpen, onClose, columns, onUpdateColumns, onSyncAllWidths, isSyncing }) => {
@@ -1053,31 +1045,77 @@ const ProjectReport = () => {
 
                 // 3. AUTO-CARRYOVER: If current week is empty but previous isn't, seed it.
                 if (currentRows.length === 0 && prevRows.length > 0) {
-                    // Fetch master projects early for filtering
+                    // Fetch master projects early for filtering and metadata
                     const resMaster = await projectsAPI.getAll();
                     const masterProjectsList = resMaster.data;
                     setMasterProjects(masterProjectsList);
 
+                    // Robust column mapping for seeding
+                    const getColKey = (keywords, defaultKey, ignoreKeys = []) => {
+                        const col = (currentLayout?.columns || columns).find(c => {
+                            if (ignoreKeys.includes(c.key)) return false;
+                            const lbl = (c.label || '').toUpperCase();
+                            const key = (c.key || '').toUpperCase();
+                            return keywords.some(k => lbl.includes(k) || key.includes(k));
+                        });
+                        return col ? col.key : defaultKey;
+                    };
+
+                    const pdKey = getColKey(['PD', '보고자'], 'pd');
+                    const pmKey = getColKey(['PM', '담당'], 'pm', [pdKey]);
+                    const startKey = getColKey(['시작', '기간', 'KICKOFF'], 'kickoff');
+                    const endKey = getColKey(['종료', '특이', 'RFP'], 'rfpInfo', [startKey]);
+                    const clientInfoKey = getColKey(['고객', 'CLIENTINFO'], 'clientInfo');
+
+                    const getMasterVal = (obj, fields) => {
+                        if (typeof obj !== 'object' || !obj) return null;
+                        for (let f of fields) {
+                            if (obj[f] !== undefined && obj[f] !== null && obj[f] !== '' && obj[f] !== '-') return obj[f];
+                        }
+                        return null;
+                    };
+
                     // Seed only Client projects
                     currentRows = prevRows
                         .filter(prev => {
-                            // Check saved type in report row or lookup in master
                             if (prev.type === 'Client') return true;
-                            const master = masterProjectsList.find(m => m.name === prev.projectName);
+                            const master = masterProjectsList.find(m => normalizeProjectName(m.name || m.projectName) === normalizeProjectName(prev.projectName));
                             return master && master.type === 'Client';
                         })
-                        .map(prev => ({
-                            ...prev,
-                            id: Date.now() + Math.random(), // New unique IDs for this week
-                            progress: '-',
-                            status: '',
-                            plan: '-',
-                            pt: '-',
-                            rfpInfo: normalizeToDashDate(prev.rfpInfo) || '-',
-                            kickoff: normalizeToDashDate(prev.kickoff) || '-',
-                            proposal: '-',
-                            type: 'Client' // Explicitly set it
-                        }));
+                        .map(prev => {
+                            const master = masterProjectsList.find(m => normalizeProjectName(m.name || m.projectName) === normalizeProjectName(prev.projectName));
+                            
+                            const pdVal = master ? getMasterVal(master, ['pd', 'PD', 'pD', 'Pd']) : null;
+                            const pmVal = master ? getMasterVal(master, ['pm', 'PM', 'pM', 'Pm']) : null;
+                            const startVal = master ? normalizeToDashDate(getMasterVal(master, ['start_date', 'startDate', 'kickoff', 'startDay'])) : null;
+                            const endVal = master ? normalizeToDashDate(getMasterVal(master, ['end_date', 'endDate', 'rfpInfo', 'endDay', 'rfp_info'])) : null;
+
+                            const seeded = {
+                                ...prev,
+                                id: Date.now() + Math.random(),
+                                progress: '-',
+                                status: '',
+                                plan: '-',
+                                pt: '-',
+                                proposal: '-',
+                                type: 'Client'
+                            };
+
+                            // Apply robust metadata from master if available, otherwise fallback to prev row
+                            if (pdVal !== null) seeded[pdKey] = pdVal;
+                            else if (prev[pdKey]) seeded[pdKey] = prev[pdKey];
+
+                            if (pmVal !== null) seeded[pmKey] = pmVal;
+                            else if (prev[pmKey]) seeded[pmKey] = prev[pmKey];
+
+                            if (startVal) seeded[startKey] = startVal;
+                            else seeded[startKey] = normalizeToDashDate(prev[startKey]) || '-';
+
+                            if (endVal) seeded[endKey] = endVal;
+                            else seeded[endKey] = normalizeToDashDate(prev[endKey]) || '-';
+
+                            return seeded;
+                        });
                 }
 
                 setReportData(currentRows || []);
