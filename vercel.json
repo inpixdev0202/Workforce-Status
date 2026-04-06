@@ -5,11 +5,11 @@
   "rewrites": [
     {
       "source": "/api/test",
-      "destination": "/api/test.mjs"
+      "destination": "/client/api/test.mjs"
     },
     {
       "source": "/api/(.*)",
-      "destination": "/api/index.mjs"
+      "destination": "/client/api/index.mjs"
     },
     {
       "source": "/(.*)",
