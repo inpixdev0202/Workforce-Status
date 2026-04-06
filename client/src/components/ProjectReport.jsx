@@ -1306,199 +1306,7 @@ const ProjectReport = () => {
 
 
     
-    const handleSmartCarryOver = async () => {
-        setIsLoading(true);
-        try {
-            // 1. Get Previous Week's Data
-            const prevDateStr = offsetDate(selectedDate, -7);
-            const resPrev = await projectReportsAPI.getByDate(prevDateStr);
-            const prevRows = Array.isArray(resPrev.data) ? resPrev.data : (resPrev.data?.rows || []);
 
-            // 2. Get Master DB Data
-            const resMaster = await projectsAPI.getAll();
-            const masterProjects = resMaster.data;
-
-            let newRows = [...reportData];
-
-            // 3. Identification of projects to carry over
-            // Filter Master projects that are 'Ongoing'
-            const ongoingMaster = masterProjects.filter(p => {
-                const status = String(p.status || '').normalize('NFC').trim();
-                const isOngoing = status === '진행중' || status === '수행' || status === 'active';
-                return isOngoing && p.type === 'Client';
-            });
-
-            // 4. Merge logic
-            // Map column labels to their actual keys dynamically just in case the user customized columns
-            const getColKey = (keywords, defaultKey, ignoreKeys = []) => {
-                const col = columns.find(c => {
-                    if (ignoreKeys.includes(c.key)) return false;
-                    const lbl = (c.label || '').toUpperCase();
-                    const key = (c.key || '').toUpperCase();
-                    return keywords.some(k => lbl.includes(k) || key.includes(k));
-                });
-                return col ? col.key : defaultKey;
-            };
-
-            const pdKey = getColKey(['PD', '보고자'], 'pd');
-            const pmKey = getColKey(['PM', '담당'], 'pm', [pdKey]);
-            const startKey = getColKey(['시작', '기간', 'KICKOFF', 'START'], 'kickoff');
-            const endKey = getColKey(['종료', '특이', 'RFP', 'END'], 'rfpInfo', [startKey]);
-            const contractorKey = getColKey(['사업자', 'CONTRACTOR'], 'mainContractor');
-            const amountKey = getColKey(['금액', 'AMOUNT'], 'estimatedAmount');
-            const clientInfoKey = getColKey(['고객기대', 'CLIENTEXPECT', '고객 정보'], 'clientInfo');
-
-            // Extraction helper consistent with handleProjectSelect
-            const getMasterVal = (obj, fields) => {
-                if (typeof obj !== 'object' || !obj) return null;
-                for (let f of fields) {
-                    if (obj[f] !== undefined && obj[f] !== null && obj[f] !== '' && obj[f] !== '-') return obj[f];
-                }
-                return null;
-            };
-
-            // 1. Update metadata for EXISTING rows from Master (Broad Search)
-            newRows = newRows.map(row => {
-                const targetName = normalizeProjectName(row.projectName);
-                const master = masterProjects.find(m => normalizeProjectName(m.name || m.projectName) === targetName);
-                if (master) {
-                    const pdVal = getMasterVal(master, ['pd', 'PD', 'pD', 'Pd']);
-                    const pmVal = getMasterVal(master, ['pm', 'PM', 'pM', 'Pm']);
-                    const startVal = normalizeToDashDate(getMasterVal(master, ['start_date', 'startDate', 'kickoff', 'startDay']));
-                    const endVal = normalizeToDashDate(getMasterVal(master, ['end_date', 'endDate', 'rfpInfo', 'endDay', 'rfp_info']));
-
-                    const updated = { ...row };
-                    if (pdVal !== null) updated[pdKey] = pdVal;
-                    if (pmVal !== null) updated[pmKey] = pmVal;
-                    if (startVal) updated[startKey] = startVal;
-                    if (endVal) updated[endKey] = endVal;
-                    
-                    updated.type = master.type || row.type;
-                    updated.project_group = master.project_group || row.project_group;
-                    return updated;
-                }
-                return row;
-            });
-
-            // 2. Add missing 'Ongoing' Client projects from Master
-            ongoingMaster.forEach(m => {
-                const masterName = normalizeProjectName(m.name);
-                if (!newRows.some(row => normalizeProjectName(row.projectName) === masterName)) {
-                    const pdVal = getMasterVal(m, ['pd', 'PD', 'pD', 'Pd']);
-                    const pmVal = getMasterVal(m, ['pm', 'PM', 'pM', 'Pm']);
-                    const startVal = normalizeToDashDate(getMasterVal(m, ['start_date', 'startDate', 'kickoff', 'startDay']));
-                    const endVal = normalizeToDashDate(getMasterVal(m, ['end_date', 'endDate', 'rfpInfo', 'endDay', 'rfp_info']));
-
-                    newRows.push({
-                        id: Date.now() + Math.random(),
-                        category: '진행중',
-                        projectName: m.name,
-                        [pdKey]: pdVal || '',
-                        [pmKey]: pmVal || '',
-                        [startKey]: startVal || '-',
-                        [endKey]: endVal || '-',
-                        [contractorKey]: '-',
-                        [amountKey]: '-',
-                        project_group: m.project_group || '',
-                        progress: '-',
-                        proposal: '-',
-                        pt: '-',
-                        status: '',
-                        plan: '-',
-                        [clientInfoKey]: m.clientInfo || m.client_info || '-',
-                        type: m.type || 'Client'
-                    });
-                }
-            });
-
-
-            // 3. Copy progress/status from previous week for projects that have no current content
-            let updateCount = 0;
-            newRows = newRows.map(row => {
-                const prev = prevRows.find(p => normalizeProjectName(p.projectName) === normalizeProjectName(row.projectName));
-                if (!prev) return row;
-
-                // PERSONALIZED FILTER: Only Admin or the owner (PM/PD) can carry over data for this row
-                const isAdmin = user?.role === 'admin';
-                const currentPD = String(row[pdKey] || '').trim();
-                const currentPM = String(row[pmKey] || '').trim();
-                const isOwner = user?.name && (currentPD === user.name || currentPM === user.name);
-
-                // If not an admin and not the owner, skip this row for carry-over
-                if (!isAdmin && !isOwner) return row;
-
-                const updatedRow = { ...row };
-                let changed = false;
-
-                // Field-level copy: Fill in empty fields from last week
-                const fieldsToCopy = [
-                    { key: 'progress', pKey: 'progress' },
-                    { key: 'status', pKey: 'status' },
-                    { key: 'plan', pKey: 'plan' },
-                    { key: 'proposal', pKey: 'proposal' },
-                    { key: 'pt', pKey: 'pt' }
-                ];
-
-                fieldsToCopy.forEach(f => {
-                    const currentVal = row[f.key];
-                    const prevVal = prev[f.pKey];
-                    const isEmpty = !currentVal || currentVal === '' || currentVal === '-' || currentVal === '0' || currentVal === 0;
-                    const hasPrev = prevVal && prevVal !== '' && prevVal !== '-' && prevVal !== '0' && prevVal !== 0;
-
-                    if (isEmpty && hasPrev) {
-                        updatedRow[f.key] = prevVal;
-                        changed = true;
-                    }
-                });
-
-                if (changed) updateCount++;
-                return updatedRow;
-            });
-
-            // 4. SMART SORT: Put Client projects on top -> Group -> Alphabetical
-            newRows.sort((a, b) => {
-                const typePriority = { 'Client': 1, 'Internal': 2, 'Annual': 3, 'Leave': 4 };
-                const pA = typePriority[a.type] || 99;
-                const pB = typePriority[b.type] || 99;
-                if (pA !== pB) return pA - pB;
-                
-                const groupPriority = { '구축': 1, 'ISG1': 2, 'ISD': 3 };
-                const gA = groupPriority[a.project_group] || 99;
-                const gB = groupPriority[b.project_group] || 99;
-                if (gA !== gB) return gA - gB;
-                
-                const nameA = normalizeProjectName(a.projectName);
-                const nameB = normalizeProjectName(b.projectName);
-                return nameA.localeCompare(nameB, 'ko');
-            });
-
-            // 5. Layout Sync (Widths/Heights) from last week
-            const prevColWidths = (!Array.isArray(resPrev.data) && resPrev.data?.columnWidths) ? resPrev.data.columnWidths : null;
-            const prevRowHeights = (!Array.isArray(resPrev.data) && resPrev.data?.rowHeights) ? resPrev.data.rowHeights : null;
-            
-            if (prevColWidths) setColumnWidths(prevColWidths);
-            if (prevRowHeights) setRowHeights(prevRowHeights);
-
-            setReportData(newRows);
-            
-            const isAdmin = user?.role === 'admin';
-            const scopeText = isAdmin ? '전체 프로젝트' : `나의 프로젝트 (${user?.name})`;
-            const alertMsg = `✨ 스마트 캐리오버 및 최적화가 완료되었습니다!\n\n` +
-                           `1. 대상: ${scopeText}\n` +
-                           `2. 업데이트된 프로젝트: ${updateCount}개\n` +
-                           `3. 처리 내용:\n` +
-                           `   - 마스터 DB의 최신 담당자/일정 반영\n` +
-                           `   - 지난주 보고 내용 중 비어있던 항목 자동 채움\n` +
-                           `   - 유형별(클라이언트 우선) 가나다 정렬\n` +
-                           `   - 지난주 시트 레이아웃(너비/높이) 동기화`;
-            alert(alertMsg);
-        } catch (error) {
-            console.error('Smart carry-over failed:', error);
-            alert('데이터를 처리하는 중 오류가 발생했습니다.');
-        } finally {
-            setIsLoading(false);
-        }
-    };
 
     const [columns, setColumns] = useState(() => {
         const saved = localStorage.getItem(COLUMNS_CONFIG_KEY);
@@ -1999,7 +1807,6 @@ const ProjectReport = () => {
                     .btn-excel:hover { color: #16a34a !important; background: rgba(22, 163, 74, 0.15) !important; filter: drop-shadow(0 0 5px rgba(22, 163, 74, 0.5)); }
                     .btn-week:hover { color: #f472b6 !important; background: rgba(244, 114, 182, 0.15) !important; filter: drop-shadow(0 0 5px rgba(244, 114, 182, 0.5)); }
                     .btn-clone:hover { color: #60a5fa !important; background: rgba(96, 165, 250, 0.15) !important; filter: drop-shadow(0 0 5px rgba(96, 165, 250, 0.5)); }
-                    .btn-smart:hover { color: #facc15 !important; background: rgba(250, 204, 21, 0.15) !important; filter: drop-shadow(0 0 8px rgba(250, 204, 21, 0.6)); }
                     .btn-reset:hover { color: #f43f5e !important; background: rgba(244, 63, 94, 0.15) !important; filter: drop-shadow(0 0 5px rgba(244, 63, 94, 0.5)); }
 
                     .report-transition-wrapper {
@@ -2066,7 +1873,7 @@ const ProjectReport = () => {
                 <div className="flex items-center gap-2">
                     <button onClick={handleSave} className="premium-icon-btn btn-save" title="저장 (Save)"><Save size={16} /></button>
                     <button onClick={addNewRow} className="premium-icon-btn btn-add" title="행 추가 (Add Row)"><Plus size={16} /></button>
-                    <button onClick={handleSmartCarryOver} className="premium-icon-btn btn-smart" title="스마트 캐리 오버 (마스터+지난주 최적화)"><Sparkles size={16} /></button>
+
                     <button onClick={() => setIsSettingsModalOpen(true)} className="premium-icon-btn btn-cols" title="열 설정 (Columns)"><Columns size={16} /></button>
                     
                     <div className="w-px h-5 bg-[var(--border)] mx-1"></div>
