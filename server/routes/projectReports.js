@@ -8,10 +8,30 @@ const router = express.Router();
 router.get('/:date', authenticateToken, async (req, res) => {
     try {
         const { date } = req.params;
+        const { role, name } = req.user;
         const report = await get('SELECT * FROM project_reports WHERE week_date = ?', date);
         
         if (report) {
-            res.json(JSON.parse(report.data_json));
+            let data = JSON.parse(report.data_json);
+            
+            // If not Admin, filter rows to only show those owned by the user (PD or PM)
+            if (role !== 'Admin') {
+                const rows = Array.isArray(data) ? data : (data.rows || []);
+                const filteredRows = rows.filter(row => {
+                    const pdVal = String(row.pd || '').trim();
+                    const pmVal = String(row.pm || '').trim();
+                    const userName = String(name || '').trim();
+                    return pdVal === userName || pmVal === userName;
+                });
+
+                if (Array.isArray(data)) {
+                    data = filteredRows;
+                } else {
+                    data = { ...data, rows: filteredRows };
+                }
+            }
+            
+            res.json(data);
         } else {
             res.json([]);
         }
@@ -21,17 +41,60 @@ router.get('/:date', authenticateToken, async (req, res) => {
     }
 });
 
-// Save report for a specific date
+// Save report for a specific date (with Merge Logic for PD/PM)
 router.post('/', authenticateToken, async (req, res) => {
     try {
         const { week_date, data } = req.body;
+        const { role, name: userName } = req.user;
+
         if (!week_date || !data) {
             return res.status(400).json({ message: 'Missing date or data' });
         }
 
-        const dataJson = JSON.stringify(data);
+        let incomingRows = Array.isArray(data) ? data : (data.rows || []);
+        let finalData = data;
+
+        // Merge logic for non-Admin users to prevent data loss of other users' projects
+        if (role !== 'Admin') {
+            const existingReport = await get('SELECT * FROM project_reports WHERE week_date = ?', week_date);
+            let existingRows = [];
+
+            if (existingReport) {
+                const parsedExisting = JSON.parse(existingReport.data_json);
+                existingRows = Array.isArray(parsedExisting) ? parsedExisting : (parsedExisting.rows || []);
+            }
+
+            // 1. Identify rows in existing data that do NOT belong to the current user
+            const otherUsersRows = existingRows.filter(row => {
+                const pdVal = String(row.pd || '').trim();
+                const pmVal = String(row.pm || '').trim();
+                const normalizedUser = String(userName || '').trim();
+                return pdVal !== normalizedUser && pmVal !== normalizedUser;
+            });
+
+            // 2. Identify rows in incoming data that DO belong to the current user
+            const myIncomingRows = incomingRows.filter(row => {
+                const pdVal = String(row.pd || '').trim();
+                const pmVal = String(row.pm || '').trim();
+                const normalizedUser = String(userName || '').trim();
+                return pdVal === normalizedUser || pmVal === normalizedUser;
+            });
+
+            // 3. Combine them
+            const mergedRows = [...otherUsersRows, ...myIncomingRows];
+
+            if (Array.isArray(data)) {
+                finalData = mergedRows;
+            } else {
+                finalData = {
+                    ...data,
+                    rows: mergedRows
+                };
+            }
+        }
+
+        const dataJson = JSON.stringify(finalData);
         
-        // Use REPLACE INTO for SQLite to handle insert or update
         await run(
             `INSERT INTO project_reports (week_date, data_json, updated_at) 
              VALUES (?, ?, CURRENT_TIMESTAMP)

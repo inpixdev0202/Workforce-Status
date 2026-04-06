@@ -244,9 +244,20 @@ const getHealthStyle = (health) => {
     return { class: '', text: h };
 };
 
-const HealthSelect = React.memo(({ value, onCommit, onFocus, onBlur, isFocused, theme }) => {
+const HealthSelect = React.memo(({ value, onCommit, onFocus, onBlur, isFocused, theme, readOnly = false }) => {
     const options = ['🟢 정상', '🟡 주의', '🔴 위험'];
     const hStyle = getHealthStyle(value);
+
+    if (readOnly) {
+        return (
+            <div 
+                className={`w-full h-full flex items-center justify-center text-[var(--text-muted)] opacity-80 cursor-default select-none ${hStyle.class}`}
+                style={{ fontSize: '11px', fontWeight: 'bold', textAlign: 'center' }}
+            >
+                {value || '-'}
+            </div>
+        );
+    }
 
     return (
         <div className={`w-full h-full flex items-center justify-center p-1 ${isFocused ? 'focused-field' : ''}`}>
@@ -521,11 +532,15 @@ const ReportDataRow = React.memo(({
     pdList = []
 }) => {
     const { user } = useAuth();
-    const isAdmin = user?.role === 'admin';
+    const isAdmin = user?.role === 'Admin';
+    const isOwner = isAdmin || 
+                    (String(item.pd || '').trim() === String(user?.name || '').trim()) ||
+                    (String(item.pm || '').trim() === String(user?.name || '').trim());
+
     const catStyle = useMemo(() => getCategoryStyle(item.category, theme === 'dark'), [item.category, theme]);
 
     return (
-        <tr className="group hover:bg-white/[0.01]">
+        <tr className={`group transition-colors ${isOwner ? 'hover:bg-white/[0.01]' : 'opacity-80 bg-slate-900/10'}`}>
             <td 
                 className="w-10 bg-[var(--surface-high)] p-0 text-[10px] font-extrabold text-[var(--text-muted)] text-center select-none sticky left-0 z-20 relative opacity-50"
                 style={{ height: rowHeight }}
@@ -566,7 +581,8 @@ const ReportDataRow = React.memo(({
                 )));
                 
                 const isLinked = !!item.projectName;
-                const isReadOnly = isMasterSourced && isLinked;
+                // A cell is Read-only if it's master-sourced AND linked, OR if the user is NOT the owner
+                const isReadOnly = (isMasterSourced && isLinked) || !isOwner;
 
                 if (col.key === 'projectName') {
                     return (
@@ -623,6 +639,7 @@ const ReportDataRow = React.memo(({
                                 onBlur={() => setFocusedCell(null)}
                                 isFocused={focusedCell?.field === cellId}
                                 theme={theme}
+                                readOnly={isReadOnly}
                             />
                         </td>
                     );
@@ -1577,7 +1594,9 @@ const ProjectReport = () => {
     }, []);
 
     const addNewRow = () => {
-        const newRow = { id: Date.now(), category: '진행중', projectName: '', pd: '', mainContractor: '-', estimatedAmount: '-', progress: '-', kickoff: '-', rfpInfo: '-', proposal: '-', pt: '-', status: '', plan: '', clientInfo: '-', rowHeight: 80, type: 'Client' };
+        const defaultPD = (user?.role === 'PD' || user?.role === 'Admin') ? user?.name : '';
+        const defaultPM = (user?.role === 'PM') ? user?.name : '';
+        const newRow = { id: Date.now(), category: '진행중', projectName: '', pd: defaultPD, pm: defaultPM, mainContractor: '-', estimatedAmount: '-', progress: '-', kickoff: '-', rfpInfo: '-', proposal: '-', pt: '-', status: '', plan: '', clientInfo: '-', rowHeight: 80, type: 'Client' };
         setReportData([newRow, ...reportData]);
     };
 
@@ -1605,11 +1624,16 @@ const ProjectReport = () => {
                 const matchesSearch = (item.projectName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                                       (item.pd || '').toLowerCase().includes(searchTerm.toLowerCase());
                 
+                // Ownership Filtering: If not Admin, only show own projects (PD or PM match)
+                const isOwner = user?.role === 'Admin' || 
+                                (String(item.pd || '').trim() === String(user?.name || '').trim()) ||
+                                (String(item.pm || '').trim() === String(user?.name || '').trim());
+
                 // User requirement: Only show "Client" projects
                 // Allow empty projectName rows for new entries
                 const isClient = item.type === 'Client' || !item.projectName || item.projectName === '';
                 
-                return matchesCategory && matchesSearch && isClient;
+                return matchesCategory && matchesSearch && isClient && isOwner;
             })
             .sort((a, b) => {
                 const weights = { '진행예정': 0, '진행중': 1, '홀딩': 2, '종료': 3 };
