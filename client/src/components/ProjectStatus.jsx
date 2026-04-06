@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { projectsAPI, employeesAPI } from '../api';
-import { ChevronLeft, ChevronRight, Calendar, Settings, Plus, LayoutGrid, LayoutDashboard, Users, Search, X, Check, ChevronDown, Briefcase, Clock, User, AlertCircle, Shield, Key } from 'lucide-react';
-import { format, addWeeks, addDays, startOfWeek, endOfWeek, eachWeekOfInterval, parseISO, isWithinInterval, startOfDay, endOfDay, areIntervalsOverlapping } from 'date-fns';
+import { ChevronLeft, ChevronRight, Calendar, Settings, Plus, LayoutGrid, LayoutDashboard, Users, Search, X, Check, ChevronDown, Briefcase, Clock, User, AlertCircle, Shield, Key, FileDown } from 'lucide-react';
+import { format, addWeeks, addDays, startOfWeek, endOfWeek, eachWeekOfInterval, parseISO, isWithinInterval, startOfDay, endOfDay, areIntervalsOverlapping, isAfter, isBefore } from 'date-fns';
 import { ko } from 'date-fns/locale';
+import ExcelJS from 'exceljs';
+import { saveAs } from 'file-saver';
 import { useTheme } from '../context/ThemeContext';
 
 // --- Memoized Sub-components for Performance ---
@@ -846,7 +848,14 @@ const ProjectStatus = () => {
 
     // State for Settings Popover
     const [showSettings, setShowSettings] = useState(false);
+
+    // State for Excel Export Period
+    const [exportStartDate, setExportStartDate] = useState(() => format(addWeeks(new Date(), -4), 'yyyy-MM-dd'));
+    const [exportEndDate, setExportEndDate] = useState(() => format(addWeeks(new Date(), 12), 'yyyy-MM-dd'));
+    const [isDownloading, setIsDownloading] = useState(false);
     const settingsRef = useRef(null);
+    const groupDropdownRef = useRef(null);
+    const [showGroupDropdown, setShowGroupDropdown] = useState(false);
     const [isToolbarCollapsed, setIsToolbarCollapsed] = useState(false);
     // Initialize visible date to today to avoid '로딩 중...' flicker
     const [visibleDate, setVisibleDate] = useState(() => {
@@ -866,18 +875,25 @@ const ProjectStatus = () => {
         ];
     }, [employees]);
 
-    // Close settings when clicking outside
+    const currentGroupOpt = useMemo(() => 
+        groupOptions.find(opt => opt.id === selectedGroup) || groupOptions[0],
+    [groupOptions, selectedGroup]);
+
+    // Close popovers when clicking outside
     useEffect(() => {
         function handleClickOutside(event) {
             if (settingsRef.current && !settingsRef.current.contains(event.target)) {
                 setShowSettings(false);
+            }
+            if (groupDropdownRef.current && !groupDropdownRef.current.contains(event.target)) {
+                setShowGroupDropdown(false);
             }
         }
         document.addEventListener("mousedown", handleClickOutside);
         return () => {
             document.removeEventListener("mousedown", handleClickOutside);
         };
-    }, [settingsRef]);
+    }, []);
 
     // Transform data for group-based view
     // Returns: [ { name, color, memberCount, projects: [ { id, name, type, assignments: [...] } ] } ]
@@ -2177,9 +2193,253 @@ const ProjectStatus = () => {
         } catch {
             return false;
         }
-    }, []);
+    }, []);    // Scroll to Today
 
+    // Excel Download Handler
+    const handleDownloadExcel = async () => {
+        if (!exportStartDate || !exportEndDate) {
+            alert('시작일과 종료일을 선택해 주세요.');
+            return;
+        }
 
+        setIsDownloading(true);
+        try {
+            const workbook = new ExcelJS.Workbook();
+            const worksheet = workbook.addWorksheet('프로젝트 배정 현황', {
+                views: [{ state: 'frozen', xSplit: viewMode === 'project' ? 7 : 7, ySplit: 1 }]
+            });
+
+            // 1. Calculate weeks to show in Excel
+            const start = startOfWeek(new Date(exportStartDate), { weekStartsOn: 1 });
+            const end = startOfWeek(new Date(exportEndDate), { weekStartsOn: 1 });
+            
+            if (isAfter(start, end)) {
+                alert('시작일이 종료일보다 늦을 수 없습니다.');
+                setIsDownloading(false);
+                return;
+            }
+
+            const exportWeeks = eachWeekOfInterval({ start, end }, { weekStartsOn: 1 });
+
+            // 2. Define Columns
+            const columns = [];
+            if (viewMode === 'project') {
+                columns.push(
+                    { header: '소속', key: 'group', width: 12 },
+                    { header: '직급', key: 'position', width: 10 },
+                    { header: '등급', key: 'grade', width: 8 },
+                    { header: '성명', key: 'name', width: 12 },
+                    { header: '근무', key: 'workLocation', width: 10 },
+                    { header: '투입일', key: 'startDate', width: 12 },
+                    { header: '종료일', key: 'endDate', width: 12 }
+                );
+            } else {
+                columns.push(
+                    { header: '성명', key: 'name', width: 12 },
+                    { header: '직급', key: 'position', width: 10 },
+                    { header: '등급', key: 'grade', width: 8 },
+                    { header: '고용', key: 'employmentType', width: 10 },
+                    { header: '프로젝트', key: 'projectName', width: 25 },
+                    { header: '투입일', key: 'startDate', width: 12 },
+                    { header: '종료일', key: 'endDate', width: 12 }
+                );
+            }
+
+            // Add weekly columns
+            exportWeeks.forEach(w => {
+                columns.push({
+                    header: format(w, 'MM/dd'),
+                    key: format(w, 'yyyy-MM-dd'),
+                    width: 7
+                });
+            });
+
+            worksheet.columns = columns;
+
+            // 3. Styling Header
+            const headerRow = worksheet.getRow(1);
+            headerRow.height = 30;
+            headerRow.eachCell((cell) => {
+                cell.fill = {
+                    type: 'pattern',
+                    pattern: 'solid',
+                    fgColor: { argb: 'FF1E293B' } // Slate-800
+                };
+                cell.font = {
+                    bold: true,
+                    color: { argb: 'FFFFFFFF' },
+                    size: 9
+                };
+                cell.alignment = { vertical: 'middle', horizontal: 'center' };
+                cell.border = {
+                    top: { style: 'thin' },
+                    left: { style: 'thin' },
+                    bottom: { style: 'thin' },
+                    right: { style: 'thin' }
+                };
+            });
+
+            // 4. Data Population
+            if (viewMode === 'project') {
+                data.forEach(project => {
+                    // Project Header Row
+                    const projHeaderRow = worksheet.addRow({
+                        group: project.name,
+                        position: `[${project.type || 'Client'}]`
+                    });
+                    
+                    // Merge and Style Project Header
+                    worksheet.mergeCells(projHeaderRow.number, 1, projHeaderRow.number, 7);
+                    const groupCell = projHeaderRow.getCell(1);
+                    groupCell.font = { bold: true, color: { argb: 'FF3B82F6' }, size: 10 };
+                    groupCell.fill = {
+                        type: 'pattern',
+                        pattern: 'solid',
+                        fgColor: { argb: 'FFF8FAFC' }
+                    };
+                    projHeaderRow.eachCell({ includeEmpty: true }, (cell) => {
+                        cell.border = { bottom: { style: 'thin' } };
+                    });
+
+                    // Members Rows
+                    project.members.forEach(member => {
+                        const rowData = {
+                            group: member.group_name,
+                            position: member.employee_position,
+                            grade: member.employee_grade,
+                            name: member.employee_name,
+                            workLocation: member.work_location === 'Dispatch' ? '파견' : (member.work_location === 'In-house' ? '내근' : '-'),
+                            startDate: member.input_start_date || '-',
+                            endDate: member.input_end_date || '-'
+                        };
+
+                        // Fill weekly allocations
+                        exportWeeks.forEach(w => {
+                            const dateStr = format(w, 'yyyy-MM-dd');
+                            rowData[dateStr] = member.allocations?.[dateStr] ? (parseFloat(member.allocations[dateStr]) || 0) : '';
+                        });
+
+                        const row = worksheet.addRow(rowData);
+                        row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+                            cell.font = { size: 9 };
+                            cell.alignment = { vertical: 'middle', horizontal: 'center' };
+                            cell.border = {
+                                bottom: { style: 'hair', color: { argb: 'FFCBD5E1' } },
+                                right: { style: 'hair', color: { argb: 'FFCBD5E1' } }
+                            };
+                            
+                            // Highlight allocations
+                            if (colNumber > 7 && cell.value !== '') {
+                                cell.font = { bold: true, size: 9 };
+                            }
+                        });
+                    });
+
+                    // Total Row
+                    const totalRowData = { group: 'Total MM' };
+                    exportWeeks.forEach(w => {
+                        const dateStr = format(w, 'yyyy-MM-dd');
+                        const total = project.members.reduce((sum, m) => sum + (parseFloat(m.allocations?.[dateStr]) || 0), 0);
+                        totalRowData[dateStr] = total > 0 ? total : '';
+                    });
+                    const totalRow = worksheet.addRow(totalRowData);
+                    worksheet.mergeCells(totalRow.number, 1, totalRow.number, 7);
+                    totalRow.getCell(1).alignment = { horizontal: 'right' };
+                    totalRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+                        cell.font = { bold: true, size: 8, color: { argb: 'FF64748B' } };
+                        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
+                        if (colNumber > 7 && cell.value > 1.0) {
+                            cell.font = { bold: true, size: 9, color: { argb: 'FFEF4444' } };
+                        }
+                    });
+                });
+            } else {
+                // Group View
+                groupStats.filter(g => selectedGroup === 'ALL' || g.name === selectedGroup).forEach(group => {
+                    // Group Title Row
+                    const groupTitleRow = worksheet.addRow({ name: `${group.name} 그룹 (인원: ${group.memberCount}명)` });
+                    worksheet.mergeCells(groupTitleRow.number, 1, groupTitleRow.number, worksheet.columns.length);
+                    groupTitleRow.getCell(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+                    
+                    // Robust color handling
+                    let groupArgb = 'FF3B82F6';
+                    if (group.color && group.color.startsWith('#')) {
+                        groupArgb = 'FF' + group.color.substring(1).toUpperCase();
+                    }
+
+                    groupTitleRow.getCell(1).fill = { 
+                        type: 'pattern', 
+                        pattern: 'solid', 
+                        fgColor: { argb: groupArgb } 
+                    };
+
+                    group.projects.forEach(p => {
+                        // Project Subheader in Group View
+                        const pSubRow = worksheet.addRow({ name: `📁 ${p.name} [${p.type || 'Client'}]` });
+                        worksheet.mergeCells(pSubRow.number, 1, pSubRow.number, 7);
+                        pSubRow.getCell(1).font = { bold: true, size: 9, color: { argb: 'FF3B82F6' } };
+                        pSubRow.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F7FF' } };
+
+                        p.assignments.forEach(assignment => {
+                            const rowData = {
+                                name: assignment.employee_name,
+                                position: assignment.employee_position,
+                                grade: assignment.employee_grade,
+                                employmentType: assignment.employment_type || '-',
+                                projectName: p.name,
+                                startDate: assignment.input_start_date || '-',
+                                endDate: assignment.input_end_date || '-'
+                            };
+
+                            exportWeeks.forEach(w => {
+                                const dateStr = format(w, 'yyyy-MM-dd');
+                                rowData[dateStr] = assignment.allocations?.[dateStr] ? (parseFloat(assignment.allocations[dateStr]) || 0) : '';
+                            });
+
+                            const row = worksheet.addRow(rowData);
+                            row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+                                cell.font = { size: 9 };
+                                cell.alignment = { vertical: 'middle', horizontal: 'center' };
+                                cell.border = { bottom: { style: 'thin', color: { argb: 'FFF1F5F9' } } };
+                                if (colNumber === 5) cell.alignment = { vertical: 'middle', horizontal: 'left' };
+                                if (colNumber > 7 && cell.value !== '') cell.font = { bold: true, size: 9 };
+                            });
+                        });
+                    });
+
+                    // Group Total Row 
+                    const groupCalc = calculateGroupStats(group, exportWeeks);
+                    const gTotalRowData = { name: `${group.name} 합계 (Total MM)` };
+                    exportWeeks.forEach((w, wIdx) => {
+                        const dateStr = format(w, 'yyyy-MM-dd');
+                        const total = groupCalc.stats[wIdx] || 0;
+                        gTotalRowData[dateStr] = total > 0 ? total : '';
+                    });
+                    const gTotalRow = worksheet.addRow(gTotalRowData);
+                    worksheet.mergeCells(gTotalRow.number, 1, gTotalRow.number, 7);
+                    gTotalRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+                        cell.font = { bold: true, size: 8, color: { argb: 'FF475569' } };
+                        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
+                        cell.alignment = { vertical: 'middle', horizontal: colNumber <= 7 ? 'right' : 'center' };
+                        if (colNumber > 7 && cell.value > group.memberCount) {
+                            cell.font = { bold: true, size: 9, color: { argb: 'FFEF4444' } };
+                        }
+                    });
+                });
+            }
+
+            // 5. Finalize and Save
+            const buffer = await workbook.xlsx.writeBuffer();
+            const fileName = `프로젝트배정현황_${viewMode === 'project' ? '프로젝트별' : '그룹별'}_${format(new Date(), 'yyyyMMdd')}.xlsx`;
+            saveAs(new Blob([buffer]), fileName);
+
+        } catch (error) {
+            console.error('Excel Download Error:', error);
+            alert(`엑셀 다운로드 중 오류가 발생했습니다: ${error.message}`);
+        } finally {
+            setIsDownloading(false);
+        }
+    };
 
     return (
         <div className="container page" style={{ maxWidth: '100%', overflowX: 'hidden' }}>
@@ -2221,36 +2481,63 @@ const ProjectStatus = () => {
                                     </button>
                                 </div>
 
-                                {/* Inline Group Filter Chips — slide in when group mode is active */}
+                                {/* Space-saving Group Selector Dropdown */}
                                 <div
+                                    ref={groupDropdownRef}
                                     style={{
+                                        position: 'relative',
                                         display: 'flex',
                                         alignItems: 'center',
-                                        gap: '4px',
-                                        overflow: 'hidden',
-                                        // Dynamically calculate enough width for all chips (each ~110px wide)
-                                        maxWidth: viewMode === 'group' ? `${groupOptions.length * 120 + 20}px` : '0px',
+                                        maxWidth: viewMode === 'group' ? '200px' : '0px',
                                         opacity: viewMode === 'group' ? 1 : 0,
-                                        transition: 'max-width 0.35s ease, opacity 0.25s ease',
-                                        paddingLeft: viewMode === 'group' ? '4px' : '0px',
-                                        whiteSpace: 'nowrap',
+                                        visibility: viewMode === 'group' ? 'visible' : 'hidden',
+                                        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                        marginLeft: viewMode === 'group' ? '8px' : '0px',
                                     }}
                                 >
-                                    {groupOptions.map((opt) => (
-                                        <button
-                                            key={opt.id}
-                                            onClick={() => setSelectedGroup(opt.id)}
-                                            className={`group-filter-btn ${selectedGroup === opt.id ? 'active' : ''}`}
-                                            title={opt.name}
-                                            style={{ flexShrink: 0 }}
-                                        >
-                                            <div
-                                                className="group-filter-dot"
-                                                style={{ backgroundColor: opt.color }}
-                                            />
-                                            <span>{opt.name}</span>
-                                        </button>
-                                    ))}
+                                    <button
+                                        onClick={() => setShowGroupDropdown(!showGroupDropdown)}
+                                        className={`premium-select-trigger ${showGroupDropdown ? 'active' : ''}`}
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '8px',
+                                            padding: '6px 12px',
+                                            background: 'var(--bg-tertiary)',
+                                            border: '1px solid var(--border)',
+                                            borderRadius: '8px',
+                                            color: 'var(--text-primary)',
+                                            fontSize: '12px',
+                                            fontWeight: '600',
+                                            cursor: 'pointer',
+                                            width: '100%',
+                                            justifyContent: 'space-between'
+                                        }}
+                                    >
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: currentGroupOpt.color, boxShadow: `0 0 8px ${currentGroupOpt.color}80` }} />
+                                            <span>{currentGroupOpt.name}</span>
+                                        </div>
+                                        <ChevronDown size={14} style={{ transform: showGroupDropdown ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }} />
+                                    </button>
+
+                                    {showGroupDropdown && (
+                                        <div className="premium-dropdown-list">
+                                            {groupOptions.map((opt) => (
+                                                <div
+                                                    key={opt.id}
+                                                    className={`premium-dropdown-item ${selectedGroup === opt.id ? 'active' : ''}`}
+                                                    onClick={() => {
+                                                        setSelectedGroup(opt.id);
+                                                        setShowGroupDropdown(false);
+                                                    }}
+                                                >
+                                                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: opt.color }} />
+                                                    <span>{opt.name}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         )}
@@ -2324,6 +2611,55 @@ const ProjectStatus = () => {
                                 )}
                             </div>
                         )}
+
+                        {/* Premium Excel Export Widget */}
+                        {!isToolbarCollapsed && (
+                            <div className="premium-export-widget">
+                                <div className="flex items-center gap-xs">
+                                    <div className="p-1 rounded-md bg-primary-muted text-primary flex items-center justify-center">
+                                        <FileDown size={14} />
+                                    </div>
+                                    <span className="export-period-label hidden xl:block">Excel Period</span>
+                                </div>
+                                
+                                <div className="flex items-center gap-xs px-xs">
+                                    <input
+                                        type="date"
+                                        className="premium-date-input"
+                                        value={exportStartDate}
+                                        onChange={(e) => setExportStartDate(e.target.value)}
+                                        title="엑셀 추출 시작일"
+                                        style={{ colorScheme: 'dark' }}
+                                    />
+                                    <span className="text-muted text-[10px]">~</span>
+                                    <input
+                                        type="date"
+                                        className="premium-date-input"
+                                        value={exportEndDate}
+                                        onChange={(e) => setExportEndDate(e.target.value)}
+                                        title="엑셀 추출 종료일"
+                                        style={{ colorScheme: 'dark' }}
+                                    />
+                                </div>
+
+                                <button
+                                    onClick={handleDownloadExcel}
+                                    disabled={isDownloading}
+                                    className="btn-export-premium"
+                                    title="엑셀 다운로드"
+                                >
+                                    {isDownloading ? (
+                                        <div className="export-loading-spinner"></div>
+                                    ) : (
+                                        <>
+                                            <Check size={14} />
+                                            <span>엑셀 추출</span>
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        )}
+
                         {!isToolbarCollapsed && (
                             <button
                                 onClick={handleOpenProjectModal}
