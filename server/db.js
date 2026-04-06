@@ -178,9 +178,8 @@ export async function initializeDatabase() {
 
         // Admin seeding disabled to prevent race conditions during migrations.
         // Use a manual script if needed.
-        /*
-        const { rows: users } = await pool.query('SELECT COUNT(*) as count FROM users');
-        if (parseInt(users[0].count) === 0) {
+        const { rows: usersCount } = await pool.query('SELECT COUNT(*) as count FROM users');
+        if (parseInt(usersCount[0].count) === 0) {
             try {
                 const bcrypt = await import('bcryptjs');
                 const salt = bcrypt.default.genSaltSync(10);
@@ -194,7 +193,6 @@ export async function initializeDatabase() {
                 console.error('Failed to seed default admin user', e);
             }
         }
-        */
 
         await pool.query(`
             CREATE TABLE IF NOT EXISTS integrations (
