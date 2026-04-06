@@ -5,6 +5,7 @@ import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import { projectsAPI, projectReportsAPI, employeesAPI } from '../api';
 import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
 
 const SpreadsheetCellInput = React.memo(({ initialValue, onCommit, onFocus, isFocused, className = "", isMultilineField = false, type = "text", align = "left", readOnly = false }) => {
     const [localValue, setLocalValue] = useState(initialValue || '');
@@ -519,6 +520,8 @@ const ReportDataRow = React.memo(({
     pmList = [],
     pdList = []
 }) => {
+    const { user } = useAuth();
+    const isAdmin = user?.role === 'admin';
     const catStyle = useMemo(() => getCategoryStyle(item.category, theme === 'dark'), [item.category, theme]);
 
     return (
@@ -537,14 +540,16 @@ const ReportDataRow = React.memo(({
                 if (col.key === 'manage') {
                     return (
                         <td key={col.key} className="p-0 text-center w-[60px] relative" style={{ height: rowHeight }}>
-                            <button 
-                                onClick={() => onDelete(item.id)}
-                                className="trash-delete-btn relative z-10 w-full h-full flex items-center justify-center cursor-pointer"
-                                title="행삭제"
-                                style={{ border: 'none', background: 'none', padding: 0 }}
-                            >
-                                <Trash2 size={16} className="trash-delete-icon" />
-                            </button>
+                            {isAdmin && (
+                                <button 
+                                    onClick={() => onDelete(item.id)}
+                                    className="trash-delete-btn relative z-10 w-full h-full flex items-center justify-center cursor-pointer"
+                                    title="행삭제"
+                                    style={{ border: 'none', background: 'none', padding: 0 }}
+                                >
+                                    <Trash2 size={16} className="trash-delete-icon" />
+                                </button>
+                            )}
                         </td>
                     );
                 }
@@ -687,7 +692,9 @@ const ReportDataRow = React.memo(({
 // Helper for super-robust project name matching (handles invisible whitespace/tabs/newlines/NFO/NFC)
 const normalizeProjectName = (name) => {
     if (!name) return '';
-    return String(name).normalize('NFC').replace(/\s+/g, '').trim().toUpperCase();
+    // Strip bracketed content (e.g., "(2024-1234)" or "[Dev]") for robust matching
+    const cleaned = String(name).replace(/\s*\(.*?\)\s*/g, '').replace(/\s*\[.*?\]\s*/g, '');
+    return cleaned.normalize('NFC').replace(/\s+/g, '').trim().toUpperCase();
 };
 
 // Helper to convert Master DB dates (YYYY.MM.DD or Date object) to Report date input format (YYYY-MM-DD)
@@ -1014,6 +1021,8 @@ const mergeReportData = (current, previous) => {
 };
 
 const ProjectReport = () => {
+    const { user } = useAuth();
+    const { theme } = useTheme();
     const [selectedDate, setSelectedDate] = useState(() => getReportingFriday());
     const [reportData, setReportData] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -1404,25 +1413,46 @@ const ProjectReport = () => {
 
 
             // 3. Copy progress/status from previous week for projects that have no current content
+            let updateCount = 0;
             newRows = newRows.map(row => {
                 const prev = prevRows.find(p => normalizeProjectName(p.projectName) === normalizeProjectName(row.projectName));
-                const hasContent = (row.progress && row.progress !== '-' && row.progress !== '') || 
-                                   (row.status && row.status !== '') || 
-                                   (row.plan && row.plan !== '-' && row.plan !== '');
-                
-                if (prev && !hasContent) {
-                    const getVal = (pVal, currentVal) => (pVal && pVal !== '-' && pVal !== '') ? pVal : currentVal;
-                    
-                    return {
-                        ...row,
-                        progress: getVal(prev.progress, row.progress || '-'),
-                        status: getVal(prev.status, row.status || ''),
-                        plan: getVal(prev.plan, row.plan || '-'),
-                        proposal: getVal(prev.proposal, row.proposal || '-'),
-                        pt: getVal(prev.pt, row.pt || '-')
-                    };
-                }
-                return row;
+                if (!prev) return row;
+
+                // PERSONALIZED FILTER: Only Admin or the owner (PM/PD) can carry over data for this row
+                const isAdmin = user?.role === 'admin';
+                const currentPD = String(row[pdKey] || '').trim();
+                const currentPM = String(row[pmKey] || '').trim();
+                const isOwner = user?.name && (currentPD === user.name || currentPM === user.name);
+
+                // If not an admin and not the owner, skip this row for carry-over
+                if (!isAdmin && !isOwner) return row;
+
+                const updatedRow = { ...row };
+                let changed = false;
+
+                // Field-level copy: Fill in empty fields from last week
+                const fieldsToCopy = [
+                    { key: 'progress', pKey: 'progress' },
+                    { key: 'status', pKey: 'status' },
+                    { key: 'plan', pKey: 'plan' },
+                    { key: 'proposal', pKey: 'proposal' },
+                    { key: 'pt', pKey: 'pt' }
+                ];
+
+                fieldsToCopy.forEach(f => {
+                    const currentVal = row[f.key];
+                    const prevVal = prev[f.pKey];
+                    const isEmpty = !currentVal || currentVal === '' || currentVal === '-' || currentVal === '0' || currentVal === 0;
+                    const hasPrev = prevVal && prevVal !== '' && prevVal !== '-' && prevVal !== '0' && prevVal !== 0;
+
+                    if (isEmpty && hasPrev) {
+                        updatedRow[f.key] = prevVal;
+                        changed = true;
+                    }
+                });
+
+                if (changed) updateCount++;
+                return updatedRow;
             });
 
             // 4. SMART SORT: Put Client projects on top -> Group -> Alphabetical
@@ -1450,7 +1480,18 @@ const ProjectReport = () => {
             if (prevRowHeights) setRowHeights(prevRowHeights);
 
             setReportData(newRows);
-            alert('✨ 스마트 캐리오버 및 최적화가 완료되었습니다!\n\n1. 진행 중인 클라이언트 프로젝트 우선 확보\n2. 마스터 DB의 최신 담당자/일정 반영\n3. 지난주 보고 내용 중 비어있던 항목 자동 채움\n4. 유형별(클라이언트 우선) 가나다 정렬\n5. 지난주 시트 레이아웃(너비/높이) 동기화');
+            
+            const isAdmin = user?.role === 'admin';
+            const scopeText = isAdmin ? '전체 프로젝트' : `나의 프로젝트 (${user?.name})`;
+            const alertMsg = `✨ 스마트 캐리오버 및 최적화가 완료되었습니다!\n\n` +
+                           `1. 대상: ${scopeText}\n` +
+                           `2. 업데이트된 프로젝트: ${updateCount}개\n` +
+                           `3. 처리 내용:\n` +
+                           `   - 마스터 DB의 최신 담당자/일정 반영\n` +
+                           `   - 지난주 보고 내용 중 비어있던 항목 자동 채움\n` +
+                           `   - 유형별(클라이언트 우선) 가나다 정렬\n` +
+                           `   - 지난주 시트 레이아웃(너비/높이) 동기화`;
+            alert(alertMsg);
         } catch (error) {
             console.error('Smart carry-over failed:', error);
             alert('데이터를 처리하는 중 오류가 발생했습니다.');
