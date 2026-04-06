@@ -317,6 +317,7 @@ export default function UserManagement() {
                                             { key: 'sales', label: '영업현황', icon: <TrendingUp size={16} /> },
                                             { key: 'projects', label: '프로젝트 배정', icon: <Briefcase size={16} /> },
                                             { key: 'project-report', label: '프로젝트 보고', icon: <FileText size={16} /> },
+                                            { key: 'project-master', label: '프로젝트 마스터', icon: <Briefcase size={16} /> },
                                             { key: 'settings', label: '설정', icon: <SettingsIcon size={16} /> }
                                         ].map((opt, idx, arr) => {
                                             const isEnabled = formData.permissions[opt.key] !== false;
