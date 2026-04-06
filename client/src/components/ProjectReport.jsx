@@ -1022,7 +1022,7 @@ const mergeReportData = (current, previous) => {
 
 const ProjectReport = () => {
     const { user } = useAuth();
-    const { theme } = useTheme();
+    const { theme, toggleTheme } = useTheme();
     const [selectedDate, setSelectedDate] = useState(() => getReportingFriday());
     const [reportData, setReportData] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -1401,7 +1401,6 @@ const ProjectReport = () => {
         return 40 + colTotal; 
     }, [columns, getSafeWidth]);
 
-    const { theme, toggleTheme } = useTheme();
 
     const [rowHeights, setRowHeights] = useState(() => {
         const saved = localStorage.getItem(ROW_HEIGHTS_KEY);
