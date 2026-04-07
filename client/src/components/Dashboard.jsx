@@ -904,8 +904,8 @@ function Dashboard() {
                     </div>
                     <div className="card-body refined-scrollbar" style={{ height: '760px', overflowY: 'auto', padding: '0 1rem' }}>
                         {stats?.upcomingRolloffs?.length > 0 ? (
-                            <div style={{ overflowX: 'auto', paddingBottom: '0.5rem', margin: '0 -1rem', padding: '0 1rem' }}>
-                                <table className="w-full text-left" style={{ borderCollapse: 'separate', borderSpacing: '0 8px', minWidth: '650px' }}>
+                            <div style={{ overflowX: 'auto', paddingBottom: '0.5rem' }}>
+                                <table className="w-full text-left" style={{ borderCollapse: 'separate', borderSpacing: '0 8px', minWidth: '500px' }}>
                                     <thead>
                                         <tr>
                                             <th className="text-center text-muted text-[10px] font-bold uppercase tracking-[0.2em] pb-3" style={{ width: '18%' }}>이름</th>
