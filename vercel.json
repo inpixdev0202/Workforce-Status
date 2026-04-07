@@ -2,18 +2,21 @@
   "version": 2,
   "cleanUrls": true,
   "trailingSlash": false,
-  "rewrites": [
+  "routes": [
     {
-      "source": "/api/test",
-      "destination": "/client/api/test.mjs"
+      "src": "/api/test",
+      "dest": "/client/api/test.mjs"
     },
     {
-      "source": "/api/(.*)",
-      "destination": "/client/api/index.mjs"
+      "src": "/api/(.*)",
+      "dest": "/client/api/handler.mjs"
     },
     {
-      "source": "/(.*)",
-      "destination": "/client/dist/index.html"
+      "handle": "filesystem"
+    },
+    {
+      "src": "/((?!api/).*)",
+      "dest": "/client/dist/index.html"
     }
   ]
 }
