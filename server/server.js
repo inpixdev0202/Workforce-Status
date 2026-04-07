@@ -59,44 +59,75 @@ app.get('/api/health', async (req, res) => {
     });
 });
 
+let dashboardStatsCache = { data: null, timestamp: 0 };
+const DASHBOARD_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
 // Dashboard statistics
 app.get('/api/dashboard/stats', async (req, res) => {
     try {
+        if (dashboardStatsCache.data && (Date.now() - dashboardStatsCache.timestamp < DASHBOARD_CACHE_TTL)) {
+            console.log('Serving dashboard stats from cache');
+            return res.json(dashboardStatsCache.data);
+        }
+
         // Dynamic import to ensure module is loaded
         const { startOfWeek, endOfWeek, addWeeks, startOfMonth, endOfMonth, addMonths, format, eachDayOfInterval, isWeekend, parseISO } = await import('date-fns');
 
-        const todayStr = format(new Date(), 'yyyy-MM-dd');
-        const totalEmployeesResult = await get("SELECT COUNT(*) as count FROM employees WHERE status = 'active' AND (exclude_from_stats IS NULL OR exclude_from_stats = 0)");
-        const totalGroupsResult = await get('SELECT COUNT(*) as count FROM groups');
-        const totalAssignmentsResult = await get(`
-            SELECT COUNT(DISTINCT pa.employee_id) as count 
-            FROM project_assignments pa
-            JOIN projects p ON pa.project_id = p.id
-            WHERE (p.status = 'active' OR p.status = '진행중')
-              AND (pa.input_start_date <= ? OR pa.input_start_date IS NULL)
-              AND (pa.input_end_date >= ? OR pa.input_end_date IS NULL)
-              AND (LOWER(p.type) = 'client' OR p.type = '수행')
-        `, [todayStr, todayStr]);
+        const now = new Date();
+        const todayStr = format(now, 'yyyy-MM-dd');
+        const thisWeekStart = startOfWeek(now, { weekStartsOn: 1 });
+        const rangeStart = format(thisWeekStart, 'yyyy-MM-dd');
+        const rangeEnd = format(addWeeks(thisWeekStart, 16), 'yyyy-MM-dd');
 
-        // 1. Basic Distributions
-        const employmentStatus = await query("SELECT employment_type, COUNT(*) as count FROM employees WHERE status = 'active' AND (exclude_from_stats IS NULL OR exclude_from_stats = 0) GROUP BY employment_type");
-        const skillLevelStatus = await query("SELECT skill_level, COUNT(*) as count FROM employees WHERE status = 'active' AND (exclude_from_stats IS NULL OR exclude_from_stats = 0) GROUP BY skill_level");
+        const [
+            totalEmployeesResult,
+            totalGroupsResult,
+            totalAssignmentsResult,
+            employmentStatus,
+            skillLevelStatus,
+            workLocationStatus,
+            employees,
+            groups,
+            allAllocations,
+            allAssignmentsResult
+        ] = await Promise.all([
+            get("SELECT COUNT(*) as count FROM employees WHERE status = 'active' AND (exclude_from_stats IS NULL OR exclude_from_stats = 0)"),
+            get('SELECT COUNT(*) as count FROM groups'),
+            get(`
+                SELECT COUNT(DISTINCT pa.employee_id) as count 
+                FROM project_assignments pa
+                JOIN projects p ON pa.project_id = p.id
+                WHERE (p.status = 'active' OR p.status = '진행중')
+                  AND (pa.input_start_date <= ? OR pa.input_start_date IS NULL)
+                  AND (pa.input_end_date >= ? OR pa.input_end_date IS NULL)
+                  AND (LOWER(p.type) = 'client' OR p.type = '수행')
+            `, [todayStr, todayStr]),
+            query("SELECT employment_type, COUNT(*) as count FROM employees WHERE status = 'active' AND (exclude_from_stats IS NULL OR exclude_from_stats = 0) GROUP BY employment_type"),
+            query("SELECT skill_level, COUNT(*) as count FROM employees WHERE status = 'active' AND (exclude_from_stats IS NULL OR exclude_from_stats = 0) GROUP BY skill_level"),
+            query(`
+                SELECT pa.work_location, COUNT(*) as count
+                FROM project_assignments pa
+                JOIN projects p ON pa.project_id = p.id
+                WHERE p.status = 'active' 
+                  AND (pa.input_end_date >= ? OR pa.input_end_date IS NULL)
+                  AND (pa.input_start_date <= ? OR pa.input_start_date IS NULL)
+                GROUP BY pa.work_location
+            `, [todayStr, todayStr]),
+            query("SELECT id, group_id, name, employment_type FROM employees WHERE status = 'active' AND (exclude_from_stats IS NULL OR exclude_from_stats = 0)"),
+            query("SELECT id, name FROM groups"),
+            query(`
+                SELECT pa.assignment_id, pa.period_date, pa.value, e.id as employee_id, e.group_id, p.type as project_type
+                FROM project_allocations pa
+                JOIN project_assignments pass ON pa.assignment_id = pass.id
+                JOIN projects p ON pass.project_id = p.id
+                JOIN employees e ON pass.employee_id = e.id
+                WHERE pa.period_date BETWEEN ? AND ? 
+                  AND (e.status = 'active' OR e.retirement_date >= ?)
+                  AND (e.retirement_date >= ? OR e.retirement_date IS NULL)
+            `, [rangeStart, rangeEnd, rangeStart, rangeStart]),
+            query("SELECT DISTINCT employee_id FROM project_assignments")
+        ]);
 
-        // 2. Work Location
-        const workLocationStatus = await query(`
-            SELECT pa.work_location, COUNT(*) as count
-            FROM project_assignments pa
-            JOIN projects p ON pa.project_id = p.id
-            WHERE p.status = 'active' 
-              AND (pa.input_end_date >= ? OR pa.input_end_date IS NULL)
-              AND (pa.input_start_date <= ? OR pa.input_start_date IS NULL)
-            GROUP BY pa.work_location
-        `, [todayStr, todayStr]);
-
-        // 3. IDLE STATS CALCULATION
-        // Fetch all active employees and groups
-        const employees = await query("SELECT id, group_id, name, employment_type FROM employees WHERE status = 'active' AND (exclude_from_stats IS NULL OR exclude_from_stats = 0)");
-        const groups = await query("SELECT id, name FROM groups");
         const groupMap = groups.reduce((acc, g) => ({ ...acc, [g.id]: g.name }), {});
 
         // Helper to get formatted date strings for a range excluding weekends
@@ -104,10 +135,6 @@ app.get('/api/dashboard/stats', async (req, res) => {
             const days = eachDayOfInterval({ start, end });
             return days.filter(d => !isWeekend(d)).map(d => format(d, 'yyyy-MM-dd'));
         };
-
-        // Define Periods
-        const now = new Date();
-        const thisWeekStart = startOfWeek(now, { weekStartsOn: 1 });
 
         const periods = [
             { key: 'thisWeek', label: '이번 주', type: 'week', weeks: [thisWeekStart] },
@@ -117,21 +144,6 @@ app.get('/api/dashboard/stats', async (req, res) => {
             { key: 'month2', label: '+2개월', type: 'month', weeks: [addWeeks(thisWeekStart, 8), addWeeks(thisWeekStart, 9), addWeeks(thisWeekStart, 10), addWeeks(thisWeekStart, 11)] },
             { key: 'month3', label: '+3개월', type: 'month', weeks: [addWeeks(thisWeekStart, 12), addWeeks(thisWeekStart, 13), addWeeks(thisWeekStart, 14), addWeeks(thisWeekStart, 15)] }
         ];
-
-        // Fetch allocations for the entire required range
-        const rangeStart = format(thisWeekStart, 'yyyy-MM-dd');
-        const rangeEnd = format(addWeeks(thisWeekStart, 16), 'yyyy-MM-dd');
-
-        const allAllocations = await query(`
-            SELECT pa.assignment_id, pa.period_date, pa.value, e.id as employee_id, e.group_id, p.type as project_type
-            FROM project_allocations pa
-            JOIN project_assignments pass ON pa.assignment_id = pass.id
-            JOIN projects p ON pass.project_id = p.id
-            JOIN employees e ON pass.employee_id = e.id
-            WHERE pa.period_date BETWEEN ? AND ? 
-              AND (e.status = 'active' OR e.retirement_date >= ?)
-              AND (e.retirement_date >= ? OR e.retirement_date IS NULL)
-        `, [rangeStart, rangeEnd, rangeStart, rangeStart]);
 
         // Build a map of employee allocations
         const allocMap = {};
@@ -148,7 +160,6 @@ app.get('/api/dashboard/stats', async (req, res) => {
             }
         });
 
-        const allAssignmentsResult = await query("SELECT DISTINCT employee_id FROM project_assignments");
         const assignedEmpSet = new Set(allAssignmentsResult.map(r => r.employee_id));
 
         // Precalculate Regular Employee base per group
@@ -250,27 +261,38 @@ app.get('/api/dashboard/stats', async (req, res) => {
         });
 
         // 4. Monthly Trend (Legacy support or enhanced)
-        // Re-using logic or keeping simple query for trend chart
-        // Need 12 months range for chart (-6 to +5)
-        // Simplified trend query for chart
         const monthlyTrend = [];
         const chartStart = new Date();
         chartStart.setDate(1);
-        for (let i = -6; i <= 5; i++) {
+
+        const monthPromises = Array.from({ length: 12 }).map(async (_, index) => {
+            const i = index - 6; // -6 to 5
             const d = new Date(chartStart);
             d.setMonth(d.getMonth() + i);
             const yearMonth = d.toISOString().slice(0, 7);
             const label = `${d.getMonth() + 1}월`;
 
-            // Fetch demand breakdowns - Join with projects to get type
-            const demandResult = await query(`
-                SELECT p.type, SUM(pa.value) as total_mm 
-                FROM project_allocations pa
-                JOIN project_assignments pas ON pa.assignment_id = pas.id
-                JOIN projects p ON pas.project_id = p.id
-                WHERE pa.period_date::TEXT LIKE ?
-                GROUP BY p.type
-            `, [`${yearMonth}%`]);
+            const safeEndOfMonth = format(endOfMonth(new Date(`${yearMonth}-01T00:00:00`)), 'yyyy-MM-dd');
+
+            // Fetch demand and supply concurrently
+            const [demandResult, supplyStats] = await Promise.all([
+                query(`
+                    SELECT p.type, SUM(pa.value) as total_mm 
+                    FROM project_allocations pa
+                    JOIN project_assignments pas ON pa.assignment_id = pas.id
+                    JOIN projects p ON pas.project_id = p.id
+                    WHERE pa.period_date::TEXT LIKE ?
+                    GROUP BY p.type
+                `, [`${yearMonth}%`]),
+                query(`
+                    SELECT employment_type, COUNT(*) as count 
+                    FROM employees 
+                    WHERE status = 'active' AND (exclude_from_stats IS NULL OR exclude_from_stats = 0) 
+                      AND created_at <= ? 
+                      AND (retirement_date > ? OR retirement_date IS NULL)
+                    GROUP BY employment_type
+                `, [safeEndOfMonth, `${yearMonth}-01`])
+            ]);
 
             let clientMM = 0;
             let internalMM = 0;
@@ -284,18 +306,6 @@ app.get('/api/dashboard/stats', async (req, res) => {
                 else if (type === 'Leave') leaveMM += val;
                 else clientMM += val; // Default others to client or treat as internal
             });
-
-            // Fetch supply (Headcount of Regulars vs Contractors as of that month)
-            // Approximate by checking employees active during that month
-            const safeEndOfMonth = format(endOfMonth(new Date(`${yearMonth}-01T00:00:00`)), 'yyyy-MM-dd');
-            const supplyStats = await query(`
-                SELECT employment_type, COUNT(*) as count 
-                FROM employees 
-                WHERE status = 'active' AND (exclude_from_stats IS NULL OR exclude_from_stats = 0) 
-                  AND created_at <= ? 
-                  AND (retirement_date > ? OR retirement_date IS NULL)
-                GROUP BY employment_type
-            `, [safeEndOfMonth, `${yearMonth}-01`]);
 
             let regularCount = 0;
             let contractorCount = 0;
@@ -314,34 +324,78 @@ app.get('/api/dashboard/stats', async (req, res) => {
                 }
             });
 
-            monthlyTrend.push({
+            return {
                 name: label,
                 yearMonth: yearMonth,
-                demand: (clientMM / 4).toFixed(1), // Billable Demand (FTE)
+                demand: parseFloat((clientMM / 4).toFixed(1)).toFixed(1), // Billable Demand (FTE)
                 client: (clientMM / 4).toFixed(1),
                 internal: (internalMM / 4).toFixed(1),
                 leave: (leaveMM / 4).toFixed(1),
                 totalUsage: ((clientMM + internalMM + leaveMM) / 4).toFixed(1),
                 regular: regularCount,
                 contractor: contractorCount,
-                supply: regularCount + contractorCount
-            });
-            monthlyTrend[monthlyTrend.length - 1].demand = parseFloat(monthlyTrend[monthlyTrend.length - 1].demand).toFixed(1);
-        }
+                supply: regularCount + contractorCount,
+                sortIndex: i
+            };
+        });
+
+        const unorderedTrend = await Promise.all(monthPromises);
+        unorderedTrend.sort((a, b) => a.sortIndex - b.sortIndex);
+        unorderedTrend.forEach(item => {
+            delete item.sortIndex;
+            monthlyTrend.push(item);
+        });
 
         // 5. Rest of Data
-        const rawEmployeesByGroup = await query(`
-            SELECT 
-                g.name, 
-                g.color, 
-                COUNT(e.id) as count,
-                SUM(CASE WHEN e.employment_type IN ('Regular', '정규직', 'Permanent') THEN 1 ELSE 0 END) as regular_count,
-                SUM(CASE WHEN e.employment_type NOT IN ('Regular', '정규직', 'Permanent') OR e.employment_type IS NULL THEN 1 ELSE 0 END) as contract_count
-            FROM groups g 
-            LEFT JOIN employees e ON g.id = e.group_id AND (e.status = 'active' OR (e.retirement_date >= ?)) AND (e.exclude_from_stats IS NULL OR e.exclude_from_stats = 0)
-            GROUP BY g.id 
-            ORDER BY g.display_order
-        `, [todayStr]);
+        const next30Days = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        const [
+            rawEmployeesByGroup,
+            recentEmployees,
+            upcomingRolloffs,
+            benchList
+        ] = await Promise.all([
+            query(`
+                SELECT 
+                    g.name, 
+                    g.color, 
+                    COUNT(e.id) as count,
+                    SUM(CASE WHEN e.employment_type IN ('Regular', '정규직', 'Permanent') THEN 1 ELSE 0 END) as regular_count,
+                    SUM(CASE WHEN e.employment_type NOT IN ('Regular', '정규직', 'Permanent') OR e.employment_type IS NULL THEN 1 ELSE 0 END) as contract_count
+                FROM groups g 
+                LEFT JOIN employees e ON g.id = e.group_id AND (e.status = 'active' OR (e.retirement_date >= ?)) AND (e.exclude_from_stats IS NULL OR e.exclude_from_stats = 0)
+                GROUP BY g.id 
+                ORDER BY g.display_order
+            `, [todayStr]),
+            query("SELECT e.*, g.name as group_name, g.color as group_color FROM employees e LEFT JOIN groups g ON e.group_id = g.id WHERE (e.status = 'active' OR (e.retirement_date >= ?)) AND (e.exclude_from_stats IS NULL OR e.exclude_from_stats = 0) ORDER BY e.created_at DESC LIMIT 5", [todayStr]),
+            query(`
+                SELECT e.name as employee_name, e.position, e.employment_type, g.name as group_name, g.color as group_color, p.name as project_name, pa.input_end_date
+                FROM project_assignments pa JOIN employees e ON pa.employee_id = e.id LEFT JOIN groups g ON e.group_id = g.id JOIN projects p ON pa.project_id = p.id
+                WHERE pa.input_end_date BETWEEN ? AND ? 
+                  AND (e.exclude_from_stats IS NULL OR e.exclude_from_stats = 0)
+                ORDER BY pa.input_end_date ASC
+            `, [todayStr, next30Days]),
+            query(`
+                SELECT DISTINCT e.id, e.name, e.position, e.skill_level, e.employment_type, g.name as group_name, g.color as group_color,
+                (SELECT p.name FROM project_assignments pa JOIN projects p ON pa.project_id = p.id 
+                 WHERE pa.employee_id = e.id AND (pa.input_end_date >= ? OR pa.input_end_date IS NULL) 
+                 AND (pa.input_start_date <= ? OR pa.input_start_date IS NULL) AND p.type = 'Leave' 
+                 ORDER BY pa.input_start_date DESC LIMIT 1) as leave_status
+                FROM employees e 
+                LEFT JOIN groups g ON e.group_id = g.id
+                WHERE (e.status = 'active' OR e.retirement_date >= ?)
+                  AND (e.retirement_date >= ? OR e.retirement_date IS NULL)
+                  AND e.employment_type IN ('Regular', '정규직', 'Permanent')
+                  AND e.id NOT IN (
+                    SELECT employee_id 
+                    FROM project_assignments pa
+                    JOIN projects p ON pa.project_id = p.id
+                    WHERE (pa.input_end_date >= ? OR pa.input_end_date IS NULL) 
+                      AND (pa.input_start_date <= ? OR pa.input_start_date IS NULL)
+                      AND (LOWER(p.type) = 'client' OR p.type = '수행')
+                )
+                AND (e.exclude_from_stats IS NULL OR e.exclude_from_stats = 0)
+            `, [todayStr, todayStr, todayStr, todayStr, todayStr, todayStr])
+        ]);
 
         const employeesByGroup = rawEmployeesByGroup.map(g => ({
             ...g,
@@ -349,38 +403,6 @@ app.get('/api/dashboard/stats', async (req, res) => {
             regular_count: parseInt(g.regular_count, 10) || 0,
             contract_count: parseInt(g.contract_count, 10) || 0
         }));
-        const recentEmployees = await query("SELECT e.*, g.name as group_name, g.color as group_color FROM employees e LEFT JOIN groups g ON e.group_id = g.id WHERE (e.status = 'active' OR (e.retirement_date >= ?)) AND (e.exclude_from_stats IS NULL OR e.exclude_from_stats = 0) ORDER BY e.created_at DESC LIMIT 5", [todayStr]);
-
-        const next30Days = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-        const upcomingRolloffs = await query(`
-            SELECT e.name as employee_name, e.position, e.employment_type, g.name as group_name, g.color as group_color, p.name as project_name, pa.input_end_date
-            FROM project_assignments pa JOIN employees e ON pa.employee_id = e.id LEFT JOIN groups g ON e.group_id = g.id JOIN projects p ON pa.project_id = p.id
-            WHERE pa.input_end_date BETWEEN ? AND ? 
-              AND (e.exclude_from_stats IS NULL OR e.exclude_from_stats = 0)
-            ORDER BY pa.input_end_date ASC
-        `, [todayStr, next30Days]);
-
-        const benchList = await query(`
-            SELECT DISTINCT e.id, e.name, e.position, e.skill_level, e.employment_type, g.name as group_name, g.color as group_color,
-            (SELECT p.name FROM project_assignments pa JOIN projects p ON pa.project_id = p.id 
-             WHERE pa.employee_id = e.id AND (pa.input_end_date >= ? OR pa.input_end_date IS NULL) 
-             AND (pa.input_start_date <= ? OR pa.input_start_date IS NULL) AND p.type = 'Leave' 
-             ORDER BY pa.input_start_date DESC LIMIT 1) as leave_status
-            FROM employees e 
-            LEFT JOIN groups g ON e.group_id = g.id
-            WHERE (e.status = 'active' OR e.retirement_date >= ?)
-              AND (e.retirement_date >= ? OR e.retirement_date IS NULL)
-              AND e.employment_type IN ('Regular', '정규직', 'Permanent')
-              AND e.id NOT IN (
-                SELECT employee_id 
-                FROM project_assignments pa
-                JOIN projects p ON pa.project_id = p.id
-                WHERE (pa.input_end_date >= ? OR pa.input_end_date IS NULL) 
-                  AND (pa.input_start_date <= ? OR pa.input_start_date IS NULL)
-                  AND (LOWER(p.type) = 'client' OR p.type = '수행')
-            )
-            AND (e.exclude_from_stats IS NULL OR e.exclude_from_stats = 0)
-        `, [todayStr, todayStr, todayStr, todayStr, todayStr, todayStr]);
 
         // Calculate Group Workforce Detail (Stacked Bar Chart Data)
         const groupWorkforceDetails = await Promise.all(groups.map(async g => {
@@ -442,7 +464,7 @@ app.get('/api/dashboard/stats', async (req, res) => {
             };
         }));
 
-        res.json({
+        const finalResult = {
             totalEmployees: totalEmployeesResult?.count || 0,
             totalGroups: totalGroupsResult?.count || 0,
             totalAssignments: totalAssignmentsResult?.count || 0,
@@ -456,7 +478,12 @@ app.get('/api/dashboard/stats', async (req, res) => {
             workLocationStatus,
             monthlyTrend,
             idleStats // New detailed stats
-        });
+        };
+
+        dashboardStatsCache.data = finalResult;
+        dashboardStatsCache.timestamp = Date.now();
+
+        res.json(finalResult);
 
     } catch (error) {
         console.error('Stats Error:', error);
