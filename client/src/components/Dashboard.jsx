@@ -599,11 +599,11 @@ function Dashboard() {
 
             {/* Idle Status Table Section */}
             <div className="glass-card mb-lg dashboard-grid">
-                <div className="card-header border-0 pb-0 flex justify-between items-center">
-                    <h3 className="card-title">
+                <div className="card-header border-0 pb-0 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pt-4 sm:pt-3">
+                    <h3 className="card-title mb-0">
                         <BilingualText className="text-gradient-warning" en="Idle Workforce Status (Rate %)" ko="유휴율 상세 현황 (%)" />
                     </h3>
-                    <div className="flex items-center gap-4">
+                    <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto mt-1 sm:mt-0">
                         <div className="segmented-control">
                             <button 
                                 className={`view-mode-btn ${idleViewMode === 'original' ? 'active' : ''}`}
@@ -618,7 +618,7 @@ function Dashboard() {
                                 Refined
                             </button>
                         </div>
-                        <div className="flex gap-2 text-xs font-bold border-l border-outline-variant pl-4">
+                        <div className="flex flex-wrap gap-2 text-[10px] sm:text-xs font-bold border-l-0 sm:border-l border-outline-variant pl-0 sm:pl-4">
                             <span className="px-2 py-1 rounded bg-green-500/20 text-green-400 border border-green-500/30">
                                 &lt; 10% : 안정
                             </span>
