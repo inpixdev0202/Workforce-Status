@@ -432,7 +432,7 @@ const MainLayout = () => {
                         <Link to="/" className="navbar-brand" style={{ fontFamily: 'Manrope, sans-serif', flexShrink: 0 }}>
                             <span style={{ filter: 'drop-shadow(0 0 8px var(--primary-glow))' }}><Logo size={64} className="nav-logo-svg" /></span>
                         </Link>
-                        <div className="hide-scroll-bar-mobile" style={{ overflowX: 'auto', flex: 1, padding: '0 10px', WebkitOverflowScrolling: 'touch' }}>
+                        <div className="hide-scroll-bar-mobile" style={{ overflowX: isMobile ? 'auto' : 'visible', flex: 1, padding: '0 10px', WebkitOverflowScrolling: 'touch' }}>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', minWidth: 'max-content', gap: '2rem' }}>
                                 <ul className="navbar-nav" style={{ display: 'flex', whiteSpace: 'nowrap', width: 'max-content' }}>
                                     {MENU_ITEMS.filter(item => hasAccess(user, item)).map(item => {

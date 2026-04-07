@@ -4470,3 +4470,11 @@ select.premium-form-input {
   to { opacity: 1; }
 }
 
+/* Hide horizontal scrollbar track and thumb */
+.hide-scroll-bar-mobile::-webkit-scrollbar {
+  display: none;
+}
+.hide-scroll-bar-mobile {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
