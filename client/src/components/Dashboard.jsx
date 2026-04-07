@@ -894,73 +894,75 @@ function Dashboard() {
                     </div>
                     <div className="card-body refined-scrollbar" style={{ height: '760px', overflowY: 'auto', padding: '0 1rem' }}>
                         {stats?.upcomingRolloffs?.length > 0 ? (
-                            <table className="w-full text-left" style={{ borderCollapse: 'separate', borderSpacing: '0 8px' }}>
-                                <thead>
-                                    <tr>
-                                        <th className="text-center text-muted text-[10px] font-bold uppercase tracking-[0.2em] pb-3" style={{ width: '18%' }}>이름</th>
-                                        <th className="text-center text-muted text-[10px] font-bold uppercase tracking-[0.2em] pb-3" style={{ width: '12%' }}>그룹</th>
-                                        <th className="text-center text-muted text-[10px] font-bold uppercase tracking-[0.2em] pb-3" style={{ width: '12%' }}>고용</th>
-                                        <th className="text-center text-muted text-[10px] font-bold uppercase tracking-[0.2em] pb-3" style={{ width: '38%' }}>프로젝트</th>
-                                        <th className="text-center text-muted text-[10px] font-bold uppercase tracking-[0.2em] pb-3" style={{ width: '20%' }}>종료일</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {stats.upcomingRolloffs.map((item, index) => {
-                                        const today = new Date();
-                                        const endDate = new Date(item.input_end_date);
-                                        const diffTime = endDate - today;
-                                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                            <div style={{ overflowX: 'auto', paddingBottom: '0.5rem', margin: '0 -1rem', padding: '0 1rem' }}>
+                                <table className="w-full text-left" style={{ borderCollapse: 'separate', borderSpacing: '0 8px', minWidth: '650px' }}>
+                                    <thead>
+                                        <tr>
+                                            <th className="text-center text-muted text-[10px] font-bold uppercase tracking-[0.2em] pb-3" style={{ width: '18%' }}>이름</th>
+                                            <th className="text-center text-muted text-[10px] font-bold uppercase tracking-[0.2em] pb-3" style={{ width: '12%' }}>그룹</th>
+                                            <th className="text-center text-muted text-[10px] font-bold uppercase tracking-[0.2em] pb-3" style={{ width: '12%' }}>고용</th>
+                                            <th className="text-center text-muted text-[10px] font-bold uppercase tracking-[0.2em] pb-3" style={{ width: '38%' }}>프로젝트</th>
+                                            <th className="text-center text-muted text-[10px] font-bold uppercase tracking-[0.2em] pb-3" style={{ width: '20%' }}>종료일</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {stats.upcomingRolloffs.map((item, index) => {
+                                            const today = new Date();
+                                            const endDate = new Date(item.input_end_date);
+                                            const diffTime = endDate - today;
+                                            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-                                        return (
-                                            <tr 
-                                                key={index} 
-                                                className="premium-editorial-row group"
-                                                style={{ 
-                                                    backgroundColor: 'var(--surface-low)',
-                                                    transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-                                                    cursor: 'default',
-                                                    boxShadow: '0 2px 8px -2px rgba(0,0,0,0.05)',
-                                                    marginBottom: '12px'
-                                                }}
-                                            >
-                                                <td className="py-5 px-3 pl-5 text-center" style={{ 
-                                                    borderTopLeftRadius: '14px', 
-                                                    borderBottomLeftRadius: '14px',
-                                                    borderLeft: `6px solid ${item.group_color || 'var(--primary)'}`
-                                                }}>
-                                                    <div className="flex flex-col items-center">
-                                                        <div style={{ fontSize: '15px', fontWeight: '900', color: 'var(--text-primary)', letterSpacing: '-0.03em', lineHeight: '1.1' }}>
-                                                            {item.employee_name}
-                                                        </div>
-                                                        <div style={{ fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: '4px', opacity: 0.6 }}>
-                                                            {item.position}
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                <td className="py-4 px-2 text-center">
-                                                    <span style={{ 
-                                                        backgroundColor: `${item.group_color}10`, 
-                                                        color: item.group_color, 
-                                                        fontSize: '10px', 
-                                                        padding: '4px 10px', 
-                                                        borderRadius: '6px', 
-                                                        border: `1px solid ${item.group_color}30`, 
-                                                        fontWeight: '800',
-                                                        textTransform: 'uppercase',
-                                                        display: 'inline-block'
+                                            return (
+                                                <tr 
+                                                    key={index} 
+                                                    className="premium-editorial-row group"
+                                                    style={{ 
+                                                        backgroundColor: 'var(--surface-low)',
+                                                        transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                                                        cursor: 'default',
+                                                        boxShadow: '0 2px 8px -2px rgba(0,0,0,0.05)',
+                                                        marginBottom: '12px'
+                                                    }}
+                                                >
+                                                    <td className="py-5 px-3 pl-5 text-center" style={{ 
+                                                        borderTopLeftRadius: '14px', 
+                                                        borderBottomLeftRadius: '14px',
+                                                        borderLeft: `6px solid ${item.group_color || 'var(--primary)'}`,
+                                                        whiteSpace: 'nowrap'
                                                     }}>
-                                                        {item.group_name}
-                                                    </span>
-                                                </td>
-                                                <td className="py-4 px-2 text-center">
-                                                    <span style={{
-                                                        fontSize: '11px',
-                                                        color: item.employment_type === '정규직' ? 'var(--primary)' : (item.employment_type === '계약직' ? '#D97706' : 'var(--text-muted)'),
-                                                        fontWeight: '800'
-                                                    }}>
-                                                        {item.employment_type || '-'}
-                                                    </span>
-                                                </td>
+                                                        <div className="flex flex-col items-center">
+                                                            <div style={{ fontSize: '15px', fontWeight: '900', color: 'var(--text-primary)', letterSpacing: '-0.03em', lineHeight: '1.1' }}>
+                                                                {item.employee_name}
+                                                            </div>
+                                                            <div style={{ fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: '4px', opacity: 0.6 }}>
+                                                                {item.position}
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td className="py-4 px-2 text-center" style={{ whiteSpace: 'nowrap' }}>
+                                                        <span style={{ 
+                                                            backgroundColor: `${item.group_color}10`, 
+                                                            color: item.group_color, 
+                                                            fontSize: '10px', 
+                                                            padding: '4px 10px', 
+                                                            borderRadius: '6px', 
+                                                            border: `1px solid ${item.group_color}30`, 
+                                                            fontWeight: '800',
+                                                            textTransform: 'uppercase',
+                                                            display: 'inline-block'
+                                                        }}>
+                                                            {item.group_name}
+                                                        </span>
+                                                    </td>
+                                                    <td className="py-4 px-2 text-center" style={{ whiteSpace: 'nowrap' }}>
+                                                        <span style={{
+                                                            fontSize: '11px',
+                                                            color: item.employment_type === '정규직' ? 'var(--primary)' : (item.employment_type === '계약직' ? '#D97706' : 'var(--text-muted)'),
+                                                            fontWeight: '800'
+                                                        }}>
+                                                            {item.employment_type || '-'}
+                                                        </span>
+                                                    </td>
                                                 <td className="py-4 px-2 text-center">
                                                     <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', opacity: 0.85, maxWidth: '260px', margin: '0 auto' }} className="truncate" title={item.project_name}>
                                                         {item.project_name}
@@ -990,6 +992,7 @@ function Dashboard() {
                                     })}
                                 </tbody>
                             </table>
+                            </div>
                         ) : (
                             <div className="flex items-center justify-center h-full text-muted">
                                 예정된 종료 인원이 없습니다.
