@@ -250,7 +250,7 @@ const ChangePasswordModal = ({ isOpen, onClose }) => {
                             </div>
                         </div>
 
-                        {/* Validation hints to match mockup */}
+                        {/* Validation hints */}
                         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0 4px' }}>
                             <div style={{ 
                                 display: 'flex', 
@@ -334,8 +334,6 @@ const ChangePasswordModal = ({ isOpen, onClose }) => {
                                 boxShadow: '0 8px 20px -4px rgba(6, 182, 212, 0.3)',
                                 letterSpacing: '0.01em'
                             }}
-                            onMouseOver={(e) => { if(!loading) e.currentTarget.style.filter = 'brightness(1.1)'; }}
-                            onMouseOut={(e) => { if(!loading) e.currentTarget.style.filter = 'brightness(1)'; }}
                         >
                             <ShieldCheck size={18} />
                             {loading ? 'Processing...' : 'Change Password'}
@@ -355,8 +353,6 @@ const ChangePasswordModal = ({ isOpen, onClose }) => {
                                 cursor: 'pointer',
                                 transition: '0.2s'
                             }}
-                            onMouseOver={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)'; e.currentTarget.style.color = '#fff'; }}
-                            onMouseOut={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#94a3b8'; }}
                         >
                             Cancel
                         </button>
@@ -408,8 +404,6 @@ const MainLayout = () => {
             }
         };
 
-        // On mobile, the backdrop handles closing, and since the sheet is portal-rendered,
-        // a click-outside check relative to profileRef would incorrectly close it.
         if (isProfileOpen && !isMobile) {
             document.addEventListener('mousedown', handleClickOutside);
         } else {
@@ -424,6 +418,141 @@ const MainLayout = () => {
         setIsProfileOpen(!isProfileOpen);
     };
 
+    const renderProfileControls = () => (
+        <div className="flex items-center gap-4 text-sm" style={{ flexShrink: 0, paddingRight: isMobile ? '20px' : '0' }}>
+            <button
+                onClick={toggleTheme}
+                className="premium-icon-btn"
+                style={{ 
+                    width: '38px', 
+                    height: '38px', 
+                    borderRadius: '12px',
+                    background: 'var(--surface-high)',
+                    border: 'none',
+                    color: 'var(--primary)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    transition: '0.3s'
+                }}
+                title={theme === 'dark' ? 'Switch to Editorial Light' : 'Switch to Mission Dark'}
+            >
+                {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+            </button>
+            <div 
+                ref={profileRef}
+                className="relative py-2"
+            >
+                <div 
+                    onClick={toggleProfileDropdown}
+                    style={{ 
+                        display: 'flex', 
+                        backgroundColor: isProfileOpen ? 'var(--surface-bright)' : 'var(--surface-high)', 
+                        padding: '6px 16px', 
+                        borderRadius: '99px', 
+                        border: 'none', 
+                        gap: '10px', 
+                        alignItems: 'center', 
+                        cursor: 'pointer',
+                        transition: '0.3s',
+                        boxShadow: 'var(--shadow-sm)',
+                        transform: isProfileOpen ? 'translateY(-1px)' : 'translateY(0)',
+                        whiteSpace: 'nowrap',
+                        flexWrap: 'nowrap',
+                        flexShrink: 0
+                    }}
+                >
+                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--tertiary)', boxShadow: '0 0 10px var(--tertiary-glow)' }}></div>
+                    <span style={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '14px', letterSpacing: '-0.01em' }}>{user.name}</span>
+                    <span className="glow-pill glow-pill-teal" style={{ fontSize: '9px', padding: '1px 6px' }}>
+                        {user.role === ROLES.ADMIN ? '관리자' : 
+                         user.role === ROLES.GROUP_LEADER ? '그룹장' :
+                         user.role === ROLES.TEAM_LEADER ? '팀장' : user.role}
+                    </span>
+                    <ChevronDown size={14} style={{ color: 'var(--text-muted)', transition: '0.3s', transform: isProfileOpen ? 'rotate(180deg)' : 'rotate(0deg)' }} />
+                </div>
+                
+                {/* Profile Popup (Desktop Dropdown) */}
+                {isProfileOpen && !isMobile && (
+                    <div 
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ 
+                            position: 'absolute', 
+                            right: 0, 
+                            top: '100%', 
+                            paddingTop: '12px', 
+                            zIndex: 10000 
+                        }}
+                    >
+                        <div className="premium-glass" style={{ 
+                            minWidth: '240px', 
+                            backgroundColor: 'var(--surface-highest)', 
+                            borderRadius: 'var(--radius-xl)', 
+                            border: '1px solid var(--outline-variant)', 
+                            boxShadow: 'var(--shadow-xl)', 
+                            overflow: 'hidden' 
+                        }}>
+                            <div style={{ padding: '24px 24px 16px', borderBottom: '1px solid rgba(255, 255, 255, 0.05)', background: 'rgba(255, 255, 255, 0.02)' }}>
+                                <p style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '6px' }}>내 정보</p>
+                                <p style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: '700', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.email}</p>
+                            </div>
+                            
+                            <div style={{ padding: '8px' }}>
+                                <button 
+                                    onClick={() => { setShowChangePassword(true); setIsProfileOpen(false); }}
+                                    style={{
+                                        width: '100%',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '12px',
+                                        padding: '12px 16px',
+                                        background: 'transparent',
+                                        border: 'none',
+                                        borderRadius: '16px',
+                                        color: 'var(--text-secondary)',
+                                        cursor: 'pointer',
+                                        transition: '0.2s',
+                                        textAlign: 'left'
+                                    }}
+                                >
+                                    <div style={{ width: '32px', height: '32px', borderRadius: '10px', backgroundColor: 'rgba(255, 255, 255, 0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        <Key size={16} style={{ color: 'var(--primary)' }} />
+                                    </div>
+                                    <span style={{ fontSize: '14px', fontWeight: '600' }}>비밀번호 변경</span>
+                                </button>
+
+                                <button 
+                                    onClick={logout}
+                                    style={{
+                                        width: '100%',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '12px',
+                                        padding: '12px 16px',
+                                        background: 'transparent',
+                                        border: 'none',
+                                        borderRadius: '16px',
+                                        color: 'var(--error)',
+                                        cursor: 'pointer',
+                                        transition: '0.2s',
+                                        textAlign: 'left',
+                                        marginTop: '4px'
+                                    }}
+                                >
+                                    <div style={{ width: '32px', height: '32px', borderRadius: '10px', backgroundColor: 'rgba(255, 180, 171, 0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        <LogOut size={16} />
+                                    </div>
+                                    <span style={{ fontSize: '14px', fontWeight: '600' }}>로그아웃</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+
     return (
         <div className="app">
             <nav className="navbar premium-glass" style={{ border: 'none', borderBottom: '1px solid var(--outline-variant)', borderRadius: 0, overflow: 'visible' }}>
@@ -432,17 +561,31 @@ const MainLayout = () => {
                         <Link to="/" className="navbar-brand" style={{ fontFamily: 'Manrope, sans-serif', flexShrink: 0 }}>
                             <span style={{ filter: 'drop-shadow(0 0 8px var(--primary-glow))' }}><Logo size={64} className="nav-logo-svg" /></span>
                         </Link>
-                        <div className="hide-scroll-bar-mobile" style={{ overflowX: isMobile ? 'auto' : 'visible', flex: 1, padding: '0 10px', WebkitOverflowScrolling: 'touch' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', minWidth: 'max-content', gap: '2rem' }}>
-                                <ul className="navbar-nav" style={{ display: 'flex', whiteSpace: 'nowrap', width: 'max-content' }}>
+                        <div className="hide-scroll-bar-mobile" style={{ 
+                            overflowX: isMobile ? 'auto' : 'visible', 
+                            flex: 1, 
+                            padding: isMobile ? '0 10px' : '0', 
+                            WebkitOverflowScrolling: 'touch',
+                            display: 'flex',
+                            alignItems: 'center'
+                        }}>
+                            <div style={{ 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                justifyContent: isMobile ? 'space-between' : 'flex-start', 
+                                width: isMobile ? 'max-content' : '100%', 
+                                gap: isMobile ? '2rem' : '0' 
+                            }}>
+                                <ul className="navbar-nav" style={{ display: 'flex', whiteSpace: 'nowrap' }}>
                                     {MENU_ITEMS.filter(item => hasAccess(user, item)).map(item => {
                                         const visibleChildren = item.children?.filter(c => hasAccess(user, c));
                                         const hasDropdown = visibleChildren && visibleChildren.length > 0;
 
                                         return (
                                             <li key={item.id} className="nav-item-wrapper" style={{ position: 'relative' }}
-                                                onMouseEnter={() => hasDropdown && handleMouseEnter(item.id)}
-                                                onMouseLeave={() => hasDropdown && handleMouseLeave()}
+                                                onMouseEnter={() => !isMobile && hasDropdown && handleMouseEnter(item.id)}
+                                                onMouseLeave={() => !isMobile && hasDropdown && handleMouseLeave()}
+                                                onClick={() => isMobile && hasDropdown && (openDropdown === item.id ? setOpenDropdown(null) : setOpenDropdown(item.id))}
                                             >
                                                 <NavLink
                                                     to={item.path}
@@ -484,231 +627,94 @@ const MainLayout = () => {
                                         );
                                     })}
                                 </ul>
-                                {/* User Profile, Theme Toggle & Logout */}
-                                <div className="flex items-center gap-4 text-sm" style={{ flexShrink: 0, paddingRight: '10px' }}>
-                                    {/* Theme Toggle Button */}
-                        <button
-                            onClick={toggleTheme}
-                            className="premium-icon-btn"
-                            style={{ 
-                                width: '38px', 
-                                height: '38px', 
-                                borderRadius: '12px',
-                                background: 'var(--surface-high)',
-                                border: 'none',
-                                color: 'var(--primary)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                cursor: 'pointer',
-                                transition: '0.3s'
-                            }}
-                            title={theme === 'dark' ? 'Switch to Editorial Light' : 'Switch to Mission Dark'}
-                        >
-                            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-                        </button>
-                        <div 
-                            ref={profileRef}
-                            className="relative py-2"
-                        >
-                            <div 
-                                onClick={toggleProfileDropdown}
-                                style={{ 
-                                    display: 'flex', 
-                                    backgroundColor: isProfileOpen ? 'var(--surface-bright)' : 'var(--surface-high)', 
-                                    padding: '6px 16px', 
-                                    borderRadius: '99px', 
-                                    border: 'none', 
-                                    gap: '10px', 
-                                    alignItems: 'center', 
-                                    cursor: 'pointer',
-                                    transition: '0.3s',
-                                    boxShadow: 'var(--shadow-sm)',
-                                    transform: isProfileOpen ? 'translateY(-1px)' : 'translateY(0)',
-                                    whiteSpace: 'nowrap',
-                                    flexWrap: 'nowrap',
-                                    flexShrink: 0
-                                }}
-                            >
-                                <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--tertiary)', boxShadow: '0 0 10px var(--tertiary-glow)' }}></div>
-                                <span style={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '14px', letterSpacing: '-0.01em' }}>{user.name}</span>
-                                <span className="glow-pill glow-pill-teal" style={{ fontSize: '9px', padding: '1px 6px' }}>
-                                    {user.role === ROLES.ADMIN ? '관리자' : 
-                                     user.role === ROLES.GROUP_LEADER ? '그룹장' :
-                                     user.role === ROLES.TEAM_LEADER ? '팀장' : user.role}
-                                </span>
-                                <ChevronDown size={14} style={{ color: 'var(--text-muted)', transition: '0.3s', transform: isProfileOpen ? 'rotate(180deg)' : 'rotate(0deg)' }} />
+
+                                {isMobile && renderProfileControls()}
                             </div>
-
-                            {/* Profile Menu (Desktop: Dropdown, Mobile: Bottom Sheet) */}
-                             {isProfileOpen && (
-                                 isMobile ? (
-                                     createPortal(
-                                         <div className="bottom-sheet-wrapper" style={{ position: 'fixed', inset: 0, zIndex: 10000 }}>
-                                             <div className="bottom-sheet-backdrop" onClick={() => setIsProfileOpen(false)} />
-                                             <div className="mobile-bottom-sheet" onClick={(e) => e.stopPropagation()}>
-                                                 <div className="bottom-sheet-handle" />
-                                                 <div style={{ padding: '0 0 20px', borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
-                                                     <p style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '8px' }}>내 정보</p>
-                                                     <p style={{ fontSize: '16px', color: 'var(--text-primary)', fontWeight: '700' }}>{user.email}</p>
-                                                     <p style={{ fontSize: '12px', color: 'var(--primary)', marginTop: '4px', fontWeight: '600' }}>
-                                                         {user.role === ROLES.ADMIN ? '관리자 권한' : 
-                                                          user.role === ROLES.GROUP_LEADER ? '그룹장 권한' :
-                                                          user.role === ROLES.TEAM_LEADER ? '팀장 권한' : `${user.role} 권한`}
-                                                     </p>
-                                                 </div>
-                                                 
-                                                 <div style={{ padding: '12px 0 0' }}>
-                                                     <button 
-                                                         onClick={() => { setShowChangePassword(true); setIsProfileOpen(false); }}
-                                                         style={{
-                                                             width: '100%',
-                                                             display: 'flex',
-                                                             alignItems: 'center',
-                                                             gap: '16px',
-                                                             padding: '16px',
-                                                             background: 'rgba(255, 255, 255, 0.03)',
-                                                             border: '1px solid rgba(255, 255, 255, 0.05)',
-                                                             borderRadius: '16px',
-                                                             color: 'var(--text-primary)',
-                                                             cursor: 'pointer',
-                                                             textAlign: 'left',
-                                                             marginBottom: '10px'
-                                                         }}
-                                                     >
-                                                         <div style={{ width: '40px', height: '40px', borderRadius: '12px', backgroundColor: 'rgba(59, 130, 246, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                             <Key size={20} style={{ color: 'var(--primary)' }} />
-                                                         </div>
-                                                         <div style={{ flex: 1 }}>
-                                                             <span style={{ fontSize: '15px', fontWeight: '700', display: 'block' }}>비밀번호 변경</span>
-                                                             <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>계정 보안 설정을 관리합니다</span>
-                                                         </div>
-                                                     </button>
-
-                                                     <button 
-                                                         onClick={logout}
-                                                         style={{
-                                                             width: '100%',
-                                                             display: 'flex',
-                                                             alignItems: 'center',
-                                                             gap: '16px',
-                                                             padding: '16px',
-                                                             background: 'rgba(255, 75, 75, 0.05)',
-                                                             border: '1px solid rgba(255, 75, 75, 0.1)',
-                                                             borderRadius: '16px',
-                                                             color: '#ff4b4b',
-                                                             cursor: 'pointer',
-                                                             textAlign: 'left'
-                                                         }}
-                                                     >
-                                                         <div style={{ width: '40px', height: '40px', borderRadius: '12px', backgroundColor: 'rgba(255, 75, 75, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                             <LogOut size={20} />
-                                                         </div>
-                                                         <div style={{ flex: 1 }}>
-                                                             <span style={{ fontSize: '15px', fontWeight: '700', display: 'block' }}>로그아웃</span>
-                                                             <span style={{ fontSize: '12px', color: 'rgba(255, 75, 75, 0.6)' }}>세션을 종료하고 안전하게 나갑니다</span>
-                                                         </div>
-                                                     </button>
-                                                 </div>
-                                             </div>
-                                         </div>,
-                                         document.body
-                                     )
-                                 ) : (
-                                     <div 
-                                         onClick={(e) => e.stopPropagation()}
-                                         style={{ 
-                                             position: 'absolute', 
-                                             right: 0, 
-                                             top: '100%', 
-                                             paddingTop: '12px', 
-                                             zIndex: 10000 
-                                         }}
-                                     >
-                                         <div className="premium-glass" style={{ 
-                                             minWidth: '240px', 
-                                             backgroundColor: 'var(--surface-highest)', 
-                                             borderRadius: 'var(--radius-xl)', 
-                                             border: '1px solid var(--outline-variant)', 
-                                             boxShadow: 'var(--shadow-xl)', 
-                                             overflow: 'hidden' 
-                                         }}>
-                                             <div style={{ padding: '24px 24px 16px', borderBottom: '1px solid rgba(255, 255, 255, 0.05)', background: 'rgba(255, 255, 255, 0.02)' }}>
-                                                 <p style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '6px' }}>내 정보</p>
-                                                 <p style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: '700', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.email}</p>
-                                             </div>
-                                             
-                                             <div style={{ padding: '8px' }}>
-                                                 <button 
-                                                     onClick={() => { setShowChangePassword(true); setIsProfileOpen(false); }}
-                                                     style={{
-                                                         width: '100%',
-                                                         display: 'flex',
-                                                         alignItems: 'center',
-                                                         gap: '12px',
-                                                         padding: '12px 16px',
-                                                         background: 'transparent',
-                                                         border: 'none',
-                                                         borderRadius: '16px',
-                                                         color: 'var(--text-secondary)',
-                                                         cursor: 'pointer',
-                                                         transition: '0.2s',
-                                                         textAlign: 'left'
-                                                     }}
-                                                     onMouseOver={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)'; e.currentTarget.style.color = '#fff'; }}
-                                                     onMouseOut={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
-                                                 >
-                                                     <div style={{ width: '32px', height: '32px', borderRadius: '10px', backgroundColor: 'rgba(255, 255, 255, 0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                         <Key size={16} style={{ color: 'var(--primary)' }} />
-                                                     </div>
-                                                     <span style={{ fontSize: '14px', fontWeight: '600' }}>비밀번호 변경</span>
-                                                 </button>
-
-                                                 <button 
-                                                     onClick={logout}
-                                                     style={{
-                                                         width: '100%',
-                                                         display: 'flex',
-                                                         alignItems: 'center',
-                                                         gap: '12px',
-                                                         padding: '12px 16px',
-                                                         background: 'transparent',
-                                                         border: 'none',
-                                                         borderRadius: '16px',
-                                                         color: 'var(--error)',
-                                                         opacity: 0.9,
-                                                         cursor: 'pointer',
-                                                         transition: '0.2s',
-                                                         textAlign: 'left',
-                                                         marginTop: '4px'
-                                                     }}
-                                                     onMouseOver={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 180, 171, 0.08)'; e.currentTarget.style.opacity = '1'; }}
-                                                     onMouseOut={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.opacity = '0.9'; }}
-                                                 >
-                                                     <div style={{ width: '32px', height: '32px', borderRadius: '10px', backgroundColor: 'rgba(255, 180, 171, 0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                         <LogOut size={16} />
-                                                     </div>
-                                                     <span style={{ fontSize: '14px', fontWeight: '600' }}>로그아웃</span>
-                                                 </button>
-                                             </div>
-                                         </div>
-                                     </div>
-                                 )
-                             )}
                         </div>
                     </div>
+
+                    {!isMobile && renderProfileControls()}
                 </div>
-            </div>
-        </div>
-    </div>
-</nav>
+            </nav>
+
+            {/* Mobile Bottom Sheet Portal */}
+            {isProfileOpen && isMobile && createPortal(
+                <div className="bottom-sheet-wrapper" style={{ position: 'fixed', inset: 0, zIndex: 10000 }}>
+                    <div className="bottom-sheet-backdrop" onClick={() => setIsProfileOpen(false)} />
+                    <div className="mobile-bottom-sheet" onClick={(e) => e.stopPropagation()}>
+                        <div className="bottom-sheet-handle" />
+                        <div style={{ padding: '0 0 20px', borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                            <p style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '8px' }}>내 정보</p>
+                            <p style={{ fontSize: '16px', color: 'var(--text-primary)', fontWeight: '700' }}>{user.email}</p>
+                            <p style={{ fontSize: '12px', color: 'var(--primary)', marginTop: '4px', fontWeight: '600' }}>
+                                {user.role === ROLES.ADMIN ? '관리자 권한' : 
+                                 user.role === ROLES.GROUP_LEADER ? '그룹장 권한' :
+                                 user.role === ROLES.TEAM_LEADER ? '팀장 권한' : `${user.role} 권한`}
+                            </p>
+                        </div>
+                        
+                        <div style={{ padding: '12px 0 0' }}>
+                            <button 
+                                onClick={() => { setShowChangePassword(true); setIsProfileOpen(false); }}
+                                style={{
+                                    width: '100%',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '16px',
+                                    padding: '16px',
+                                    background: 'rgba(255, 255, 255, 0.03)',
+                                    border: '1px solid rgba(255, 255, 255, 0.05)',
+                                    borderRadius: '16px',
+                                    color: 'var(--text-primary)',
+                                    cursor: 'pointer',
+                                    textAlign: 'left',
+                                    marginBottom: '10px'
+                                }}
+                            >
+                                <div style={{ width: '40px', height: '40px', borderRadius: '12px', backgroundColor: 'rgba(59, 130, 246, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <Key size={20} style={{ color: 'var(--primary)' }} />
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                    <span style={{ fontSize: '15px', fontWeight: '700', display: 'block' }}>비밀번호 변경</span>
+                                    <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>계정 보안 설정을 관리합니다</span>
+                                </div>
+                            </button>
+
+                            <button 
+                                onClick={logout}
+                                style={{
+                                    width: '100%',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '16px',
+                                    padding: '16px',
+                                    background: 'rgba(255, 75, 75, 0.05)',
+                                    border: '1px solid rgba(255, 75, 75, 0.1)',
+                                    borderRadius: '16px',
+                                    color: '#ff4b4b',
+                                    cursor: 'pointer',
+                                    textAlign: 'left'
+                                }}
+                            >
+                                <div style={{ width: '40px', height: '40px', borderRadius: '12px', backgroundColor: 'rgba(255, 75, 75, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <LogOut size={20} />
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                    <span style={{ fontSize: '15px', fontWeight: '700', display: 'block' }}>로그아웃</span>
+                                    <span style={{ fontSize: '12px', color: 'rgba(255, 75, 75, 0.6)' }}>세션을 종료하고 안전하게 나갑니다</span>
+                                </div>
+                            </button>
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
 
             {/* Change Password Modal */}
             <ChangePasswordModal 
                 isOpen={showChangePassword} 
                 onClose={() => setShowChangePassword(false)} 
             />
-
 
             <main>
                 <Routes>
