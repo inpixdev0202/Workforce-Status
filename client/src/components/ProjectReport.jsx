@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Table, TrendingUp, Search, Plus, Save, Trash2, CheckCircle2, ChevronsLeftRight, FileText, Download, Filter, Maximize2, Sun, Moon, Settings, X, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Calendar, ClipboardCopy, Lock, AlignLeft, Columns, ChevronRightSquare, LayoutList, BookOpen, RotateCcw, Sparkles } from 'lucide-react';
+import { Table, TrendingUp, Search, Plus, Save, Trash2, CheckCircle2, ChevronsLeftRight, FileText, Download, Filter, Maximize2, Sun, Moon, Settings, X, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Calendar, ClipboardCopy, Lock, AlignLeft, Columns, ChevronRightSquare, LayoutList, BookOpen, RotateCcw, Sparkles, Layers, PlusCircle } from 'lucide-react';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import { projectsAPI, projectReportsAPI, employeesAPI } from '../api';
@@ -192,7 +192,7 @@ const SpreadsheetCellSelect = React.memo(({ value, options, onCommit, onFocus, o
                 onChange={(e) => onCommit(e.target.value)}
                 onFocus={onFocus}
                 onBlur={onBlur}
-                className={`glow-pill ${pillClass} ${className} cursor-pointer text-center outline-none border-none bg-transparent`}
+                className={`${className} cursor-pointer text-center outline-none border-none bg-transparent transition-colors duration-300`}
                 style={{ 
                     appearance: 'none',
                     WebkitAppearance: 'none',
@@ -215,7 +215,7 @@ const SpreadsheetCellSelect = React.memo(({ value, options, onCommit, onFocus, o
 
 
 
-const getCategoryStyle = (category, isDark) => {
+const getCategoryStyle = (category) => {
     const normalize = (val) => {
         const str = String(val || '').normalize('NFC').trim();
         if (str === '수행') return '진행중';
@@ -226,11 +226,11 @@ const getCategoryStyle = (category, isDark) => {
     const cat = normalize(category);
     
     switch (cat) {
-        case '진행예정': return { class: 'glow-pill-info', text: '진행예정' };
-        case '진행중': return { class: 'glow-pill-emerald', text: '진행중' };
-        case '홀딩': return { class: 'glow-pill-teal', text: '홀딩' };
-        case '종료': return { class: 'glow-pill-coral', text: '종료' };
-        default: return { class: '', text: cat };
+        case '진행예정': return { color: '#3b82f6', text: '진행예정' }; // Blue
+        case '진행중': return { color: '#10b981', text: '진행중' };   // Emerald
+        case '홀딩': return { color: '#f59e0b', text: '홀딩' };     // Amber
+        case '종료': return { color: '#f43f5e', text: '종료' };     // Rose
+        default: return { color: 'var(--text-muted)', text: cat };
     }
 };
 
@@ -619,15 +619,15 @@ const ReportDataRow = React.memo(({
                                 onFocus={() => setFocusedCell({ rowId: item.id, field: cellId })}
                                 onBlur={() => setFocusedCell(null)}
                                 isFocused={focusedCell?.field === cellId}
-                                className="font-bold text-center text-[11px]"
-                                pillClass={catStyle.class}
+                                className="font-black text-center text-[11px] tracking-tight"
+                                style={{ color: catStyle.color }}
                                 readOnly={isReadOnly}
                             />
                         </td>
                     );
                 }
 
-                const isHealthCol = col.key === 'health' || ['운영 상태', '운영상태', 'Health', 'Status'].includes(col.label);
+                const isHealthCol = col.key === 'health' || ['운영 상태', '운영상태', 'Health'].includes(col.label);
                 if (isHealthCol) {
                     const hStyle = getHealthStyle(item[col.key], theme === 'dark');
                     return (
@@ -639,7 +639,7 @@ const ReportDataRow = React.memo(({
                                 onBlur={() => setFocusedCell(null)}
                                 isFocused={focusedCell?.field === cellId}
                                 theme={theme}
-                                readOnly={isReadOnly}
+                                readOnly={false}
                             />
                         </td>
                     );
@@ -1873,6 +1873,90 @@ const ProjectReport = () => {
                         color: #fff !important;
                     }
 
+                    /* New Theme-Aware Empty State Button */
+                    .premium-empty-action-btn {
+                        position: relative;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        gap: 10px;
+                        padding: 12px 32px;
+                        border-radius: 16px;
+                        font-weight: 900;
+                        font-size: 13px;
+                        color: white !important;
+                        background: #2563eb !important;
+                        border: 1px solid rgba(255,255,255,0.1) !important;
+                        box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.3) !important;
+                        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                        overflow: hidden;
+                        outline: none !important;
+                    }
+                    .premium-empty-action-btn:hover {
+                        transform: translateY(-2px);
+                        box-shadow: 0 20px 35px -5px rgba(37, 99, 235, 0.4) !important;
+                        background: #1d4ed8 !important;
+                    }
+                    .premium-empty-action-btn:active {
+                        transform: translateY(0);
+                    }
+                    
+                    .light-theme .premium-empty-action-btn {
+                        background: #3b82f6 !important;
+                        box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.4) !important;
+                        color: white !important;
+                    }
+                    .light-theme .premium-empty-action-btn:hover {
+                        background: #2563eb !important;
+                    }
+
+                     /* Premium Date Navigator */
+                     .premium-date-nav {
+                         display: flex;
+                         align-items: center;
+                         gap: 8px;
+                         padding: 5px 12px;
+                         border-radius: 12px;
+                         background: rgba(255, 255, 255, 0.03) !important;
+                         backdrop-filter: blur(10px);
+                         border: 1px solid rgba(255, 255, 255, 0.1) !important;
+                         box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+                         transition: all 0.3s ease;
+                     }
+                     .light-theme .premium-date-nav {
+                         background: rgba(0, 0, 0, 0.03) !important;
+                         border: 1px solid rgba(0, 0, 0, 0.05) !important;
+                         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+                     }
+                     .premium-date-text {
+                         font-size: 13px;
+                         font-weight: 900;
+                         letter-spacing: -0.01em;
+                         text-transform: uppercase;
+                         color: var(--text-primary);
+                         min-width: 140px;
+                         text-align: center;
+                     }
+                     .premium-nav-btn {
+                         padding: 2px;
+                         border-radius: 6px;
+                         color: var(--text-muted);
+                         background: transparent !important;
+                         transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+                         display: flex;
+                         align-items: center;
+                         justify-content: center;
+                         border: none !important;
+                         outline: none !important;
+                     }
+                     .premium-nav-btn:hover {
+                         color: #3b82f6;
+                         transform: scale(1.2);
+                     }
+                     .premium-nav-btn:active {
+                         transform: scale(0.9);
+                     }
+
                     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
                 `}
             </style>
@@ -1901,13 +1985,18 @@ const ProjectReport = () => {
                     
                     <div className="w-px h-5 bg-[var(--border)] mx-1"></div>
                     
-                    <div className="flex items-center gap-1 bg-[var(--bg-tertiary)] rounded-lg px-2 py-0.5 border border-[var(--border)]">
-                        <button onClick={handlePrevWeek} className="p-1 hover:text-blue-500 transition-colors" title="이전 주"><ChevronLeft size={14} /></button>
-                        <div className="flex items-center gap-1.5 px-1 min-w-[120px] justify-center">
-                            <Calendar size={13} className="text-muted-foreground" />
-                            <span className="text-[11px] font-bold tracking-tight">{selectedDate} 주간보고</span>
+                    <div className="premium-date-nav">
+                        <button onClick={handlePrevWeek} className="p-1.5 transition-all hover:text-blue-500 bg-transparent border-none outline-none" title="이전 주">
+                            <ChevronLeft size={16} strokeWidth={2.5} />
+                        </button>
+                        
+                        <div className="premium-date-text">
+                            {selectedDate} 주간보고
                         </div>
-                        <button onClick={handleNextWeek} className="p-1 hover:text-blue-500 transition-colors" title="다음 주"><ChevronRight size={14} /></button>
+                        
+                        <button onClick={handleNextWeek} className="p-1.5 transition-all hover:text-blue-500 bg-transparent border-none outline-none" title="다음 주">
+                            <ChevronRight size={16} strokeWidth={2.5} />
+                        </button>
                     </div>
 
                 </div>
@@ -1923,12 +2012,22 @@ const ProjectReport = () => {
                         </div>
                     )}
                     <div className="w-px h-5 bg-[var(--border)] mx-1"></div>
-                    <button onClick={handleExportExcel} className="premium-icon-btn btn-excel" title="엑셀로 다운로드"><Download size={16} /></button>
+                    <button onClick={handleExportExcel} className="premium-icon-btn-minimal text-emerald-400/70 hover:text-emerald-400 hover:scale-110" title="엑셀로 다운로드"><Download size={16} /></button>
                     <div className="w-px h-5 bg-[var(--border)] mx-1"></div>
-                    <div className="flex items-center gap-2 p-1.5 bg-white/[0.03] border border-white/[0.05] rounded-xl shadow-inner mr-2 scale-90 origin-right">
+                    <div className="flex items-center gap-4 px-2 scale-90 origin-right transition-all">
                         {['진행중', '홀딩', '종료'].map(cat => {
                             const isActive = selectedCategories.includes(cat);
-                            const style = getCategoryStyle(cat, theme === 'dark');
+                            
+                            // Signature Premium Colors
+                            const getCatColor = (c) => {
+                                switch(c) {
+                                    case '진행중': return '#10b981'; // Emerald
+                                    case '홀딩': return '#f59e0b';   // Amber
+                                    case '종료': return '#f43f5e';   // Rose
+                                    default: return 'var(--text-primary)';
+                                }
+                            };
+
                             return (
                                 <button
                                     key={cat}
@@ -1939,13 +2038,14 @@ const ProjectReport = () => {
                                                 : [...prev, cat]
                                         );
                                     }}
-                                    className={`px-4 py-1.5 rounded-lg text-[10px] font-extrabold transition-all duration-300 border-none ${
-                                        isActive 
-                                            ? `glow-pill ${style.class} scale-100 shadow-lg` 
-                                            : 'opacity-30 grayscale scale-95 hover:opacity-100 hover:grayscale-0'
-                                    }`}
+                                    className={`relative px-2 py-1 text-[11px] tracking-widest transition-all duration-300 group ${isActive ? 'font-black' : 'font-medium opacity-50'}`}
                                     style={{
-                                        outline: 'none'
+                                        color: isActive ? getCatColor(cat) : (theme === 'dark' ? '#ffffff' : '#000000'),
+                                        background: 'transparent',
+                                        backgroundColor: 'transparent',
+                                        border: 'none',
+                                        outline: 'none',
+                                        boxShadow: 'none'
                                     }}
                                 >
                                     {cat}
@@ -2053,15 +2153,30 @@ const ProjectReport = () => {
                                 </tr>
                             ) : (
                                 <tr>
-                                    <td colSpan={columns.length + 1} className="py-20 text-center bg-[var(--bg-secondary)]">
-                                        <div className="flex flex-col items-center gap-4 opacity-50">
-                                            <FileText size={48} className="text-[var(--text-muted)]" />
-                                            <div className="flex flex-col gap-1">
-                                                <p className="text-sm font-bold text-[var(--text-primary)]">이번 주차 보고 데이터가 없습니다.</p>
-                                                <p className="text-xs text-[var(--text-muted)]">내용을 입력하거나 각 프로젝트별 지난주 내용을 복사해오세요.</p>
+                                    <td colSpan={columns.length + 1} className="py-24 text-center bg-[var(--bg-secondary)] relative overflow-hidden">
+                                        {/* Abstract background glow */}
+                                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-blue-500/5 blur-[100px] rounded-full pointer-events-none" />
+                                        
+                                        <div className="flex flex-col items-center gap-6 relative z-10">
+                                            <div className="relative group/icon">
+                                                <div className="absolute inset-0 bg-blue-500/20 blur-2xl rounded-full opacity-0 group-hover/icon:opacity-100 transition-opacity duration-700" />
+                                                <Layers size={56} strokeWidth={1} className="text-blue-500/40 relative animate-pulse duration-[3000ms]" />
                                             </div>
-                                            <button onClick={addNewRow} className="mt-2 px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-full text-xs font-bold transition-all shadow-lg hover:shadow-blue-500/20 flex items-center gap-2">
-                                                <Plus size={14} /> 첫 번째 행 추가하기
+                                            
+                                            <div className="flex flex-col gap-2 max-w-sm mx-auto">
+                                                <h3 className="text-lg font-black text-[var(--text-primary)] tracking-tight">이번 주 주간보고 시트가 비어 있습니다</h3>
+                                                <p className="text-xs text-[var(--text-muted)] leading-relaxed px-4">
+                                                    프로젝트 마스터에서 행을 가져오거나,<br/>
+                                                    첫 번째 프로젝트를 직접 추가하여 작성을 시작하세요.
+                                                </p>
+                                            </div>
+                                            
+                                            <button 
+                                                onClick={addNewRow} 
+                                                className="premium-empty-action-btn mt-2 active:scale-95 group"
+                                            >
+                                                <PlusCircle size={18} className="group-hover:rotate-90 transition-transform duration-300" />
+                                                첫 번째 프로젝트 추가하기
                                             </button>
                                         </div>
                                     </td>
