@@ -485,52 +485,56 @@ function Dashboard() {
     const renderRefinedIdleGrid = () => {
         if (!stats?.idleStats) return null;
         return (
-            <div className="glass-card-stack pb-6">
-                {/* Refined Header Summary */}
-                <div className="refined-item-card" style={{ background: 'var(--surface-highest)', border: '2px solid var(--primary-muted)', marginBottom: '1rem' }}>
-                    <div style={{ minWidth: '220px' }}>
-                        <div className="font-bold text-primary" style={{ fontSize: '1.2rem' }}>유휴율 종합 관리</div>
-                    </div>
-                    <div className="flex flex-1 justify-end gap-6">
-                        {stats.idleStats.map(period => {
-                            const config = getStatusConfig(period.totalIdleRate, true);
-                            return (
-                                <div key={period.key} className="text-center" style={{ minWidth: '100px' }}>
-                                    <div className="text-[9px] font-bold text-muted uppercase mb-2">{period.label}</div>
-                                    <div className="glass-pill" style={{ color: config.text, background: config.bg, borderColor: config.border, justifyContent: 'center' }}>
-                                        <div className="glow-dot" style={{ background: config.text }}></div>
-                                        {period.totalIdleCount}명, {period.totalIdleRate}%
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-
-                {/* Group Cards */}
-                {stats.idleStats[0]?.byGroup?.map((group) => (
-                    <div key={group.id} className="refined-item-card" style={{ padding: '0.75rem 1.25rem' }}>
-                        <div className="flex items-center gap-4" style={{ minWidth: '220px' }}>
-                            <div style={{ width: '4px', height: '32px', borderRadius: '4px', background: stats.employeesByGroup?.find(g => g.name === group.name)?.color || 'var(--primary)' }}></div>
-                            <div>
-                                <div className="text-[15px] font-bold" style={{ color: 'var(--text-primary)' }}>{group.name}</div>
+            <div style={{ overflowX: 'auto', paddingBottom: '1rem', margin: '0 -0.5rem', padding: '0 0.5rem' }}>
+                <div style={{ minWidth: '950px' }} className="pb-2">
+                    <div className="glass-card-stack">
+                        {/* Refined Header Summary */}
+                        <div className="refined-item-card" style={{ background: 'var(--surface-highest)', border: '2px solid var(--primary-muted)', marginBottom: '1rem' }}>
+                            <div style={{ minWidth: '220px' }}>
+                                <div className="font-bold text-primary" style={{ fontSize: '1.2rem' }}>유휴율 종합 관리</div>
+                            </div>
+                            <div className="flex flex-1 justify-end gap-6">
+                                {stats.idleStats.map(period => {
+                                    const config = getStatusConfig(period.totalIdleRate, true);
+                                    return (
+                                        <div key={period.key} className="text-center" style={{ minWidth: '100px' }}>
+                                            <div className="text-[9px] font-bold text-muted uppercase mb-2">{period.label}</div>
+                                            <div className="glass-pill" style={{ color: config.text, background: config.bg, borderColor: config.border, justifyContent: 'center' }}>
+                                                <div className="glow-dot" style={{ background: config.text }}></div>
+                                                {period.totalIdleCount}명, {period.totalIdleRate}%
+                                            </div>
+                                        </div>
+                                    );
+                                })}
                             </div>
                         </div>
-                        <div className="flex flex-1 justify-end gap-6">
-                            {stats.idleStats.map(period => {
-                                const groupData = period.byGroup.find(g => g.id === group.id);
-                                const config = getStatusConfig(groupData?.idleRate || 0, true);
-                                return (
-                                    <div key={period.key} className="text-center" style={{ minWidth: '100px' }}>
-                                        <div className="glass-pill" style={{ color: config.text, background: config.bg, borderColor: config.border, justifyContent: 'center' }}>
-                                            {groupData?.idleCount || 0}명, {groupData?.idleRate || 0}%
-                                        </div>
+
+                        {/* Group Cards */}
+                        {stats.idleStats[0]?.byGroup?.map((group) => (
+                            <div key={group.id} className="refined-item-card" style={{ padding: '0.75rem 1.25rem' }}>
+                                <div className="flex items-center gap-4" style={{ minWidth: '220px' }}>
+                                    <div style={{ width: '4px', height: '32px', borderRadius: '4px', background: stats.employeesByGroup?.find(g => g.name === group.name)?.color || 'var(--primary)' }}></div>
+                                    <div>
+                                        <div className="text-[15px] font-bold" style={{ color: 'var(--text-primary)' }}>{group.name}</div>
                                     </div>
-                                );
-                            })}
-                        </div>
+                                </div>
+                                <div className="flex flex-1 justify-end gap-6">
+                                    {stats.idleStats.map(period => {
+                                        const groupData = period.byGroup.find(g => g.id === group.id);
+                                        const config = getStatusConfig(groupData?.idleRate || 0, true);
+                                        return (
+                                            <div key={period.key} className="text-center" style={{ minWidth: '100px' }}>
+                                                <div className="glass-pill" style={{ color: config.text, background: config.bg, borderColor: config.border, justifyContent: 'center' }}>
+                                                    {groupData?.idleCount || 0}명, {groupData?.idleRate || 0}%
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        ))}
                     </div>
-                ))}
+                </div>
             </div>
         );
     };
