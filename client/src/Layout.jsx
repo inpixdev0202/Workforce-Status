@@ -419,10 +419,10 @@ const MainLayout = () => {
         <div className="app">
             <nav className="navbar premium-glass" style={{ border: 'none', borderBottom: '1px solid var(--outline-variant)', borderRadius: 0, overflow: 'visible' }}>
                 <div className="container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '2.5rem' }}>
-                        <Link to="/" className="navbar-brand" style={{ fontFamily: 'Manrope, sans-serif' }}>
+                    <div className="nav-left-group" style={{ display: 'flex', alignItems: 'center', gap: '2.5rem', flex: 1, minWidth: 0, overflow: 'visible' }}>
+                        <Link to="/" className="navbar-brand" style={{ fontFamily: 'Manrope, sans-serif', flexShrink: 0 }}>
                             <span style={{ filter: 'drop-shadow(0 0 8px var(--primary-glow))' }}><Logo size={64} className="nav-logo-svg" /></span>
-                            <span style={{ fontWeight: 800 }}>Workforce Status</span>
+                            <span className="brand-text-desktop" style={{ fontWeight: 800 }}>Workforce Status</span>
                         </Link>
                         <div className="hide-scroll-bar-mobile" style={{ overflowX: 'auto', flex: 1, padding: '0 10px', WebkitOverflowScrolling: 'touch' }}>
                             <ul className="navbar-nav" style={{ display: 'flex', whiteSpace: 'nowrap', width: 'max-content' }}>

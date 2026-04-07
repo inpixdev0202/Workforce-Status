@@ -4405,4 +4405,13 @@ select.premium-form-input {
   filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.1));
 }
 
+/* Mobile Nav Tweaks */
+@media (max-width: 768px) {
+  .brand-text-desktop {
+    display: none !important;
+  }
+  .nav-left-group {
+    gap: 1rem !important;
+  }
+}
 
