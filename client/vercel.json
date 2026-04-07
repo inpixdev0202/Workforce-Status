@@ -4,6 +4,10 @@
   "trailingSlash": false,
   "rewrites": [
     {
+      "source": "/api/(.*)",
+      "destination": "/api/server.mjs"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
