@@ -4406,7 +4406,7 @@ select.premium-form-input {
 }
 
 /* Mobile Nav Tweaks */
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
   .brand-text-desktop {
     display: none !important;
   }
@@ -4438,7 +4438,18 @@ select.premium-form-input {
   z-index: 10001;
   padding: 24px;
   padding-bottom: calc(24px + env(safe-area-inset-bottom));
+  max-height: 90vh;
+  overflow-y: auto;
   animation: slideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@media (max-height: 500px) {
+  .mobile-bottom-sheet {
+    padding: 16px;
+  }
+  .bottom-sheet-handle {
+    margin-bottom: 12px !important;
+  }
 }
 
 .bottom-sheet-handle {
