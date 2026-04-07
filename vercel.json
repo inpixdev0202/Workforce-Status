@@ -4,18 +4,14 @@
   "trailingSlash": false,
   "routes": [
     {
-      "src": "/api/test",
-      "dest": "/client/api/test.mjs"
-    },
-    {
       "src": "/api/(.*)",
-      "dest": "/client/api/handler.mjs"
+      "dest": "/api/index.js"
     },
     {
       "handle": "filesystem"
     },
     {
-      "src": "/((?!api/).*)",
+      "src": "/(.*)",
       "dest": "/client/dist/index.html"
     }
   ]
