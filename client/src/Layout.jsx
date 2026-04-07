@@ -408,7 +408,9 @@ const MainLayout = () => {
             }
         };
 
-        if (isProfileOpen) {
+        // On mobile, the backdrop handles closing, and since the sheet is portal-rendered,
+        // a click-outside check relative to profileRef would incorrectly close it.
+        if (isProfileOpen && !isMobile) {
             document.addEventListener('mousedown', handleClickOutside);
         } else {
             document.removeEventListener('mousedown', handleClickOutside);
@@ -416,7 +418,7 @@ const MainLayout = () => {
         return () => {
             document.removeEventListener('mousedown', handleClickOutside);
         };
-    }, [isProfileOpen]);
+    }, [isProfileOpen, isMobile]);
 
     const toggleProfileDropdown = (e) => {
         setIsProfileOpen(!isProfileOpen);
