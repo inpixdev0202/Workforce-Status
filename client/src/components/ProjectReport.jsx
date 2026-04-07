@@ -1975,6 +1975,7 @@ const ProjectReport = () => {
                     <button onClick={addNewRow} className="premium-icon-btn btn-add" title="행 추가 (Add Row)"><Plus size={16} /></button>
 
                     <button onClick={() => setIsSettingsModalOpen(true)} className="premium-icon-btn btn-cols" title="열 설정 (Columns)"><Columns size={16} /></button>
+                    <button onClick={handleExportExcel} className="premium-icon-btn btn-excel" title="엑셀로 다운로드"><Download size={16} /></button>
                     
                     <div className="w-px h-5 bg-[var(--border)] mx-1"></div>
                     
@@ -2004,8 +2005,6 @@ const ProjectReport = () => {
                              autoSaveStatus === 'Saved' ? '✅ 저장됨' : '❌ 저장 실패'}
                         </div>
                     )}
-                    <div className="w-px h-5 bg-[var(--border)] mx-1"></div>
-                    <button onClick={handleExportExcel} className="premium-icon-btn-minimal text-emerald-400/70 hover:text-emerald-400 hover:scale-110" title="엑셀로 다운로드"><Download size={16} /></button>
                     <div className="w-px h-5 bg-[var(--border)] mx-1"></div>
                     <div className="flex items-center gap-4 px-2 scale-90 origin-right transition-all">
                         {['진행중', '홀딩', '종료'].map(cat => {
