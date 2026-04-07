@@ -867,7 +867,17 @@ function Dashboard() {
                                                 return null;
                                             }}
                                         />
-                                        <Legend verticalAlign="top" height={36} />
+                                        <Legend 
+                                            verticalAlign="top" 
+                                            height={36} 
+                                            wrapperStyle={{ 
+                                                fontSize: '11px', 
+                                                whiteSpace: 'nowrap', 
+                                                overflowX: 'auto',
+                                                width: '100%',
+                                                textAlign: 'center'
+                                            }} 
+                                        />
                                         <Bar name="실투입 (Client)" dataKey="client" stackId="a" fill="#60A5FA" />
                                         <Bar name="유휴 (Bench)" dataKey="bench" stackId="a" fill="#FBBF24" />
                                         <Bar name="기타 (Other)" dataKey="other" stackId="a" fill="#94A3B8" />
