@@ -431,7 +431,6 @@ const MainLayout = () => {
                     <div className="nav-left-group" style={{ display: 'flex', alignItems: 'center', gap: '2.5rem', flex: 1, minWidth: 0, overflow: 'visible' }}>
                         <Link to="/" className="navbar-brand" style={{ fontFamily: 'Manrope, sans-serif', flexShrink: 0 }}>
                             <span style={{ filter: 'drop-shadow(0 0 8px var(--primary-glow))' }}><Logo size={64} className="nav-logo-svg" /></span>
-                            <span className="brand-text-desktop" style={{ fontWeight: 800 }}>Workforce Status</span>
                         </Link>
                         <div className="hide-scroll-bar-mobile" style={{ overflowX: 'auto', flex: 1, padding: '0 10px', WebkitOverflowScrolling: 'touch' }}>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', minWidth: 'max-content', gap: '2rem' }}>
