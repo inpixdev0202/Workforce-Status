@@ -425,61 +425,60 @@ const MainLayout = () => {
                             <span className="brand-text-desktop" style={{ fontWeight: 800 }}>Workforce Status</span>
                         </Link>
                         <div className="hide-scroll-bar-mobile" style={{ overflowX: 'auto', flex: 1, padding: '0 10px', WebkitOverflowScrolling: 'touch' }}>
-                            <ul className="navbar-nav" style={{ display: 'flex', whiteSpace: 'nowrap', width: 'max-content' }}>
-                                {MENU_ITEMS.filter(item => hasAccess(user, item)).map(item => {
-                                    const visibleChildren = item.children?.filter(c => hasAccess(user, c));
-                                    const hasDropdown = visibleChildren && visibleChildren.length > 0;
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', minWidth: 'max-content', gap: '2rem' }}>
+                                <ul className="navbar-nav" style={{ display: 'flex', whiteSpace: 'nowrap', width: 'max-content' }}>
+                                    {MENU_ITEMS.filter(item => hasAccess(user, item)).map(item => {
+                                        const visibleChildren = item.children?.filter(c => hasAccess(user, c));
+                                        const hasDropdown = visibleChildren && visibleChildren.length > 0;
 
-                                    return (
-                                        <li key={item.id} className="nav-item-wrapper" style={{ position: 'relative' }}
-                                            onMouseEnter={() => hasDropdown && handleMouseEnter(item.id)}
-                                            onMouseLeave={() => hasDropdown && handleMouseLeave()}
-                                        >
-                                            <NavLink
-                                                to={item.path}
-                                                className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-                                                end={item.path === '/'}
+                                        return (
+                                            <li key={item.id} className="nav-item-wrapper" style={{ position: 'relative' }}
+                                                onMouseEnter={() => hasDropdown && handleMouseEnter(item.id)}
+                                                onMouseLeave={() => hasDropdown && handleMouseLeave()}
                                             >
-                                                <item.icon size={18} />
-                                                <span>{item.label}</span>
-                                                {hasDropdown && (
-                                                    <ChevronDown
-                                                        size={13}
-                                                        style={{
-                                                            marginLeft: '2px',
-                                                            transition: 'transform 0.2s ease',
-                                                            transform: openDropdown === item.id ? 'rotate(180deg)' : 'rotate(0deg)',
-                                                            opacity: 0.7
-                                                        }}
-                                                    />
-                                                )}
-                                            </NavLink>
+                                                <NavLink
+                                                    to={item.path}
+                                                    className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+                                                    end={item.path === '/'}
+                                                >
+                                                    <item.icon size={18} />
+                                                    <span>{item.label}</span>
+                                                    {hasDropdown && (
+                                                        <ChevronDown
+                                                            size={13}
+                                                            style={{
+                                                                marginLeft: '2px',
+                                                                transition: 'transform 0.2s ease',
+                                                                transform: openDropdown === item.id ? 'rotate(180deg)' : 'rotate(0deg)',
+                                                                opacity: 0.7
+                                                            }}
+                                                        />
+                                                    )}
+                                                </NavLink>
 
-                                            {hasDropdown && openDropdown === item.id && (
-                                                <ul className="nav-dropdown">
-                                                    {visibleChildren.map(child => (
-                                                        <li key={child.id}>
-                                                            <NavLink
-                                                                to={child.path}
-                                                                className={({ isActive }) => `nav-dropdown-item ${isActive ? 'active' : ''}`}
-                                                                onClick={() => setOpenDropdown(null)}
-                                                            >
-                                                                <child.icon size={15} />
-                                                                <span>{child.label}</span>
-                                                            </NavLink>
-                                                        </li>
-                                                    ))}
-                                                </ul>
-                                            )}
-                                        </li>
-                                    );
-                                })}
-                            </ul>
-                        </div>
-                    </div>
-                    {/* User Profile, Theme Toggle & Logout */}
-                    <div className="flex items-center gap-4 text-sm" style={{ flexShrink: 0 }}>
-                        {/* Theme Toggle Button */}
+                                                {hasDropdown && openDropdown === item.id && (
+                                                    <ul className="nav-dropdown">
+                                                        {visibleChildren.map(child => (
+                                                            <li key={child.id}>
+                                                                <NavLink
+                                                                    to={child.path}
+                                                                    className={({ isActive }) => `nav-dropdown-item ${isActive ? 'active' : ''}`}
+                                                                    onClick={() => setOpenDropdown(null)}
+                                                                >
+                                                                    <child.icon size={15} />
+                                                                    <span>{child.label}</span>
+                                                                </NavLink>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                )}
+                                            </li>
+                                        );
+                                    })}
+                                </ul>
+                                {/* User Profile, Theme Toggle & Logout */}
+                                <div className="flex items-center gap-4 text-sm" style={{ flexShrink: 0, paddingRight: '10px' }}>
+                                    {/* Theme Toggle Button */}
                         <button
                             onClick={toggleTheme}
                             className="premium-icon-btn"
@@ -617,7 +616,10 @@ const MainLayout = () => {
                         </div>
                     </div>
                 </div>
-            </nav>
+            </div>
+        </div>
+    </div>
+</nav>
 
             {/* Change Password Modal */}
             <ChangePasswordModal 
