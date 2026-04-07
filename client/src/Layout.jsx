@@ -377,8 +377,15 @@ const MainLayout = () => {
     const [openDropdown, setOpenDropdown] = useState(null);
     const [isProfileOpen, setIsProfileOpen] = useState(false);
     const [showChangePassword, setShowChangePassword] = useState(false);
+    const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
     const timeoutRef = useRef(null);
     const profileRef = useRef(null);
+
+    useEffect(() => {
+        const handleResize = () => setIsMobile(window.innerWidth <= 768);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
 
     if (!user) {
         return <Navigate to="/login" replace />;
@@ -532,87 +539,161 @@ const MainLayout = () => {
                                 <ChevronDown size={14} style={{ color: 'var(--text-muted)', transition: '0.3s', transform: isProfileOpen ? 'rotate(180deg)' : 'rotate(0deg)' }} />
                             </div>
 
-                            {/* Profile Dropdown */}
-                            {isProfileOpen && (
-                                <div 
-                                    onClick={(e) => e.stopPropagation()}
-                                    style={{ 
-                                        position: 'absolute', 
-                                        right: 0, 
-                                        top: '100%', 
-                                        paddingTop: '12px', 
-                                        zIndex: 10000 
-                                    }}
-                                >
-                                    <div className="premium-glass" style={{ 
-                                        minWidth: '240px', 
-                                        backgroundColor: 'var(--surface-highest)', 
-                                        borderRadius: 'var(--radius-xl)', 
-                                        border: '1px solid var(--outline-variant)', 
-                                        boxShadow: 'var(--shadow-xl)', 
-                                        overflow: 'hidden' 
-                                    }}>
-                                        <div style={{ padding: '24px 24px 16px', borderBottom: '1px solid rgba(255, 255, 255, 0.05)', background: 'rgba(255, 255, 255, 0.02)' }}>
-                                            <p style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '6px' }}>내 정보</p>
-                                            <p style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: '700', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.email}</p>
-                                        </div>
-                                        
-                                        <div style={{ padding: '8px' }}>
-                                            <button 
-                                                onClick={() => { setShowChangePassword(true); setIsProfileOpen(false); }}
-                                                style={{
-                                                    width: '100%',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    gap: '12px',
-                                                    padding: '12px 16px',
-                                                    background: 'transparent',
-                                                    border: 'none',
-                                                    borderRadius: '16px',
-                                                    color: 'var(--text-secondary)',
-                                                    cursor: 'pointer',
-                                                    transition: '0.2s',
-                                                    textAlign: 'left'
-                                                }}
-                                                onMouseOver={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)'; e.currentTarget.style.color = '#fff'; }}
-                                                onMouseOut={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
-                                            >
-                                                <div style={{ width: '32px', height: '32px', borderRadius: '10px', backgroundColor: 'rgba(255, 255, 255, 0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                    <Key size={16} style={{ color: 'var(--primary)' }} />
-                                                </div>
-                                                <span style={{ fontSize: '14px', fontWeight: '600' }}>비밀번호 변경</span>
-                                            </button>
+                            {/* Profile Menu (Desktop: Dropdown, Mobile: Bottom Sheet) */}
+                             {isProfileOpen && (
+                                 isMobile ? (
+                                     createPortal(
+                                         <div className="bottom-sheet-wrapper" style={{ position: 'fixed', inset: 0, zIndex: 10000 }}>
+                                             <div className="bottom-sheet-backdrop" onClick={() => setIsProfileOpen(false)} />
+                                             <div className="mobile-bottom-sheet" onClick={(e) => e.stopPropagation()}>
+                                                 <div className="bottom-sheet-handle" />
+                                                 <div style={{ padding: '0 0 20px', borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                                                     <p style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '8px' }}>내 정보</p>
+                                                     <p style={{ fontSize: '16px', color: 'var(--text-primary)', fontWeight: '700' }}>{user.email}</p>
+                                                     <p style={{ fontSize: '12px', color: 'var(--primary)', marginTop: '4px', fontWeight: '600' }}>
+                                                         {user.role === ROLES.ADMIN ? '관리자 권한' : 
+                                                          user.role === ROLES.GROUP_LEADER ? '그룹장 권한' :
+                                                          user.role === ROLES.TEAM_LEADER ? '팀장 권한' : `${user.role} 권한`}
+                                                     </p>
+                                                 </div>
+                                                 
+                                                 <div style={{ padding: '12px 0 0' }}>
+                                                     <button 
+                                                         onClick={() => { setShowChangePassword(true); setIsProfileOpen(false); }}
+                                                         style={{
+                                                             width: '100%',
+                                                             display: 'flex',
+                                                             alignItems: 'center',
+                                                             gap: '16px',
+                                                             padding: '16px',
+                                                             background: 'rgba(255, 255, 255, 0.03)',
+                                                             border: '1px solid rgba(255, 255, 255, 0.05)',
+                                                             borderRadius: '16px',
+                                                             color: 'var(--text-primary)',
+                                                             cursor: 'pointer',
+                                                             textAlign: 'left',
+                                                             marginBottom: '10px'
+                                                         }}
+                                                     >
+                                                         <div style={{ width: '40px', height: '40px', borderRadius: '12px', backgroundColor: 'rgba(59, 130, 246, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                             <Key size={20} style={{ color: 'var(--primary)' }} />
+                                                         </div>
+                                                         <div style={{ flex: 1 }}>
+                                                             <span style={{ fontSize: '15px', fontWeight: '700', display: 'block' }}>비밀번호 변경</span>
+                                                             <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>계정 보안 설정을 관리합니다</span>
+                                                         </div>
+                                                     </button>
 
-                                            <button 
-                                                onClick={logout}
-                                                style={{
-                                                    width: '100%',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    gap: '12px',
-                                                    padding: '12px 16px',
-                                                    background: 'transparent',
-                                                    border: 'none',
-                                                    borderRadius: '16px',
-                                                    color: 'var(--error)',
-                                                    opacity: 0.9,
-                                                    cursor: 'pointer',
-                                                    transition: '0.2s',
-                                                    textAlign: 'left',
-                                                    marginTop: '4px'
-                                                }}
-                                                onMouseOver={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 180, 171, 0.08)'; e.currentTarget.style.opacity = '1'; }}
-                                                onMouseOut={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.opacity = '0.9'; }}
-                                            >
-                                                <div style={{ width: '32px', height: '32px', borderRadius: '10px', backgroundColor: 'rgba(255, 180, 171, 0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                    <LogOut size={16} />
-                                                </div>
-                                                <span style={{ fontSize: '14px', fontWeight: '600' }}>로그아웃</span>
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
+                                                     <button 
+                                                         onClick={logout}
+                                                         style={{
+                                                             width: '100%',
+                                                             display: 'flex',
+                                                             alignItems: 'center',
+                                                             gap: '16px',
+                                                             padding: '16px',
+                                                             background: 'rgba(255, 75, 75, 0.05)',
+                                                             border: '1px solid rgba(255, 75, 75, 0.1)',
+                                                             borderRadius: '16px',
+                                                             color: '#ff4b4b',
+                                                             cursor: 'pointer',
+                                                             textAlign: 'left'
+                                                         }}
+                                                     >
+                                                         <div style={{ width: '40px', height: '40px', borderRadius: '12px', backgroundColor: 'rgba(255, 75, 75, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                             <LogOut size={20} />
+                                                         </div>
+                                                         <div style={{ flex: 1 }}>
+                                                             <span style={{ fontSize: '15px', fontWeight: '700', display: 'block' }}>로그아웃</span>
+                                                             <span style={{ fontSize: '12px', color: 'rgba(255, 75, 75, 0.6)' }}>세션을 종료하고 안전하게 나갑니다</span>
+                                                         </div>
+                                                     </button>
+                                                 </div>
+                                             </div>
+                                         </div>,
+                                         document.body
+                                     )
+                                 ) : (
+                                     <div 
+                                         onClick={(e) => e.stopPropagation()}
+                                         style={{ 
+                                             position: 'absolute', 
+                                             right: 0, 
+                                             top: '100%', 
+                                             paddingTop: '12px', 
+                                             zIndex: 10000 
+                                         }}
+                                     >
+                                         <div className="premium-glass" style={{ 
+                                             minWidth: '240px', 
+                                             backgroundColor: 'var(--surface-highest)', 
+                                             borderRadius: 'var(--radius-xl)', 
+                                             border: '1px solid var(--outline-variant)', 
+                                             boxShadow: 'var(--shadow-xl)', 
+                                             overflow: 'hidden' 
+                                         }}>
+                                             <div style={{ padding: '24px 24px 16px', borderBottom: '1px solid rgba(255, 255, 255, 0.05)', background: 'rgba(255, 255, 255, 0.02)' }}>
+                                                 <p style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '6px' }}>내 정보</p>
+                                                 <p style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: '700', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.email}</p>
+                                             </div>
+                                             
+                                             <div style={{ padding: '8px' }}>
+                                                 <button 
+                                                     onClick={() => { setShowChangePassword(true); setIsProfileOpen(false); }}
+                                                     style={{
+                                                         width: '100%',
+                                                         display: 'flex',
+                                                         alignItems: 'center',
+                                                         gap: '12px',
+                                                         padding: '12px 16px',
+                                                         background: 'transparent',
+                                                         border: 'none',
+                                                         borderRadius: '16px',
+                                                         color: 'var(--text-secondary)',
+                                                         cursor: 'pointer',
+                                                         transition: '0.2s',
+                                                         textAlign: 'left'
+                                                     }}
+                                                     onMouseOver={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)'; e.currentTarget.style.color = '#fff'; }}
+                                                     onMouseOut={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
+                                                 >
+                                                     <div style={{ width: '32px', height: '32px', borderRadius: '10px', backgroundColor: 'rgba(255, 255, 255, 0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                         <Key size={16} style={{ color: 'var(--primary)' }} />
+                                                     </div>
+                                                     <span style={{ fontSize: '14px', fontWeight: '600' }}>비밀번호 변경</span>
+                                                 </button>
+
+                                                 <button 
+                                                     onClick={logout}
+                                                     style={{
+                                                         width: '100%',
+                                                         display: 'flex',
+                                                         alignItems: 'center',
+                                                         gap: '12px',
+                                                         padding: '12px 16px',
+                                                         background: 'transparent',
+                                                         border: 'none',
+                                                         borderRadius: '16px',
+                                                         color: 'var(--error)',
+                                                         opacity: 0.9,
+                                                         cursor: 'pointer',
+                                                         transition: '0.2s',
+                                                         textAlign: 'left',
+                                                         marginTop: '4px'
+                                                     }}
+                                                     onMouseOver={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 180, 171, 0.08)'; e.currentTarget.style.opacity = '1'; }}
+                                                     onMouseOut={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.opacity = '0.9'; }}
+                                                 >
+                                                     <div style={{ width: '32px', height: '32px', borderRadius: '10px', backgroundColor: 'rgba(255, 180, 171, 0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                         <LogOut size={16} />
+                                                     </div>
+                                                     <span style={{ fontSize: '14px', fontWeight: '600' }}>로그아웃</span>
+                                                 </button>
+                                             </div>
+                                         </div>
+                                     </div>
+                                 )
+                             )}
                         </div>
                     </div>
                 </div>
