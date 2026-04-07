@@ -451,14 +451,7 @@ const MasterProjectModal = ({ isOpen, onClose, projects, onSelect, theme }) => {
                                     if (icon) icon.style.background = 'rgba(16,185,129,0.08)';
                                 }}
                             >
-                                <div data-icon style={{
-                                    padding: '5px', borderRadius: '7px',
-                                    background: 'rgba(16,185,129,0.08)', color: '#10b981',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    flexShrink: 0, transition: 'background 0.12s ease',
-                                }}>
-                                    <ChevronRight size={13} />
-                                </div>
+                                    <ChevronRight size={14} style={{ color: '#10b981' }} />
                                 <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                     {p.displayName}
                                 </span>
@@ -1986,16 +1979,16 @@ const ProjectReport = () => {
                     <div className="w-px h-5 bg-[var(--border)] mx-1"></div>
                     
                     <div className="premium-date-nav">
-                        <button onClick={handlePrevWeek} className="p-1.5 transition-all hover:text-blue-500 bg-transparent border-none outline-none" title="이전 주">
-                            <ChevronLeft size={16} strokeWidth={2.5} />
+                        <button onClick={handlePrevWeek} className="premium-nav-btn" title="이전 주">
+                            <ChevronLeft size={18} strokeWidth={2.5} />
                         </button>
                         
                         <div className="premium-date-text">
                             {selectedDate} 주간보고
                         </div>
                         
-                        <button onClick={handleNextWeek} className="p-1.5 transition-all hover:text-blue-500 bg-transparent border-none outline-none" title="다음 주">
-                            <ChevronRight size={16} strokeWidth={2.5} />
+                        <button onClick={handleNextWeek} className="premium-nav-btn" title="다음 주">
+                            <ChevronRight size={18} strokeWidth={2.5} />
                         </button>
                     </div>
 
