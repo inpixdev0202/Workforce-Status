@@ -7,3 +7,8 @@ dist/
 database.db
 *.db-shm
 *.db-wal
+*.sqlite
+.claude/
+tmp.txt
+tmp/
+server/check_db_*.js
