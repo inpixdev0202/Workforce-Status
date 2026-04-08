@@ -985,7 +985,7 @@ const SalesStatus = () => {
                         <div className="w-8 h-8 border-2 border-blue-500/20 border-t-blue-500 rounded-full animate-spin shadow-[0_0_15px_rgba(59,130,246,0.5)]" />
                     </div>
                 )}
-                <table className="table-fixed w-max">
+                <table className="table-fixed w-max min-w-full">
                     <thead className="z-40">
                         <tr className="bg-[var(--bg-tertiary)]">
                             <th className="w-10 h-7 border border-[var(--border)] bg-[var(--bg-tertiary)] flex items-center justify-center text-[9px] font-bold text-[var(--text-muted)] select-none">#</th>
