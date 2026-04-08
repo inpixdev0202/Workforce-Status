@@ -9,7 +9,7 @@ router.get('/:date', authenticateToken, async (req, res) => {
     try {
         const { date } = req.params;
         const { role, name } = req.user;
-        const report = await get('SELECT * FROM project_reports WHERE week_date = ?', date);
+        const report = await get('SELECT * FROM project_reports WHERE week_date = ?', [date]);
         
         if (report) {
             let data = JSON.parse(report.data_json);
@@ -56,7 +56,7 @@ router.post('/', authenticateToken, async (req, res) => {
 
         // Merge logic for non-Admin users to prevent data loss of other users' projects
         if (role !== 'Admin') {
-            const existingReport = await get('SELECT * FROM project_reports WHERE week_date = ?', week_date);
+            const existingReport = await get('SELECT * FROM project_reports WHERE week_date = ?', [week_date]);
             let existingRows = [];
 
             if (existingReport) {
@@ -96,12 +96,11 @@ router.post('/', authenticateToken, async (req, res) => {
         const dataJson = JSON.stringify(finalData);
         
         await run(
-            `INSERT INTO project_reports (week_date, data_json, updated_at) 
+            `INSERT INTO project_reports (week_date, data_json, updated_at)
              VALUES (?, ?, CURRENT_TIMESTAMP)
-             ON CONFLICT (week_date) 
+             ON CONFLICT (week_date)
              DO UPDATE SET data_json = EXCLUDED.data_json, updated_at = CURRENT_TIMESTAMP`,
-            week_date,
-            dataJson
+            [week_date, dataJson]
         );
         
         res.json({ message: 'Report saved successfully' });
@@ -137,8 +136,7 @@ router.post('/update-all-column-widths', authenticateToken, async (req, res) => 
             
             await run(
                 'UPDATE project_reports SET data_json = ?, updated_at = CURRENT_TIMESTAMP WHERE week_date = ?',
-                JSON.stringify(data),
-                report.week_date
+                [JSON.stringify(data), report.week_date]
             );
         }
 
@@ -162,14 +160,14 @@ router.post('/sync-project-field', authenticateToken, async (req, res) => {
         const dbFieldMap = {
             'pd': 'pd',
             'pm': 'pm',
-            'kickoff': 'start_date' // Heuristic: update start_date if kickoff is modified? 
-                                   // User specifically asked for pd, pm, start_date, end_date. 
-                                   // I'll check exactly what fields they use in UI.
+            'kickoff': 'start_date',
+            'rfpinfo': 'end_date',
+            'status': 'status'
         };
 
         const dbColumn = dbFieldMap[field.toLowerCase()];
         if (dbColumn) {
-            await run(`UPDATE projects SET ${dbColumn} = ? WHERE name = ?`, value, projectName);
+            await run(`UPDATE projects SET ${dbColumn} = ? WHERE name = ?`, [value, projectName]);
         }
 
         // 2. Update ALL Project Reports
@@ -200,8 +198,7 @@ router.post('/sync-project-field', authenticateToken, async (req, res) => {
 
                 await run(
                     'UPDATE project_reports SET data_json = ?, updated_at = CURRENT_TIMESTAMP WHERE week_date = ?',
-                    JSON.stringify(data),
-                    report.week_date
+                    [JSON.stringify(data), report.week_date]
                 );
                 updateCount++;
             }

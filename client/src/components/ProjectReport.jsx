@@ -1041,23 +1041,20 @@ const ProjectReport = () => {
     const [pdList, setPdList] = useState([]);
     const [masterProjects, setMasterProjects] = useState([]);
     
-    const COLUMN_WIDTHS_KEY = 'project_report_column_widths_v1';
-    const ROW_HEIGHTS_KEY = 'project_report_row_heights_v1';
-    const COLUMNS_CONFIG_KEY = 'project_report_columns_config_v1';
+    const COLUMN_WIDTHS_KEY = 'project_report_column_widths_v2';
+    const ROW_HEIGHTS_KEY = 'project_report_row_heights_v2';
+    const COLUMNS_CONFIG_KEY = 'project_report_columns_config_v2';
 
     const DEFAULT_COLUMN_WIDTHS = {
+        category: 80,
         projectName: 320,
         pd: 120,
-        mainContractor: 120,
-        estimatedAmount: 120,
-        progress: 120,
-        kickoff: 100,
-        rfpInfo: 150,
-        proposal: 100,
-        pt: 100,
-        status: 120,
-        plan: 300,
-        clientInfo: 150
+        pm: 120,
+        status: 100,
+        kickoff: 120,
+        rfpInfo: 120,
+        progress: 500,
+        manage: 60
     };
 
     // Fetch data from server
@@ -1094,6 +1091,8 @@ const ProjectReport = () => {
                 const masterProjectsList = resMaster.data || [];
                 setMasterProjects(masterProjectsList);
 
+
+
                 // Helper: Robust column mapping for seeding and repair
                 const getColKey = (keywords, defaultKey, ignoreKeys = []) => {
                     const col = (currentLayout?.columns || columns).find(c => {
@@ -1120,44 +1119,83 @@ const ProjectReport = () => {
                     return null;
                 };
 
-                // 3. AUTO-CARRYOVER: If current week is empty but previous isn't, seed it.
-                if (currentRows.length === 0 && prevRows.length > 0) {
-                    // Seed only Client projects
-                    currentRows = prevRows
-                        .filter(prev => {
-                            if (prev.type === 'Client') return true;
-                            const master = masterProjectsList.find(m => normalizeProjectName(m.name || m.projectName) === normalizeProjectName(prev.projectName));
-                            return master && master.type === 'Client';
-                        })
-                        .map(prev => {
-                            const master = masterProjectsList.find(m => normalizeProjectName(m.name || m.projectName) === normalizeProjectName(prev.projectName));
-                            
-                            const pdVal = master ? getMasterVal(master, ['pd', 'PD', 'pD', 'Pd']) : null;
-                            const pmVal = master ? getMasterVal(master, ['pm', 'PM', 'pM', 'Pm']) : null;
-                            const startVal = master ? normalizeToDashDate(getMasterVal(master, ['start_date', 'startDate', 'kickoff', 'startDay'])) : null;
-                            const endVal = master ? normalizeToDashDate(getMasterVal(master, ['end_date', 'endDate', 'rfpInfo', 'endDay', 'rfp_info'])) : null;
-                            const masterStatus = master ? getMasterVal(master, ['status', 'operatingStatus', 'operating_status']) : null;
+                // 3. AUTO-SEEDING: Filter Master projects for 'Ongoing' AND 'Client' type.
+                const activeMasterProjects = masterProjectsList.filter(m => {
+                    const status = String(m.status || '').normalize('NFC').trim().toLowerCase();
+                    const type = String(m.type || '').normalize('NFC').trim().toLowerCase();
 
-                            const seeded = {
-                                ...prev,
-                                id: Date.now() + Math.random(),
+                    // NULL/empty status → treat as active (DB default behavior)
+                    const isActive = !status || ['active', '진행중', '수행', 'ongoing', '진행', '진행예정', 'upcoming'].some(s => status.includes(s));
+                    // NULL/empty type → treat as Client (DB DEFAULT 'Client')
+                    const isRelevant = !type || ['client', '고객사', 'internal', '내부', '제안'].some(t => type.includes(t));
+
+                    return isActive && isRelevant;
+                });
+
+
+                if (currentRows.length === 0 || currentRows.length < activeMasterProjects.length) {
+                    const existingNames = new Set((currentRows || []).map(r => normalizeProjectName(r.projectName)));
+                    const seededRows = [...(currentRows || [])];
+                    
+                    // If we have prevRows, and current is empty, start with prevRows
+                    if (currentRows.length === 0 && prevRows.length > 0) {
+                        prevRows.forEach(p => {
+                            seededRows.push({ ...p, id: Date.now() + Math.random() });
+                            existingNames.add(normalizeProjectName(p.projectName));
+                        });
+                    }
+
+                    activeMasterProjects.forEach((master, index) => {
+                        const normName = normalizeProjectName(master.name || master.projectName);
+                        if (!existingNames.has(normName)) {
+                            seededRows.push({
+                                id: Date.now() + index + Math.random(),
+                                projectName: master.name || master.projectName,
+                                type: 'Client',
+                                category: master.status || '진행중',
+                                [statusKey]: master.status || '진행중',
+                                [pdKey]: getMasterVal(master, ['pd', 'PD', 'pD', 'Pd']) || '',
+                                [pmKey]: getMasterVal(master, ['pm', 'PM', 'pM', 'Pm']) || '',
+                                [startKey]: normalizeToDashDate(getMasterVal(master, ['start_date', 'startDate', 'kickoff', 'startDay'])) || '',
+                                [endKey]: normalizeToDashDate(getMasterVal(master, ['end_date', 'endDate', 'rfpInfo', 'endDay', 'rfp_info'])) || '',
                                 progress: '-',
-                                [statusKey]: '',
                                 plan: '-',
                                 pt: '-',
-                                proposal: '-',
-                                type: 'Client'
-                            };
+                                proposal: '-'
+                            });
+                            existingNames.add(normName);
+                        }
+                    });
 
-                            // Apply robust metadata from master
-                            if (pdVal !== null) seeded[pdKey] = pdVal;
-                            if (pmVal !== null) seeded[pmKey] = pmVal;
-                            if (startVal) seeded[startKey] = startVal;
-                            if (endVal) seeded[endKey] = endVal;
-                            if (masterStatus) seeded[statusKey] = masterStatus;
+                    // FINAL REPAIR: Ensure all rows (new and carryover) have the LATEST metadata from Master
+                    currentRows = seededRows.map(row => {
+                        const master = masterProjectsList.find(m => normalizeProjectName(m.name || m.projectName) === normalizeProjectName(row.projectName));
+                        if (!master) return { ...row, id: row.id || (Date.now() + Math.random()) };
 
-                            return seeded;
-                        });
+                        const updated = { 
+                            ...row, 
+                            id: row.id || (Date.now() + Math.random()),
+                            progress: row.progress || '-',
+                            plan: row.plan || '-'
+                        };
+
+                        // Sync Master Info
+                        const pdVal = getMasterVal(master, ['pd', 'PD', 'pD', 'Pd']);
+                        const pmVal = getMasterVal(master, ['pm', 'PM', 'pM', 'Pm']);
+                        const startVal = normalizeToDashDate(getMasterVal(master, ['start_date', 'startDate', 'kickoff', 'startDay']));
+                        const endVal = normalizeToDashDate(getMasterVal(master, ['end_date', 'endDate', 'rfpInfo', 'endDay', 'rfp_info']));
+                        const masterStatus = getMasterVal(master, ['status', 'operatingStatus', 'operating_status']);
+                        const clientInfo = getMasterVal(master, ['clientInfo', 'client_info', 'customer']);
+
+                        if (pdVal) updated[pdKey] = pdVal;
+                        if (pmVal) updated[pmKey] = pmVal;
+                        if (startVal) updated[startKey] = startVal;
+                        if (endVal) updated[endKey] = endVal;
+                        if (masterStatus) updated[statusKey] = masterStatus;
+                        if (clientInfo) updated[clientInfoKey] = clientInfo;
+
+                        return updated;
+                    });
                 } else {
                     // METADATA REPAIR: If rows already exist, fill in missing PM/Date/Status from Master DB
                     currentRows = currentRows.map(row => {
@@ -1173,6 +1211,7 @@ const ProjectReport = () => {
                         const updated = { ...row };
                         const isPlaceholder = (v) => !v || v === '-' || v === '';
 
+                        if (!updated.type) updated.type = 'Client';
                         if (pdVal) updated[pdKey] = pdVal;
                         if (pmVal) updated[pmKey] = pmVal;
                         if (startVal) updated[startKey] = startVal;
@@ -1200,7 +1239,10 @@ const ProjectReport = () => {
                     if (prevLayout.rowHeights) setRowHeights(prevLayout.rowHeights);
                 }
 
-                dataLoaded.current = true;
+                // Final flag update with safety delay to prevent empty-auto-save race condition
+                setTimeout(() => {
+                    dataLoaded.current = true;
+                }, 500);
                 
                 // Fetch master projects if not already fetched during seeding
                 if (masterProjects.length === 0) {
@@ -1326,18 +1368,12 @@ const ProjectReport = () => {
         return [
             { key: 'category', label: '구분', width: 80 },
             { key: 'projectName', label: '프로젝트명', width: 320 },
-            { key: 'health', label: '운영 상태', width: 100 },
-            { key: 'pd', label: '보고자/담당', width: 150 },
-            { key: 'mainContractor', label: '주사업자', width: 150 },
-            { key: 'estimatedAmount', label: '금액(예상)', width: 120 },
-            { key: 'progress', label: '진행상황', width: 180 },
-            { key: 'kickoff', label: '기간/일정', width: 120 },
-            { key: 'rfpInfo', label: '특이사항', width: 120 },
-            { key: 'proposal', label: '비고1', width: 120 },
-            { key: 'pt', label: '비고2', width: 100 },
-            { key: 'status', label: '상세 보고 내용', width: 500 },
-            { key: 'plan', label: '투입계획', width: 150 },
-            { key: 'clientInfo', label: '고객 정보', width: 200 },
+            { key: 'pd', label: 'PD', width: 120 },
+            { key: 'pm', label: 'PM', width: 120 },
+            { key: 'status', label: '운영상태', width: 100 },
+            { key: 'kickoff', label: '시작일', width: 120 },
+            { key: 'rfpInfo', label: '종료일', width: 120 },
+            { key: 'progress', label: '진행상황', width: 500 },
             { key: 'manage', label: '관리', width: 60 }
         ];
     });
@@ -1616,15 +1652,15 @@ const ProjectReport = () => {
                 const matchesCategory = selectedCategories.includes(cat);
                 const matchesSearch = (item.projectName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                                       (item.pd || '').toLowerCase().includes(searchTerm.toLowerCase());
-                
+
                 // Ownership Filtering: If not Admin, only show own projects (PD or PM match)
-                const isOwner = user?.role === 'Admin' || 
+                const isOwner = user?.role === 'Admin' ||
                                 (String(item.pd || '').trim() === String(user?.name || '').trim()) ||
                                 (String(item.pm || '').trim() === String(user?.name || '').trim());
 
                 // User requirement: Only show "Client" projects
                 // Allow empty projectName rows for new entries
-                const isClient = item.type === 'Client' || !item.projectName || item.projectName === '';
+                const isClient = !item.type || item.type === 'Client' || !item.projectName || item.projectName === '';
                 
                 return matchesCategory && matchesSearch && isClient && isOwner;
             })
