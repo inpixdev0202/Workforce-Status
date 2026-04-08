@@ -54,9 +54,10 @@ router.post('/', async (req, res) => {
         const result = await run(`
       INSERT INTO groups (name, color, display_order)
       VALUES (?, ?, ?)
+      RETURNING id
     `, [name, color || '#3B82F6', displayOrder]);
 
-        const newGroup = await get('SELECT * FROM groups WHERE id = ?', [result.lastInsertRowid]);
+        const newGroup = await get('SELECT * FROM groups WHERE id = ?', [result.rows[0].id]);
         res.status(201).json(newGroup);
     } catch (error) {
         if (error.message.includes('UNIQUE constraint failed')) {

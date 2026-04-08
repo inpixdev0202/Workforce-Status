@@ -95,6 +95,7 @@ router.post('/', async (req, res) => {
         group_id, name, position, skill_level, employment_type, join_date, retirement_date,
         contact_email, contact_phone, status, notes, exclude_from_stats, job_role
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      RETURNING id
     `, [
             group_id || null,
             name,
@@ -116,7 +117,7 @@ router.post('/', async (req, res) => {
       FROM employees e
       LEFT JOIN groups g ON e.group_id = g.id
       WHERE e.id = ?
-    `, [result.lastInsertRowid]);
+    `, [result.rows[0].id]);
 
         res.status(201).json(newEmployee);
     } catch (error) {

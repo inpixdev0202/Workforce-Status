@@ -32,9 +32,10 @@ router.post('/', async (req, res) => {
         const result = await run(`
             INSERT INTO integrations (name, description, url, icon_emoji, display_order)
             VALUES (?, ?, ?, ?, ?)
+            RETURNING id
         `, [name, description, url, icon_emoji || '🔗', displayOrder]);
 
-        const newIntegration = await get('SELECT * FROM integrations WHERE id = ?', [result.lastInsertRowid]);
+        const newIntegration = await get('SELECT * FROM integrations WHERE id = ?', [result.rows[0].id]);
         res.status(201).json(newIntegration);
     } catch (error) {
         res.status(500).json({ error: error.message });

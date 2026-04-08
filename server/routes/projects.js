@@ -84,14 +84,15 @@ router.post('/', async (req, res) => {
         }
 
         // Get max order
-        const maxOrder = await get('SELECT MAX(display_order) as max_order FROM projects')?.max_order || 0;
+        const maxOrder = (await get('SELECT MAX(display_order) as max_order FROM projects'))?.max_order || 0;
 
         const result = await run(`
       INSERT INTO projects (name, start_date, end_date, status, note, type, display_order, pd, pm, project_group)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      RETURNING id
     `, [name, start_date || null, end_date || null, status || '진행중', note || '', type || 'Client', maxOrder + 1, pd || '', pm || '', project_group || null]);
 
-        const newProject = await get('SELECT * FROM projects WHERE id = ?', [result.lastInsertRowid]);
+        const newProject = await get('SELECT * FROM projects WHERE id = ?', [result.rows[0].id]);
         res.status(201).json(newProject);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -187,14 +188,16 @@ router.post('/:id/assign', async (req, res) => {
         }
 
         // Get max order
-        const maxOrder = await get('SELECT MAX(display_order) as max_order FROM project_assignments WHERE project_id = ?', [req.params.id])?.max_order || 0;
+        const maxOrder = (await get('SELECT MAX(display_order) as max_order FROM project_assignments WHERE project_id = ?', [req.params.id]))?.max_order || 0;
 
         const result = await run(`
       INSERT INTO project_assignments (project_id, employee_id, role, input_start_date, input_end_date, display_order)
       VALUES (?, ?, ?, ?, ?, ?)
+      RETURNING id
     `, [req.params.id, employee_id, role || '', input_start_date || null, input_end_date || null, maxOrder + 1]);
 
-        console.log(`[ASSIGN] Inserted ID: ${result.lastInsertRowid}`);
+        const insertedId = result.rows[0].id;
+        console.log(`[ASSIGN] Inserted ID: ${insertedId}`);
 
         const newAssignment = await get(`
       SELECT pa.*, e.name as employee_name, e.position as employee_position, e.skill_level as employee_grade, e.employment_type as employee_employment_type, g.name as group_name, g.color as group_color
@@ -202,12 +205,12 @@ router.post('/:id/assign', async (req, res) => {
       LEFT JOIN employees e ON pa.employee_id = e.id
       LEFT JOIN groups g ON e.group_id = g.id
       WHERE pa.id = ?
-    `, [result.lastInsertRowid]);
+    `, [insertedId]);
 
         console.log(`[ASSIGN] Fetched object:`, newAssignment ? 'SUCCESS' : 'NULL');
 
         if (!newAssignment) {
-            throw new Error(`Failed to retrieve newly created assignment (ID: ${result.lastInsertRowid})`);
+            throw new Error(`Failed to retrieve newly created assignment (ID: ${insertedId})`);
         }
 
         res.status(201).json(newAssignment);

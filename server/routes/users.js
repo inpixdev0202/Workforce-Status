@@ -57,11 +57,11 @@ router.post('/', async (req, res) => {
         const hash = await bcrypt.hash(password, salt);
 
         const result = await run(
-            'INSERT INTO users (name, email, password_hash, role, group_id, permissions) VALUES (?, ?, ?, ?, ?, ?)',
+            'INSERT INTO users (name, email, password_hash, role, group_id, permissions) VALUES (?, ?, ?, ?, ?, ?) RETURNING id',
             [name, email, hash, role, group_id || null, permissions ? JSON.stringify(permissions) : null]
         );
 
-        res.status(201).json({ id: result.lastInsertRowid, message: '사용자가 성공적으로 생성되었습니다.' });
+        res.status(201).json({ id: result.rows[0].id, message: '사용자가 성공적으로 생성되었습니다.' });
     } catch (error) {
         console.error('Error creating user:', error);
         res.status(500).json({ error: '사용자 생성에 실패했습니다.' });
