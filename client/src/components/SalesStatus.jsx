@@ -614,7 +614,9 @@ const SalesStatus = () => {
 
     const handleColumnMouseDown = useCallback((e, column) => {
         e.stopPropagation();
-        resizingRef.current = { isResizing: true, type: 'col', id: column, startPos: e.clientX, startSize: columnWidths[column] };
+        const th = e.currentTarget.closest('th');
+        const actualWidth = th ? th.getBoundingClientRect().width : (columnWidths[column] || 120);
+        resizingRef.current = { isResizing: true, type: 'col', id: column, startPos: e.clientX, startSize: actualWidth };
         document.body.style.cursor = 'col-resize';
         document.addEventListener('mousemove', handleMouseMove);
         document.addEventListener('mouseup', handleMouseUp);
