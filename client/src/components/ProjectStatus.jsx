@@ -255,7 +255,10 @@ const MemberRow = React.memo(({
     getFilteredEmployees,
     cellRefs,
     mIdx,
-    isCompleted
+    isCompleted,
+    leftSpacerWidth,
+    rightSpacerWidth,
+    visibleStartIdx
 }) => {
     const opacity = isCompleted ? 0.5 : 1;
     const bgColor = isCompleted ? 'var(--surface-low)' : 'var(--bg-primary)';
@@ -347,11 +350,12 @@ const MemberRow = React.memo(({
                 />
             </td>
 
+            {leftSpacerWidth > 0 && <td style={{ minWidth: leftSpacerWidth, width: leftSpacerWidth, borderBottom: '1px solid var(--border)' }} />}
             {
                 weeks.map((week, weekIndex) => {
                     const dateStr = format(week, 'yyyy-MM-dd');
                     const val = member.allocations?.[dateStr] || '';
-                    const globalWeekIdx = weekIndex + 2;
+                    const globalWeekIdx = (visibleStartIdx + weekIndex) + 2;
                     const isFocused = cursor.memberIndex === currentMemberIndex && cursor.weekIndex === globalWeekIdx;
                     const inRange = project.type === 'Annual' ? true : isDateInRange(week, member.input_start_date, member.input_end_date);
                     const isCurrent = isCurrentWeek(week);
@@ -387,6 +391,7 @@ const MemberRow = React.memo(({
                     );
                 })
             }
+            {rightSpacerWidth > 0 && <td style={{ minWidth: rightSpacerWidth, width: rightSpacerWidth, borderBottom: '1px solid var(--border)' }} />}
         </tr>
     );
 });
@@ -575,6 +580,7 @@ const InlineAddRow = React.memo(({
                     backgroundColor: isCurrentWeek(week) ? 'rgba(239, 68, 68, 0.05)' : 'transparent'
                 }}></td>
             ))}
+            {(rightSpacerWidth || 0) > 0 && <td style={{ width: rightSpacerWidth, height: '28px', borderBottom: '1px solid var(--border)' }} />}
         </tr>
     );
 });
@@ -611,7 +617,10 @@ const ProjectItem = React.memo(({
     handleRemoveMember,
     handleReorderMember,
     getFilteredEmployees,
-    handleInlineAssign
+    handleInlineAssign,
+    leftSpacerWidth,
+    rightSpacerWidth,
+    visibleStartIdx
 }) => {
     // If it's a completed project and not expanded, we only show the header
     const showMembers = !isCompleted || isExpanded;
@@ -668,9 +677,11 @@ const ProjectItem = React.memo(({
                         )}
                     </div>
                 </td>
+                {leftSpacerWidth > 0 && <td style={{ width: leftSpacerWidth, backgroundColor: bgColor, borderBottom: '1px solid var(--border)' }} />}
                 {weeks.map((week, wIdx) => (
                     <td key={wIdx} style={{ backgroundColor: bgColor, borderRight: isCurrentWeek(week) ? '2px solid #ef4444' : 'none', borderBottom: '1px solid var(--border)' }}></td>
                 ))}
+                {rightSpacerWidth > 0 && <td style={{ width: rightSpacerWidth, backgroundColor: bgColor, borderBottom: '1px solid var(--border)' }} />}
             </tr>
 
             {showMembers && project.members.map((member, mIdx) => {
@@ -683,7 +694,7 @@ const ProjectItem = React.memo(({
                         isCompleted={isCompleted}
                         currentMemberIndex={rowIndex}
                         mIdx={mIdx}
-                        weeks={weeks}
+                        weeks={visibleWeeks}
                         columnWidths={columnWidths}
                         cursor={cursor}
                         getStickyLeft={getStickyLeft}
@@ -702,6 +713,9 @@ const ProjectItem = React.memo(({
                         getFilteredEmployees={getFilteredEmployees}
                         cellRefs={cellRefs}
                         handleInlineAssign={handleInlineAssign}
+                        leftSpacerWidth={leftSpacerWidth}
+                        rightSpacerWidth={rightSpacerWidth}
+                        visibleStartIdx={visibleStartIdx}
                     />
                 );
             })}
@@ -710,7 +724,7 @@ const ProjectItem = React.memo(({
                 <InlineAddRow
                     project={project}
                     addRowIndex={memberStartIndex + project.members.length}
-                    weeks={weeks}
+                    weeks={visibleWeeks}
                     columnWidths={columnWidths}
                     viewMode="project"
                     getStickyLeft={getStickyLeft}
@@ -779,6 +793,9 @@ const ProjectStatus = () => {
     const [cursor, setCursor] = useState({ memberIndex: null, weekIndex: null });
     const cellRefs = useRef({});
     const [loading, setLoading] = useState(true);
+    // Column virtualization: track visible week range
+    const [visibleColRange, setVisibleColRange] = useState({ start: 0, end: 50 });
+    const COL_BUFFER = 20; // extra weeks to render beyond visible area
     const [showProjectModal, setShowProjectModal] = useState(false);
     const [showMemberModal, setShowMemberModal] = useState(false);
     const [selectedProject, setSelectedProject] = useState(null);
@@ -1430,14 +1447,8 @@ const ProjectStatus = () => {
             const container = tableContainerRef.current;
             const slider = sliderRef.current;
 
-            // Calculate fixed columns total width based on view mode
-            const fixedColsWidth = viewMode === 'project'
-                ? (columnWidths.group + columnWidths.position + columnWidths.grade + columnWidths.employmentType + columnWidths.name + columnWidths.workLocation + columnWidths.startDate + columnWidths.endDate)
-                : (columnWidths.name + columnWidths.position + columnWidths.grade + columnWidths.employmentType + columnWidths.workLocation + columnWidths.startDate + columnWidths.endDate);
-
             // Calculate the actual scrollable area for weeks only
             const scrollLeft = container.scrollLeft;
-            const maxScroll = container.scrollWidth - container.clientWidth;
 
             // Map scroll pixel position back to a week offset
             const offsetWeeks = Math.round(scrollLeft / columnWidths.week);
@@ -1449,9 +1460,18 @@ const ProjectStatus = () => {
                 setVisibleDate(`${format(w, 'yyyy년 M월 d일')} ~ ${format(addDays(w, 4), 'M월 d일')}`);
             }
 
+            // Update visible column range for virtualization
+            const visibleWeeks = Math.ceil(container.clientWidth / columnWidths.week);
+            const newStart = Math.max(0, offsetWeeks - COL_BUFFER);
+            const newEnd = Math.min(weeks.length - 1, offsetWeeks + visibleWeeks + COL_BUFFER);
+            setVisibleColRange(prev => {
+                if (prev.start === newStart && prev.end === newEnd) return prev;
+                return { start: newStart, end: newEnd };
+            });
+
             isScrollingRef.current = false;
         });
-    }, [columnWidths, viewMode, weeks]);
+    }, [columnWidths, weeks, COL_BUFFER]);
 
     const handleSliderChange = useCallback((e) => {
         if (!tableContainerRef.current) return;
@@ -1495,8 +1515,19 @@ const ProjectStatus = () => {
             // Set the date label to today immediately
             const today = startOfWeek(new Date(), { weekStartsOn: 1 });
             setVisibleDate(`${format(today, 'yyyy년 M월 d일')} ~ ${format(addDays(today, 4), 'M월 d일')}`);
+
+            // Initialize visible col range centered around today
+            const container = tableContainerRef.current;
+            const todayIdx = weeks.findIndex(w => format(w, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd'));
+            if (todayIdx !== -1) {
+                const visibleWeeks = Math.ceil(container.clientWidth / columnWidths.week);
+                setVisibleColRange({
+                    start: Math.max(0, todayIdx - COL_BUFFER),
+                    end: Math.min(weeks.length - 1, todayIdx + visibleWeeks + COL_BUFFER)
+                });
+            }
         }
-    }, [weeks, handleToday]);
+    }, [weeks, handleToday, columnWidths.week, COL_BUFFER]);
 
 
 
@@ -2141,6 +2172,16 @@ const ProjectStatus = () => {
     let globalRowIndex = 0;
 
     // Group weeks by month for the header
+    // Virtualized week columns: only render visible range + buffer
+    const visibleWeeks = useMemo(() => {
+        if (weeks.length === 0) return [];
+        return weeks.slice(visibleColRange.start, visibleColRange.end + 1);
+    }, [weeks, visibleColRange]);
+
+    // Spacer widths for columns before and after visible range
+    const leftSpacerWidth = visibleColRange.start * columnWidths.week;
+    const rightSpacerWidth = Math.max(0, (weeks.length - 1 - visibleColRange.end)) * columnWidths.week;
+
     const monthGroups = [];
     if (weeks.length > 0) {
         let currentMonth = format(weeks[0], 'M월');
@@ -2788,35 +2829,53 @@ const ProjectStatus = () => {
                                 <col style={{ width: columnWidths.endDate }} />
                             </>
                         )}
-                        {weeks.map(w => (
+                        {leftSpacerWidth > 0 && <col style={{ width: leftSpacerWidth }} />}
+                        {visibleWeeks.map(w => (
                             <col key={w.toString()} style={{ width: columnWidths.week }} />
                         ))}
+                        {rightSpacerWidth > 0 && <col style={{ width: rightSpacerWidth }} />}
                     </colgroup>
                     <thead style={{ position: 'sticky', top: 0, zIndex: 200, backgroundColor: 'var(--surface-high)' }}>
                         {/* Month Group Header Row */}
                         <tr>
                             <th colSpan={viewMode === 'project' ? 8 : 7} style={{ position: 'sticky', left: 0, zIndex: 201, backgroundColor: 'var(--surface-high)', borderBottom: '1px solid var(--border)' }}></th>
-                            {monthGroups.map((group, idx) => (
-                                <th
-                                    key={`month-${idx}`}
-                                    colSpan={group.weekCount}
-                                    onClick={() => handleMonthClick(group.startIndex)}
-                                    style={{
-                                        textAlign: 'center',
-                                        borderLeft: '1px solid var(--border)',
-                                        backgroundColor: 'var(--surface-high)',
-                                        fontSize: '0.85em',
-                                        padding: '4px 0',
-                                        width: `${columnWidths.week * group.weekCount}px`,
-                                        overflow: 'hidden',
-                                        whiteSpace: 'nowrap',
-                                        cursor: 'pointer'
-                                    }}
-                                    title={`${group.month}로 이동`}
-                                >
-                                    {group.month}
-                                </th>
-                            ))}
+                            {leftSpacerWidth > 0 && <th style={{ width: leftSpacerWidth, minWidth: leftSpacerWidth, backgroundColor: 'var(--surface-high)' }} />}
+                            {(() => {
+                                // Only render month groups that overlap with visible range
+                                const visibleMonthGroups = [];
+                                let acc = 0;
+                                for (const group of monthGroups) {
+                                    const gStart = acc;
+                                    const gEnd = acc + group.weekCount - 1;
+                                    acc += group.weekCount;
+                                    if (gEnd < visibleColRange.start || gStart > visibleColRange.end) continue;
+                                    const clippedStart = Math.max(gStart, visibleColRange.start);
+                                    const clippedEnd = Math.min(gEnd, visibleColRange.end);
+                                    visibleMonthGroups.push({ ...group, weekCount: clippedEnd - clippedStart + 1 });
+                                }
+                                return visibleMonthGroups.map((group, idx) => (
+                                    <th
+                                        key={`month-${idx}`}
+                                        colSpan={group.weekCount}
+                                        onClick={() => handleMonthClick(group.startIndex)}
+                                        style={{
+                                            textAlign: 'center',
+                                            borderLeft: '1px solid var(--border)',
+                                            backgroundColor: 'var(--surface-high)',
+                                            fontSize: '0.85em',
+                                            padding: '4px 0',
+                                            width: `${columnWidths.week * group.weekCount}px`,
+                                            overflow: 'hidden',
+                                            whiteSpace: 'nowrap',
+                                            cursor: 'pointer'
+                                        }}
+                                        title={`${group.month}로 이동`}
+                                    >
+                                        {group.month}
+                                    </th>
+                                ));
+                            })()}
+                            {rightSpacerWidth > 0 && <th style={{ width: rightSpacerWidth, minWidth: rightSpacerWidth, backgroundColor: 'var(--surface-high)' }} />}
                         </tr>
                         {/* Weekly Range Header Row */}
                         <tr>
@@ -2933,7 +2992,8 @@ const ProjectStatus = () => {
                                 </>
                             )}
 
-                            {weeks.map((week, idx) => {
+                            {leftSpacerWidth > 0 && <th style={{ width: leftSpacerWidth, minWidth: leftSpacerWidth, backgroundColor: 'var(--surface-high)' }} />}
+                            {visibleWeeks.map((week) => {
                                 const isCurrent = isCurrentWeek(week);
                                 return (
                                     <th key={week.toString()} style={{
@@ -2962,6 +3022,7 @@ const ProjectStatus = () => {
                                     </th>
                                 );
                             })}
+                            {rightSpacerWidth > 0 && <th style={{ width: rightSpacerWidth, minWidth: rightSpacerWidth, backgroundColor: 'var(--surface-high)' }} />}
                         </tr>
                     </thead>
                     <tbody>
@@ -2983,7 +3044,7 @@ const ProjectStatus = () => {
                                                     pIdx={pIdx}
                                                     dataLength={filteredData.active.length}
                                                     isCompleted={false}
-                                                    weeks={weeks}
+                                                    weeks={visibleWeeks}
                                                     columnWidths={columnWidths}
                                                     cursor={cursor}
                                                     setCursor={setCursor}
@@ -3007,6 +3068,9 @@ const ProjectStatus = () => {
                                                     handleReorderMember={handleReorderMember}
                                                     getFilteredEmployees={getFilteredEmployees}
                                                     handleInlineAssign={handleInlineAssign}
+                                                    leftSpacerWidth={leftSpacerWidth}
+                                                    rightSpacerWidth={rightSpacerWidth}
+                                                    visibleStartIdx={visibleColRange.start}
                                                 />
                                             );
                                         })}
@@ -3056,7 +3120,7 @@ const ProjectStatus = () => {
                                                                         : [...prev, project.id]
                                                                 )
                                                             }}
-                                                            weeks={weeks}
+                                                            weeks={visibleWeeks}
                                                             columnWidths={columnWidths}
                                                             cursor={cursor}
                                                             setCursor={setCursor}
@@ -3080,6 +3144,9 @@ const ProjectStatus = () => {
                                                             handleReorderMember={handleReorderMember}
                                                             getFilteredEmployees={getFilteredEmployees}
                                                             handleInlineAssign={handleInlineAssign}
+                                                            leftSpacerWidth={leftSpacerWidth}
+                                                            rightSpacerWidth={rightSpacerWidth}
+                                                            visibleStartIdx={visibleColRange.start}
                                                         />
                                                     );
                                                 })}
@@ -3144,7 +3211,7 @@ const ProjectStatus = () => {
                                                             <GroupMemberRow
                                                                 key={`gmem-${assignment.id}`}
                                                                 assignment={assignment}
-                                                                weeks={weeks}
+                                                                weeks={visibleWeeks}
                                                                 columnWidths={columnWidths}
                                                                 cursor={cursor}
                                                                 currentMemberIndex={currentMemberIndex}
@@ -3173,7 +3240,7 @@ const ProjectStatus = () => {
                                                             <InlineAddRow
                                                                 key={`gadd-${p.id}`}
                                                                 project={p}
-                                                                weeks={weeks}
+                                                                weeks={visibleWeeks}
                                                                 columnWidths={columnWidths}
                                                                 viewMode={viewMode}
                                                                 getStickyLeft={getStickyLeft}
