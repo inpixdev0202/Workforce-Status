@@ -1129,10 +1129,14 @@ const ProjectReport = () => {
 
                     // Only include projects with active/ongoing status (not upcoming/예정)
                     const isActive = !status || ['active', '진행중', '수행', 'ongoing', '진행'].some(s => status === s);
+
+                    // Exclude if project hasn't started yet (start_date is after selected week)
+                    const startDate = m.start_date || m.startDate;
+                    const hasStarted = !startDate || new Date(startDate) <= new Date(selectedDate);
                     // Only include Client type projects (고객사 is alias for Client)
                     const isRelevant = !type || ['client', '고객사'].some(t => type.includes(t));
 
-                    return isActive && isRelevant;
+                    return isActive && isRelevant && hasStarted;
                 });
 
                 // Determine if selected week is current week or future (sync mode) vs past (archive mode)
@@ -1762,6 +1766,14 @@ const ProjectReport = () => {
                             const masterStatus = String(masterMatch.status || '').normalize('NFC').trim().toLowerCase();
                             const isOngoing = !masterStatus || ['active', '진행중', '수행', 'ongoing', '진행'].some(s => masterStatus === s);
                             if (!isOngoing) return false;
+
+                            // Exclude if project hasn't started yet (start_date is after selected week)
+                            const startDate = masterMatch.start_date || masterMatch.startDate;
+                            if (startDate) {
+                                const start = new Date(startDate);
+                                const weekDate = new Date(selectedDate);
+                                if (start > weekDate) return false;
+                            }
                         }
                     } else if (isCurrent) {
                         // Not in master + current/future week: exclude
