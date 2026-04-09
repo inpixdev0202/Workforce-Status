@@ -1040,7 +1040,12 @@ const ProjectReport = () => {
     const [pmList, setPmList] = useState([]);
     const [pdList, setPdList] = useState([]);
     const [masterProjects, setMasterProjects] = useState([]);
-    
+
+    // Cache refs: master projects and employee lists don't change between week navigations
+    const cachedMasterProjects = useRef(null);
+    const cachedPmList = useRef(null);
+    const cachedPdList = useRef(null);
+
     const COLUMN_WIDTHS_KEY = 'project_report_column_widths_v2';
     const ROW_HEIGHTS_KEY = 'project_report_row_heights_v2';
     const COLUMNS_CONFIG_KEY = 'project_report_columns_config_v2';
@@ -1062,34 +1067,55 @@ const ProjectReport = () => {
             setIsLoading(true);
             dataLoaded.current = false;
             try {
-                // 1. Fetch current week's data
-                const resCurrent = await projectReportsAPI.getByDate(selectedDate);
+                // 1. Fetch all needed data in parallel
+                // Master projects and employee lists are cached after first load
+                const prevDateStr = offsetDate(selectedDate, -7);
+                const needsStaticData = !cachedMasterProjects.current;
+
+                const [resCurrent, resPrev, resMaster, resPms, resPds] = await Promise.all([
+                    projectReportsAPI.getByDate(selectedDate),
+                    projectReportsAPI.getByDate(prevDateStr),
+                    needsStaticData ? projectsAPI.getAll() : Promise.resolve({ data: cachedMasterProjects.current }),
+                    needsStaticData ? employeesAPI.getAll({ job_role: 'PM', status: 'active' }) : Promise.resolve({ data: cachedPmList.current }),
+                    needsStaticData ? employeesAPI.getAll({ job_role: 'PD', status: 'active' }) : Promise.resolve({ data: cachedPdList.current }),
+                ]);
+
                 const loaded = resCurrent.data;
-                
+
                 let currentRows = [];
                 let currentLayout = null;
-                
+
                 if (Array.isArray(loaded)) {
                     currentRows = loaded;
                 } else if (loaded && loaded.rows) {
                     currentRows = loaded.rows;
-                    currentLayout = { 
-                        columnWidths: loaded.columnWidths, 
-                        rowHeights: loaded.rowHeights 
+                    currentLayout = {
+                        columnWidths: loaded.columnWidths,
+                        rowHeights: loaded.rowHeights
                     };
                 }
 
-                // 2. Fetch previous week and master data early for repair and carry-over
-                const prevDateStr = offsetDate(selectedDate, -7);
-                const [resPrev, resMaster] = await Promise.all([
-                    projectReportsAPI.getByDate(prevDateStr),
-                    projectsAPI.getAll()
-                ]);
-                
                 const prevLoaded = resPrev.data;
                 const prevRows = Array.isArray(prevLoaded) ? prevLoaded : (prevLoaded?.rows || []);
+
+                // Update cache and state for static data
                 const masterProjectsList = resMaster.data || [];
+                if (needsStaticData) {
+                    cachedMasterProjects.current = masterProjectsList;
+                    const pmNames = (resPms.data || []).map(e => e.name);
+                    const pdNames = (resPds.data || []).map(e => e.name);
+                    cachedPmList.current = resPms.data || [];
+                    cachedPdList.current = resPds.data || [];
+                    setPmList(pmNames);
+                    setPdList(pdNames);
+                }
                 setMasterProjects(masterProjectsList);
+
+                // Build Map for O(1) master project lookups during repair/seeding
+                const masterMap = new Map();
+                masterProjectsList.forEach(m => {
+                    masterMap.set(normalizeProjectName(m.name || m.projectName), m);
+                });
 
 
 
@@ -1191,7 +1217,7 @@ const ProjectReport = () => {
 
                     // FINAL REPAIR: Ensure all rows (new and carryover) have the LATEST metadata from Master
                     currentRows = seededRows.map(row => {
-                        const master = masterProjectsList.find(m => normalizeProjectName(m.name || m.projectName) === normalizeProjectName(row.projectName));
+                        const master = masterMap.get(normalizeProjectName(row.projectName));
                         if (!master) return { ...row, id: row.id || (Date.now() + Math.random()) };
 
                         const updated = { 
@@ -1228,7 +1254,7 @@ const ProjectReport = () => {
                 } else {
                     // METADATA REPAIR: If rows already exist, fill in missing PM/Date/Status from Master DB
                     currentRows = currentRows.map(row => {
-                        const master = masterProjectsList.find(m => normalizeProjectName(m.name || m.projectName) === normalizeProjectName(row.projectName));
+                        const master = masterMap.get(normalizeProjectName(row.projectName));
                         if (!master) return row;
 
                         const pdVal = getMasterVal(master, ['pd', 'PD', 'pD', 'Pd']);
@@ -1285,25 +1311,12 @@ const ProjectReport = () => {
                     setTimeout(() => setShowMasterSyncToast(false), 4000);
                 }
                 
-                // Fetch master projects if not already fetched during seeding
-                if (masterProjects.length === 0) {
-                    const resMaster = await projectsAPI.getAll();
-                    setMasterProjects(resMaster.data);
-                }
-
-                // Fetch PD/PM lists
-                const [pms, pds] = await Promise.all([
-                    employeesAPI.getAll({ job_role: 'PM', status: 'active' }),
-                    employeesAPI.getAll({ job_role: 'PD', status: 'active' })
-                ]);
-                setPmList(pms.data.map(e => e.name));
-                setPdList(pds.data.map(e => e.name));
             } catch (error) {
                 console.error('Failed to fetch data:', error);
             } finally {
                 setIsLoading(false);
             }
-    }, [selectedDate, masterProjects.length]);
+    }, [selectedDate]);
 
     useEffect(() => {
         fetchData();
@@ -1720,9 +1733,16 @@ const ProjectReport = () => {
     }, []);
 
 
+    // O(1) master project lookup map - rebuilt only when masterProjects changes
+    const masterProjectsMap = useMemo(() => {
+        const map = new Map();
+        masterProjects.forEach(m => map.set(normalizeProjectName(m.name || m.projectName), m));
+        return map;
+    }, [masterProjects]);
+
     const filteredData = useMemo(() => {
         const orderArr = ['진행예정', '진행중', '홀딩', '종료'];
-        
+
         const normalize = (val) => {
             const str = String(val || '').normalize('NFC').trim();
             if (str === '수행' || str === 'active' || str === 'Active') return '진행중';
@@ -1752,10 +1772,8 @@ const ProjectReport = () => {
                 })();
                 const isCurrent = new Date(selectedDate) >= todayMon;
 
-                if (item.projectName && item.projectName !== '' && masterProjects.length > 0) {
-                    const masterMatch = masterProjects.find(m =>
-                        normalizeProjectName(m.name || m.projectName) === normalizeProjectName(item.projectName)
-                    );
+                if (item.projectName && item.projectName !== '' && masterProjectsMap.size > 0) {
+                    const masterMatch = masterProjectsMap.get(normalizeProjectName(item.projectName));
                     if (masterMatch) {
                         // Exclude if not Client type (applies to all weeks)
                         const masterType = String(masterMatch.type || '').toLowerCase();
@@ -1801,8 +1819,7 @@ const ProjectReport = () => {
                 // Helper to get group from item or master DB (covers old reports too)
                 const getGroupVal = (item) => {
                     if (item.project_group) return item.project_group;
-                    const normalizedName = normalizeProjectName(item.projectName);
-                    const master = masterProjects.find(m => normalizeProjectName(m.name) === normalizedName);
+                    const master = masterProjectsMap.get(normalizeProjectName(item.projectName));
                     return master?.project_group || '';
                 };
 
@@ -1818,7 +1835,7 @@ const ProjectReport = () => {
                 const nameB = normalizeProjectName(b.projectName);
                 return nameA.localeCompare(nameB, 'ko');
             });
-    }, [reportData, searchTerm, selectedCategories, masterProjects, selectedDate]);
+    }, [reportData, searchTerm, selectedCategories, masterProjectsMap, selectedDate]);
 
     const handleExportExcel = async () => {
         const workbook = new ExcelJS.Workbook();
