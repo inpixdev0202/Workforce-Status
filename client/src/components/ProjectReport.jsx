@@ -1761,10 +1761,13 @@ const ProjectReport = () => {
                         const masterType = String(masterMatch.type || '').toLowerCase();
                         const isClientType = !masterType || masterType === 'client' || masterType === '고객사';
                         if (!isClientType) return false;
+                        // Exclude pre-start statuses from ALL weeks (including past archives)
+                        const masterStatus = String(masterMatch.status || '').normalize('NFC').trim();
+                        if (['투입예정', '진행예정'].includes(masterStatus)) return false;
                         // Exclude if not ongoing status (applies to current/future weeks)
                         if (isCurrent) {
-                            const masterStatus = String(masterMatch.status || '').normalize('NFC').trim().toLowerCase();
-                            const isOngoing = !masterStatus || ['active', '진행중', '수행', 'ongoing', '진행'].some(s => masterStatus === s);
+                            const masterStatusLower = masterStatus.toLowerCase();
+                            const isOngoing = !masterStatusLower || ['active', '진행중', '수행', 'ongoing', '진행'].some(s => masterStatusLower === s);
                             if (!isOngoing) return false;
 
                             // Exclude if project hasn't started yet (start_date is after selected week)
