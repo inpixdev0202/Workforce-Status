@@ -415,7 +415,9 @@ const GroupMemberRow = React.memo(({
     handleRemoveMember,
     projectId,
     setCursor,
-    cellRefs
+    cellRefs,
+    leftSpacerWidth,
+    rightSpacerWidth
 }) => {
     return (
         <tr key={assignment.id} style={{ borderBottom: '1px solid var(--border)' }}>
@@ -476,6 +478,7 @@ const GroupMemberRow = React.memo(({
                 />
             </td>
 
+            {leftSpacerWidth > 0 && <td style={{ width: leftSpacerWidth, backgroundColor: 'var(--bg-primary)', borderBottom: '1px solid var(--border)' }} />}
             {weeks.map((week, weekIndex) => {
                 const dateStr = format(week, 'yyyy-MM-dd');
                 const val = assignment.allocations?.[dateStr] || '';
@@ -514,6 +517,7 @@ const GroupMemberRow = React.memo(({
                     </td>
                 );
             })}
+            {rightSpacerWidth > 0 && <td style={{ width: rightSpacerWidth, backgroundColor: 'var(--bg-primary)', borderBottom: '1px solid var(--border)' }} />}
         </tr>
     );
 });
@@ -550,7 +554,8 @@ const InlineAddRow = React.memo(({
     handleInlineAssign,
     getFilteredEmployees,
     setCursor,
-    cellRefs
+    cellRefs,
+    rightSpacerWidth
 }) => {
     return (
         <tr style={{ borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}>
@@ -694,7 +699,7 @@ const ProjectItem = React.memo(({
                         isCompleted={isCompleted}
                         currentMemberIndex={rowIndex}
                         mIdx={mIdx}
-                        weeks={visibleWeeks}
+                        weeks={weeks}
                         columnWidths={columnWidths}
                         cursor={cursor}
                         getStickyLeft={getStickyLeft}
@@ -724,7 +729,7 @@ const ProjectItem = React.memo(({
                 <InlineAddRow
                     project={project}
                     addRowIndex={memberStartIndex + project.members.length}
-                    weeks={visibleWeeks}
+                    weeks={weeks}
                     columnWidths={columnWidths}
                     viewMode="project"
                     getStickyLeft={getStickyLeft}
@@ -734,6 +739,7 @@ const ProjectItem = React.memo(({
                     getFilteredEmployees={getFilteredEmployees}
                     setCursor={setCursor}
                     cellRefs={cellRefs}
+                    rightSpacerWidth={rightSpacerWidth}
                 />
             )}
 
@@ -757,8 +763,13 @@ const ProjectItem = React.memo(({
                     >
                         Total MM
                     </td>
+                    {leftSpacerWidth > 0 && <td style={{ width: leftSpacerWidth, backgroundColor: 'var(--bg-tertiary)', borderBottom: '2px solid var(--border)' }} />}
                     {weeks.map((week, idx) => {
-                        const total = project.members.reduce((sum, m) => sum + parseFloat(m.allocations?.[format(week, 'yyyy-MM-dd')] || 0), 0);
+                        const inRangeMembers = project.members.filter(m =>
+                            project.type === 'Annual' ? true : isDateInRange(week, m.input_start_date, m.input_end_date)
+                        );
+                        const total = inRangeMembers.reduce((sum, m) => sum + parseFloat(m.allocations?.[format(week, 'yyyy-MM-dd')] || 0), 0);
+                        const activeCount = inRangeMembers.filter(m => m.allocations?.[format(week, 'yyyy-MM-dd')]).length;
                         return (
                             <td
                                 key={idx}
@@ -767,7 +778,7 @@ const ProjectItem = React.memo(({
                                     textAlign: 'center',
                                     fontSize: '0.8em',
                                     fontWeight: 'bold',
-                                    color: total > 1.0 ? 'var(--danger)' : 'var(--text-primary)',
+                                    color: total > activeCount ? 'var(--danger)' : 'var(--text-primary)',
                                     borderRight: isCurrentWeek(week) ? '2px solid #ef4444' : 'none',
                                     borderBottom: '2px solid var(--border)'
                                 }}
@@ -776,6 +787,7 @@ const ProjectItem = React.memo(({
                             </td>
                         );
                     })}
+                    {rightSpacerWidth > 0 && <td style={{ width: rightSpacerWidth, backgroundColor: 'var(--bg-tertiary)', borderBottom: '2px solid var(--border)' }} />}
                 </tr>
             )}
         </React.Fragment>
@@ -793,6 +805,7 @@ const ProjectStatus = () => {
     const [cursor, setCursor] = useState({ memberIndex: null, weekIndex: null });
     const cellRefs = useRef({});
     const [loading, setLoading] = useState(true);
+    const assigningProjects = useRef(new Set()); // tracks in-flight assignment requests by projectId
     // Column virtualization: track visible week range
     const [visibleColRange, setVisibleColRange] = useState({ start: 0, end: 50 });
     const COL_BUFFER = 20; // extra weeks to render beyond visible area
@@ -883,12 +896,12 @@ const ProjectStatus = () => {
     const groupOptions = useMemo(() => {
         const uniqueGroups = [...new Set(employees.map(e => e.group_name).filter(Boolean))].sort();
         return [
-            { id: 'ALL', name: '전체 보기', color: 'var(--primary)' },
             ...uniqueGroups.map(g => ({
                 id: g,
                 name: g,
                 color: employees.find(e => e.group_name === g)?.group_color || '#64748b'
-            }))
+            })),
+            { id: 'ALL', name: '전체 보기', color: 'var(--primary)' },
         ];
     }, [employees]);
 
@@ -1100,13 +1113,17 @@ const ProjectStatus = () => {
 
     // Calculate aggregate stats for a group across weeks
     const calculateGroupStats = useCallback((group, weeksArr) => {
-        // Weekly MM totals array (one per week)
+        // Weekly MM totals array (one per week) — only count in-range allocations
         const statsArr = weeksArr.map(week => {
             const dateStr = format(week, 'yyyy-MM-dd');
+            const wEnd = format(addDays(new Date(week), 6), 'yyyy-MM-dd');
             let total = 0;
             group.projects.forEach(p => {
                 p.assignments.forEach(a => {
-                    total += parseFloat(a.allocations?.[dateStr] || 0);
+                    const inRange = p.type === 'Annual'
+                        ? true
+                        : (a.input_start_date && a.input_end_date && a.input_start_date <= wEnd && a.input_end_date >= dateStr);
+                    if (inRange) total += parseFloat(a.allocations?.[dateStr] || 0);
                 });
             });
             return total;
@@ -1843,12 +1860,29 @@ const ProjectStatus = () => {
     }, [setConfirmConfig, setData]);
 
     const handleInlineAssign = useCallback(async (projectId, employeeId) => {
-        if (loading) return;
-        setLoading(true);
+        const key = `${projectId}-${employeeId}`;
+        if (assigningProjects.current.has(key)) return;
+        assigningProjects.current.add(key);
+
+        // Optimistic update: add temporary member immediately for instant feedback
+        const empInfo = employees.find(e => e.id === employeeId);
+        const tempId = `temp-${key}`;
+        const tempMember = {
+            id: tempId,
+            project_id: projectId,
+            employee_id: employeeId,
+            employee_name: empInfo?.name || '',
+            employee_position: empInfo?.position || '',
+            group_name: empInfo?.group_name || '',
+            group_color: empInfo?.group_color || '',
+            allocations: {}
+        };
+        setData(prev => prev.map(p =>
+            p.id === projectId ? { ...p, members: [...p.members, tempMember] } : p
+        ));
 
         try {
             const response = await projectsAPI.assignMember(projectId, { employee_id: employeeId });
-            const empInfo = employees.find(e => e.id === employeeId);
             const newMember = {
                 ...response.data,
                 employee_name: response.data.employee_name || empInfo?.name,
@@ -1857,24 +1891,29 @@ const ProjectStatus = () => {
                 group_color: response.data.group_color || empInfo?.group_color,
                 allocations: {}
             };
-
+            // Replace temp member with real server data
             setData(prev => prev.map(p =>
-                p.id === projectId ? { ...p, members: [...p.members, newMember] } : p
+                p.id === projectId
+                    ? { ...p, members: p.members.map(m => m.id === tempId ? newMember : m) }
+                    : p
             ));
         } catch (err) {
+            // Rollback optimistic update
+            setData(prev => prev.map(p =>
+                p.id === projectId ? { ...p, members: p.members.filter(m => m.id !== tempId) } : p
+            ));
             console.error('Failed to assign member:', err);
             const errorMsg = err.response?.data?.error;
 
             if (errorMsg === 'Employee already assigned to this project') {
                 alert('이미 배정된 인원입니다.');
-                loadData();
             } else {
                 alert(errorMsg || '인원 배정에 실패했습니다. (서버 연결을 확인하세요)');
             }
         } finally {
-            setLoading(false);
+            assigningProjects.current.delete(key);
         }
-    }, [loading, employees, setData, loadData]);
+    }, [employees, setData, loadData]);
 
     const handleKeyDown = useCallback((e, rowIndex, weekIndex, isAddCell = false) => {
         const flatRows = getFlatRows();
@@ -2020,12 +2059,36 @@ const ProjectStatus = () => {
 
 
     const handleAssignMember = async (employeeId) => {
-        if (!selectedProject || loading) return;
-        setLoading(true);
+        if (!selectedProject) return;
+        const key = `${selectedProject.id}-${employeeId}`;
+        if (assigningProjects.current.has(key)) return;
+        assigningProjects.current.add(key);
+
+        // Close modal immediately for instant feedback
+        const projectId = selectedProject.id;
+        setShowMemberModal(false);
+        setModalSearchTerm('');
+
+        // Optimistic update: add temporary member immediately
+        const empInfo = employees.find(e => e.id === employeeId);
+        const tempId = `temp-${key}`;
+        const tempMember = {
+            id: tempId,
+            project_id: projectId,
+            employee_id: employeeId,
+            employee_name: empInfo?.name || '',
+            employee_position: empInfo?.position || '',
+            group_name: empInfo?.group_name || '',
+            group_color: empInfo?.group_color || '',
+            allocations: {}
+        };
+        setData(prev => prev.map(p =>
+            p.id === projectId ? { ...p, members: [...p.members, tempMember] } : p
+        ));
+
         try {
-            const response = await projectsAPI.assignMember(selectedProject.id, { employee_id: employeeId });
+            const response = await projectsAPI.assignMember(projectId, { employee_id: employeeId });
             console.log('Assignment response:', response.data);
-            const empInfo = employees.find(e => e.id === employeeId);
             const newMember = {
                 ...response.data,
                 employee_name: response.data.employee_name || empInfo?.name,
@@ -2034,25 +2097,27 @@ const ProjectStatus = () => {
                 group_color: response.data.group_color || empInfo?.group_color,
                 allocations: {}
             };
-
+            // Replace temp member with real server data
             setData(prev => prev.map(p =>
-                p.id === selectedProject.id ? { ...p, members: [...p.members, newMember] } : p
+                p.id === projectId
+                    ? { ...p, members: p.members.map(m => m.id === tempId ? newMember : m) }
+                    : p
             ));
-
-            setShowMemberModal(false);
-            setModalSearchTerm('');
         } catch (err) {
+            // Rollback optimistic update
+            setData(prev => prev.map(p =>
+                p.id === projectId ? { ...p, members: p.members.filter(m => m.id !== tempId) } : p
+            ));
             console.error('Failed to assign member:', err);
             const errorMsg = err.response?.data?.error;
 
             if (errorMsg === 'Employee already assigned to this project') {
                 alert('이미 배정된 인원입니다.');
-                loadData();
             } else {
                 alert(errorMsg || '인원 배정에 실패했습니다. (서버 연결을 확인하세요)');
             }
         } finally {
-            setLoading(false);
+            assigningProjects.current.delete(key);
         }
     };
 
@@ -2514,7 +2579,7 @@ const ProjectStatus = () => {
                                         <LayoutGrid size={14} /> 프로젝트
                                     </button>
                                     <button
-                                        onClick={() => setViewMode('group')}
+                                        onClick={() => { setViewMode('group'); if (selectedGroup === 'ALL') setSelectedGroup(groupOptions[0]?.id || 'ALL'); }}
                                         className={`btn flex items-center gap-xs px-md py-1.5 text-xs font-semibold transition-all cursor-pointer ${viewMode === 'group' ? 'bg-primary text-white shadow-sm' : 'text-muted hover-text-primary'}`}
                                         style={{ border: 'none', background: viewMode === 'group' ? 'var(--primary)' : 'transparent', color: viewMode === 'group' ? 'white' : 'var(--text-muted)', borderRadius: '0' }}
                                     >
@@ -3173,8 +3238,9 @@ const ProjectStatus = () => {
                                                         <span>(인원: {group.memberCount}명)</span>
                                                     </div>
                                                 </td>
-                                                {weeks.map((week, wIdx) => {
-                                                    const total = groupCalc.stats[wIdx] || 0;
+                                                {leftSpacerWidth > 0 && <td style={{ width: leftSpacerWidth, backgroundColor: 'var(--surface-high)' }} />}
+                                                {visibleWeeks.map((week, wIdx) => {
+                                                    const total = groupCalc.stats[visibleColRange.start + wIdx] || 0;
                                                     const isCurrent = isCurrentWeek(week);
                                                     return (
                                                         <td key={wIdx} style={{
@@ -3188,6 +3254,7 @@ const ProjectStatus = () => {
                                                         </td>
                                                     );
                                                 })}
+                                                {rightSpacerWidth > 0 && <td style={{ width: rightSpacerWidth, backgroundColor: 'var(--surface-high)' }} />}
                                             </tr>
 
                                             {group.projects.map((p) => (
@@ -3201,9 +3268,11 @@ const ProjectStatus = () => {
                                                                 </span>
                                                             </div>
                                                         </td>
-                                                        {weeks.map((week, wIdx) => (
+                                                        {leftSpacerWidth > 0 && <td style={{ width: leftSpacerWidth, backgroundColor: 'rgba(59, 130, 246, 0.02)' }} />}
+                                                        {visibleWeeks.map((week, wIdx) => (
                                                             <td key={wIdx} style={{ backgroundColor: 'rgba(59, 130, 246, 0.02)', borderRight: isCurrentWeek(week) ? '2px solid #ef4444' : 'none' }}></td>
                                                         ))}
+                                                        {rightSpacerWidth > 0 && <td style={{ width: rightSpacerWidth, backgroundColor: 'rgba(59, 130, 246, 0.02)' }} />}
                                                     </tr>
                                                     {p.assignments.map((assignment) => {
                                                         const currentMemberIndex = globalRowIndex++;
@@ -3229,6 +3298,8 @@ const ProjectStatus = () => {
                                                                 projectId={p.id}
                                                                 setCursor={setCursor}
                                                                 cellRefs={cellRefs}
+                                                                leftSpacerWidth={leftSpacerWidth}
+                                                                rightSpacerWidth={rightSpacerWidth}
                                                             />
                                                         );
                                                     })}
@@ -3251,6 +3322,7 @@ const ProjectStatus = () => {
                                                                 getFilteredEmployees={getFilteredEmployees}
                                                                 setCursor={setCursor}
                                                                 cellRefs={cellRefs}
+                                                                rightSpacerWidth={rightSpacerWidth}
                                                             />
                                                         );
                                                     })()}
@@ -3334,9 +3406,11 @@ const ProjectStatus = () => {
                                                             <td style={{ position: 'sticky', left: 0, zIndex: 10, backgroundColor: '#f1f5f9', padding: '4px 8px', fontSize: '0.75em', fontWeight: 'bold', color: '#475569', textAlign: 'right', borderRight: '1px solid #cbd5e1' }} colSpan={7}>
                                                                 미투입 (0 MM)
                                                             </td>
-                                                            {weeks.map(week => {
+                                                            {leftSpacerWidth > 0 && <td style={{ width: leftSpacerWidth, backgroundColor: '#f1f5f9' }} />}
+                                                            {visibleWeeks.map(week => {
                                                                 const dateStr = format(week, 'yyyy-MM-dd');
                                                                 const members = weeklyStatus[dateStr]?.zero || [];
+                                                                const isCurrent = isCurrentWeek(week);
                                                                 return (
                                                                     <td key={`zero-${dateStr}`} style={{
                                                                         minWidth: `${columnWidths.week}px`,
@@ -3347,6 +3421,7 @@ const ProjectStatus = () => {
                                                                         verticalAlign: 'top',
                                                                         color: '#475569',
                                                                         borderLeft: '1px solid #e2e8f0',
+                                                                        borderRight: isCurrent ? '2px solid #ef4444' : 'none',
                                                                         lineHeight: '1.2',
                                                                         overflow: 'hidden',
                                                                         whiteSpace: 'pre-wrap'
@@ -3355,14 +3430,17 @@ const ProjectStatus = () => {
                                                                     </td>
                                                                 );
                                                             })}
+                                                            {rightSpacerWidth > 0 && <td style={{ width: rightSpacerWidth, backgroundColor: '#f1f5f9' }} />}
                                                         </tr>
                                                         <tr style={{ backgroundColor: '#fffbeb', borderBottom: '1px solid #fcd34d' }}>
                                                             <td style={{ position: 'sticky', left: 0, zIndex: 10, backgroundColor: '#fffbeb', padding: '4px 8px', fontSize: '0.75em', fontWeight: 'bold', color: '#d97706', textAlign: 'right', borderRight: '1px solid #fcd34d' }} colSpan={7}>
                                                                 부분 투입 (0.5 MM 이하)
                                                             </td>
-                                                            {weeks.map(week => {
+                                                            {leftSpacerWidth > 0 && <td style={{ width: leftSpacerWidth, backgroundColor: '#fffbeb' }} />}
+                                                            {visibleWeeks.map(week => {
                                                                 const dateStr = format(week, 'yyyy-MM-dd');
                                                                 const members = weeklyStatus[dateStr]?.under50 || [];
+                                                                const isCurrent = isCurrentWeek(week);
                                                                 return (
                                                                     <td key={`under50-${dateStr}`} style={{
                                                                         minWidth: `${columnWidths.week}px`,
@@ -3373,6 +3451,7 @@ const ProjectStatus = () => {
                                                                         verticalAlign: 'top',
                                                                         color: '#d97706',
                                                                         borderLeft: '1px solid #fef3c7',
+                                                                        borderRight: isCurrent ? '2px solid #ef4444' : 'none',
                                                                         lineHeight: '1.2',
                                                                         overflow: 'hidden',
                                                                         whiteSpace: 'pre-wrap'
@@ -3381,14 +3460,17 @@ const ProjectStatus = () => {
                                                                     </td>
                                                                 );
                                                             })}
+                                                            {rightSpacerWidth > 0 && <td style={{ width: rightSpacerWidth, backgroundColor: '#fffbeb' }} />}
                                                         </tr>
                                                         <tr style={{ backgroundColor: '#eff6ff', borderBottom: '2px solid var(--border)' }}>
                                                             <td style={{ position: 'sticky', left: 0, zIndex: 10, backgroundColor: '#eff6ff', padding: '4px 8px', fontSize: '0.75em', fontWeight: 'bold', color: '#2563eb', textAlign: 'right', borderRight: '1px solid #bfdbfe' }} colSpan={7}>
                                                                 풀투입 (1 MM 이상)
                                                             </td>
-                                                            {weeks.map(week => {
+                                                            {leftSpacerWidth > 0 && <td style={{ width: leftSpacerWidth, backgroundColor: '#eff6ff' }} />}
+                                                            {visibleWeeks.map(week => {
                                                                 const dateStr = format(week, 'yyyy-MM-dd');
                                                                 const members = weeklyStatus[dateStr]?.over100 || [];
+                                                                const isCurrent = isCurrentWeek(week);
                                                                 return (
                                                                     <td key={`over100-${dateStr}`} style={{
                                                                         minWidth: `${columnWidths.week}px`,
@@ -3399,6 +3481,7 @@ const ProjectStatus = () => {
                                                                         verticalAlign: 'top',
                                                                         color: '#2563eb',
                                                                         borderLeft: '1px solid #dbeafe',
+                                                                        borderRight: isCurrent ? '2px solid #ef4444' : 'none',
                                                                         lineHeight: '1.2',
                                                                         overflow: 'hidden',
                                                                         whiteSpace: 'pre-wrap'
@@ -3407,6 +3490,7 @@ const ProjectStatus = () => {
                                                                     </td>
                                                                 );
                                                             })}
+                                                            {rightSpacerWidth > 0 && <td style={{ width: rightSpacerWidth, backgroundColor: '#eff6ff' }} />}
                                                         </tr>
                                                     </React.Fragment>
                                                 );
