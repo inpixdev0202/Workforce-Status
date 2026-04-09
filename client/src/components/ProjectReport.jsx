@@ -1214,10 +1214,18 @@ const ProjectReport = () => {
                     const existingNames = new Set((currentRows || []).map(r => normalizeProjectName(r.projectName)));
                     const seededRows = [...(currentRows || [])];
 
-                    // If we have prevRows, and current is empty, start with prevRows
+                    // If we have prevRows, and current is empty, carry over project structure only
+                    // Content fields (progress, plan, etc.) are cleared — each week starts fresh
                     if (currentRows.length === 0 && prevRows.length > 0) {
                         prevRows.forEach(p => {
-                            seededRows.push({ ...p, id: Date.now() + Math.random() });
+                            seededRows.push({
+                                ...p,
+                                id: Date.now() + Math.random(),
+                                progress: '-',
+                                plan: '-',
+                                pt: '-',
+                                proposal: '-'
+                            });
                             existingNames.add(normalizeProjectName(p.projectName));
                         });
                     }
