@@ -1127,8 +1127,8 @@ const ProjectReport = () => {
                     const status = String(m.status || '').normalize('NFC').trim().toLowerCase();
                     const type = String(m.type || '').normalize('NFC').trim().toLowerCase();
 
-                    // NULL/empty status → treat as active (DB default behavior)
-                    const isActive = !status || ['active', '진행중', '수행', 'ongoing', '진행', '진행예정', 'upcoming'].some(s => status.includes(s));
+                    // Only include projects with active/ongoing status (not upcoming/예정)
+                    const isActive = !status || ['active', '진행중', '수행', 'ongoing', '진행'].some(s => status === s);
                     // Only include Client type projects (고객사 is alias for Client)
                     const isRelevant = !type || ['client', '고객사'].some(t => type.includes(t));
 
@@ -1753,10 +1753,16 @@ const ProjectReport = () => {
                         normalizeProjectName(m.name || m.projectName) === normalizeProjectName(item.projectName)
                     );
                     if (masterMatch) {
-                        // In master: exclude if not Client type (applies to all weeks)
+                        // Exclude if not Client type (applies to all weeks)
                         const masterType = String(masterMatch.type || '').toLowerCase();
                         const isClientType = !masterType || masterType === 'client' || masterType === '고객사';
                         if (!isClientType) return false;
+                        // Exclude if not ongoing status (applies to current/future weeks)
+                        if (isCurrent) {
+                            const masterStatus = String(masterMatch.status || '').normalize('NFC').trim().toLowerCase();
+                            const isOngoing = !masterStatus || ['active', '진행중', '수행', 'ongoing', '진행'].some(s => masterStatus === s);
+                            if (!isOngoing) return false;
+                        }
                     } else if (isCurrent) {
                         // Not in master + current/future week: exclude
                         return false;
