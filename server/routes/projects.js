@@ -191,7 +191,33 @@ router.put('/:id', async (req, res) => {
 // Delete Project
 router.delete('/:id', async (req, res) => {
     try {
+        // Get project name before deleting for cascade to project_reports
+        const existing = await get('SELECT name FROM projects WHERE id = ?', [req.params.id]);
+        const projectName = existing?.name;
+
         await run('DELETE FROM projects WHERE id = ?', [req.params.id]);
+
+        // Cascade: remove matching rows from all project_reports JSON
+        if (projectName) {
+            const normalize = (name) => (name || '').replace(/\s*\(.*?\)\s*/g, '').replace(/\s*\[.*?\]\s*/g, '').replace(/\s+/g, '').trim().toUpperCase();
+            const normalizedName = normalize(projectName);
+            const allReports = await query('SELECT week_date, data_json FROM project_reports');
+            for (const report of allReports) {
+                let rows;
+                try { rows = JSON.parse(report.data_json); } catch { continue; }
+                if (!Array.isArray(rows)) continue;
+
+                const filtered = rows.filter(row => normalize(row.projectName) !== normalizedName);
+                if (filtered.length !== rows.length) {
+                    await run(
+                        'UPDATE project_reports SET data_json = ?, updated_at = CURRENT_TIMESTAMP WHERE week_date = ?',
+                        [JSON.stringify(filtered), report.week_date]
+                    );
+                }
+            }
+            console.log(`[PROJECT DELETE] "${projectName}" removed from project_reports`);
+        }
+
         res.json({ message: 'Project deleted' });
     } catch (error) {
         res.status(500).json({ error: error.message });
