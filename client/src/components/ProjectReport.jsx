@@ -1119,6 +1119,9 @@ const ProjectReport = () => {
                     return null;
                 };
 
+                // Track if any master metadata was updated (for user notification)
+                let masterUpdated = false;
+
                 // 3. AUTO-SEEDING: Filter Master projects for 'Ongoing' AND 'Client' type.
                 const activeMasterProjects = masterProjectsList.filter(m => {
                     const status = String(m.status || '').normalize('NFC').trim().toLowerCase();
@@ -1202,13 +1205,20 @@ const ProjectReport = () => {
                         const masterStatus = getMasterVal(master, ['status', 'operatingStatus', 'operating_status']);
                         const clientInfo = getMasterVal(master, ['clientInfo', 'client_info', 'customer']);
 
-                        if (pdVal) updated[pdKey] = pdVal;
-                        if (pmVal) updated[pmKey] = pmVal;
-                        if (startVal) updated[startKey] = startVal;
-                        if (endVal) updated[endKey] = endVal;
-                        if (masterStatus) updated[statusKey] = masterStatus;
+                        let changed = false;
+                        if (pdVal && row[pdKey] !== pdVal) { updated[pdKey] = pdVal; changed = true; }
+                        else if (pdVal) updated[pdKey] = pdVal;
+                        if (pmVal && row[pmKey] !== pmVal) { updated[pmKey] = pmVal; changed = true; }
+                        else if (pmVal) updated[pmKey] = pmVal;
+                        if (startVal && row[startKey] !== startVal) { updated[startKey] = startVal; changed = true; }
+                        else if (startVal) updated[startKey] = startVal;
+                        if (endVal && row[endKey] !== endVal) { updated[endKey] = endVal; changed = true; }
+                        else if (endVal) updated[endKey] = endVal;
+                        if (masterStatus && row[statusKey] !== masterStatus) { updated[statusKey] = masterStatus; changed = true; }
+                        else if (masterStatus) updated[statusKey] = masterStatus;
                         if (clientInfo) updated[clientInfoKey] = clientInfo;
 
+                        if (changed) masterUpdated = true;
                         return updated;
                     });
                 } else {
@@ -1224,15 +1234,21 @@ const ProjectReport = () => {
                         const masterStatus = getMasterVal(master, ['status', 'operatingStatus', 'operating_status']);
 
                         const updated = { ...row };
-                        const isPlaceholder = (v) => !v || v === '-' || v === '';
 
                         if (!updated.type) updated.type = 'Client';
-                        if (pdVal) updated[pdKey] = pdVal;
-                        if (pmVal) updated[pmKey] = pmVal;
-                        if (startVal) updated[startKey] = startVal;
-                        if (endVal) updated[endKey] = endVal;
-                        if (masterStatus) updated[statusKey] = masterStatus;
+                        let changed = false;
+                        if (pdVal && row[pdKey] !== pdVal) { updated[pdKey] = pdVal; changed = true; }
+                        else if (pdVal) updated[pdKey] = pdVal;
+                        if (pmVal && row[pmKey] !== pmVal) { updated[pmKey] = pmVal; changed = true; }
+                        else if (pmVal) updated[pmKey] = pmVal;
+                        if (startVal && row[startKey] !== startVal) { updated[startKey] = startVal; changed = true; }
+                        else if (startVal) updated[startKey] = startVal;
+                        if (endVal && row[endKey] !== endVal) { updated[endKey] = endVal; changed = true; }
+                        else if (endVal) updated[endKey] = endVal;
+                        if (masterStatus && row[statusKey] !== masterStatus) { updated[statusKey] = masterStatus; changed = true; }
+                        else if (masterStatus) updated[statusKey] = masterStatus;
 
+                        if (changed) masterUpdated = true;
                         return updated;
                     });
                 }
@@ -1258,6 +1274,12 @@ const ProjectReport = () => {
                 setTimeout(() => {
                     dataLoaded.current = true;
                 }, 500);
+
+                // Notify user if master metadata was updated on load
+                if (masterUpdated) {
+                    setShowMasterSyncToast(true);
+                    setTimeout(() => setShowMasterSyncToast(false), 4000);
+                }
                 
                 // Fetch master projects if not already fetched during seeding
                 if (masterProjects.length === 0) {
@@ -1442,6 +1464,7 @@ const ProjectReport = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedCategories, setSelectedCategories] = useState(['진행예정', '진행중', '홀딩', '종료']);
     const [showSaveToast, setShowSaveToast] = useState(false);
+    const [showMasterSyncToast, setShowMasterSyncToast] = useState(false);
     const [focusedCell, setFocusedCell] = useState(null);
     const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
     const [isMasterModalOpen, setIsMasterModalOpen] = useState(false);
@@ -1715,8 +1738,9 @@ const ProjectReport = () => {
                                 (String(item.pd || '').trim() === String(user?.name || '').trim()) ||
                                 (String(item.pm || '').trim() === String(user?.name || '').trim());
 
-                // Current/future week: filter by master (only show active Client projects in master)
-                // Past week: show saved data as-is (archive mode)
+                // Filter by master:
+                // Current/future week: exclude rows not in master + non-Client types
+                // Past week (archive): only exclude non-Client types, keep rows even if not in master
                 const todayMon = (() => {
                     const d = new Date(); const day = d.getDay();
                     d.setDate(d.getDate() - day + (day === 0 ? -6 : 1));
@@ -1724,16 +1748,20 @@ const ProjectReport = () => {
                 })();
                 const isCurrent = new Date(selectedDate) >= todayMon;
 
-                if (isCurrent && item.projectName && item.projectName !== '' && masterProjects.length > 0) {
+                if (item.projectName && item.projectName !== '' && masterProjects.length > 0) {
                     const masterMatch = masterProjects.find(m =>
                         normalizeProjectName(m.name || m.projectName) === normalizeProjectName(item.projectName)
                     );
-                    // Not in master → exclude
-                    if (!masterMatch) return false;
-                    // In master but not Client type → exclude
-                    const masterType = String(masterMatch.type || '').toLowerCase();
-                    const isClientType = !masterType || masterType === 'client' || masterType === '고객사';
-                    if (!isClientType) return false;
+                    if (masterMatch) {
+                        // In master: exclude if not Client type (applies to all weeks)
+                        const masterType = String(masterMatch.type || '').toLowerCase();
+                        const isClientType = !masterType || masterType === 'client' || masterType === '고객사';
+                        if (!isClientType) return false;
+                    } else if (isCurrent) {
+                        // Not in master + current/future week: exclude
+                        return false;
+                    }
+                    // Not in master + past week: keep as-is (archive)
                 }
 
                 return matchesCategory && matchesSearch && isOwner;
@@ -2065,15 +2093,9 @@ const ProjectReport = () => {
             </style>
             {showSaveToast && (
                 <div className="fixed top-10 left-1/2 -translate-x-1/2 z-[100] animate-in slide-in-from-top duration-500">
-                    <div 
+                    <div
                         className="px-6 py-3 rounded-xl shadow-[0_0_30px_rgba(0,0,0,0.8)] flex items-center gap-3 border"
-                        style={{ 
-                            backgroundColor: '#000000', 
-                            borderColor: '#2563eb', 
-                            color: '#ffffff',
-                            opacity: 1,
-                            zIndex: 9999
-                        }}
+                        style={{ backgroundColor: '#000000', borderColor: '#2563eb', color: '#ffffff', opacity: 1, zIndex: 9999 }}
                     >
                         <CheckCircle2 size={20} color="#2563eb" /><span className="font-bold">성공적으로 저장되었습니다.</span>
                     </div>
@@ -2102,6 +2124,14 @@ const ProjectReport = () => {
                             <ChevronRight size={18} strokeWidth={2.5} />
                         </button>
                     </div>
+
+                    {showMasterSyncToast && (
+                        <div className="flex items-center gap-2 px-3 py-1 rounded-lg border text-xs font-bold animate-in fade-in duration-300"
+                            style={{ backgroundColor: '#1c1500', borderColor: '#f59e0b', color: '#f59e0b' }}>
+                            <CheckCircle2 size={14} color="#f59e0b" />
+                            마스터 정보 업데이트됨
+                        </div>
+                    )}
 
                 </div>
                 <div className="flex items-center gap-3">
