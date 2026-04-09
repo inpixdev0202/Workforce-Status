@@ -1030,6 +1030,36 @@ const mergeReportData = (current, previous) => {
     return merged;
 };
 
+// Auto-height: estimate required row height from multiline column content
+const MULTILINE_KEYS = ['progress', 'plan', 'rfpInfo', 'status', 'proposal'];
+const MULTILINE_LABEL_HINTS = ['상세', '내용', '비고', '진행상황', '투입계획', '특이사항', '고객 정보', '보고'];
+const AUTO_LINE_HEIGHT = 20;  // px per line
+const AUTO_CHAR_WIDTH = 8.5;  // px per char (generous for Korean mixed text)
+const AUTO_MIN_HEIGHT = 44;   // minimum row height
+const AUTO_V_PADDING = 12;    // top + bottom padding inside cell
+
+const computeRowHeight = (item, columnWidths, columns) => {
+    const relevantKeys = new Set(MULTILINE_KEYS);
+    if (columns) {
+        columns.forEach(c => {
+            if (c.label && MULTILINE_LABEL_HINTS.some(h => c.label.includes(h))) relevantKeys.add(c.key);
+        });
+    }
+    let maxLines = 2;
+    for (const key of relevantKeys) {
+        const text = String(item[key] || '');
+        if (!text || text === '-') continue;
+        const colWidth = (columnWidths && columnWidths[key]) || 200;
+        const availWidth = Math.max(colWidth - 16, 40);
+        let lines = 0;
+        for (const para of text.split('\n')) {
+            lines += Math.max(1, Math.ceil((para.length * AUTO_CHAR_WIDTH) / availWidth));
+        }
+        maxLines = Math.max(maxLines, lines);
+    }
+    return Math.max(AUTO_MIN_HEIGHT, maxLines * AUTO_LINE_HEIGHT + AUTO_V_PADDING);
+};
+
 const ProjectReport = () => {
     const { user } = useAuth();
     const { theme, toggleTheme } = useTheme();
@@ -1040,6 +1070,9 @@ const ProjectReport = () => {
     const [pmList, setPmList] = useState([]);
     const [pdList, setPdList] = useState([]);
     const [masterProjects, setMasterProjects] = useState([]);
+
+    // Stores last computed auto-heights keyed by row id (for resize drag start position)
+    const computedHeightsRef = useRef({});
 
     // Cache refs: master projects and employee lists don't change between week navigations
     const cachedMasterProjects = useRef(null);
@@ -1605,7 +1638,9 @@ const ProjectReport = () => {
 
     const handleRowMouseDown = useCallback((e, rowId) => {
         e.stopPropagation();
-        const startHeight = rowId === 'header' ? (rowHeights.header || 36) : (reportData.find(item => item.id === rowId)?.rowHeight || 80);
+        const startHeight = rowId === 'header'
+            ? (rowHeights.header || 36)
+            : (reportData.find(item => item.id === rowId)?.rowHeight || computedHeightsRef.current[rowId] || 80);
         resizingRef.current = { isResizing: true, type: 'row', id: rowId, startPos: e.clientY, startSize: startHeight };
         document.body.style.cursor = 'row-resize';
         document.addEventListener('mousemove', handleMouseMove);
@@ -2295,14 +2330,16 @@ const ProjectReport = () => {
                         </thead>
                         <tbody>
                             {filteredData.length > 0 ? (
-                                filteredData.map((item, rowIndex) => (
-                                    <ReportDataRow 
-                                        key={item.id} 
-                                        item={item} 
-                                        rowIndex={rowIndex} 
-                                        columns={columns} 
-                                        columnWidths={columnWidths} 
-                                        rowHeight={item.rowHeight || 80} 
+                                filteredData.map((item, rowIndex) => {
+                                    const autoHeight = computeRowHeight(item, columnWidths, columns);
+                                    computedHeightsRef.current[item.id] = autoHeight;
+                                    return <ReportDataRow
+                                        key={item.id}
+                                        item={item}
+                                        rowIndex={rowIndex}
+                                        columns={columns}
+                                        columnWidths={columnWidths}
+                                        rowHeight={item.rowHeight || autoHeight}
                                         focusedCell={focusedCell} 
                                         setFocusedCell={setFocusedCell} 
                                         onCellChange={handleCellChange} 
@@ -2315,8 +2352,8 @@ const ProjectReport = () => {
                                         masterProjects={masterProjects} 
                                         pmList={pmList}
                                         pdList={pdList}
-                                    />
-                                ))
+                                    />;
+                                })
                             ) : isLoading ? (
                                 <tr>
                                     <td colSpan={columns.length + 1} className="py-[100px]"></td>
