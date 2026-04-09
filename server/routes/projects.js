@@ -143,21 +143,47 @@ router.put('/assignments/reorder', async (req, res) => {
 router.put('/:id', async (req, res) => {
     try {
         const { name, start_date, end_date, status, note, type, pd, pm, project_group } = req.body;
-        
-        console.log('[DEBUG PUT /:id] Editing ID:', req.params.id);
-        console.log('[DEBUG PUT /:id] Body:', req.body);
-        console.log('[DEBUG PUT /:id] SQL Params:', [name, start_date || null, end_date || null, status || 'active', note || '', type || 'Client', pd || '', pm || '', req.params.id]);
+
+        // Get old name before update to detect rename
+        const existing = await get('SELECT name FROM projects WHERE id = ?', [req.params.id]);
+        const oldName = existing?.name;
 
         await run(`
-      UPDATE projects 
+      UPDATE projects
       SET name = ?, start_date = ?, end_date = ?, status = ?, note = ?, type = ?, pd = ?, pm = ?, project_group = ?
       WHERE id = ?
     `, [name, start_date || null, end_date || null, status || '진행중', note || '', type || 'Client', pd || '', pm || '', project_group || null, req.params.id]);
 
+        // Propagate name change to all project_reports JSON
+        if (oldName && name && oldName !== name) {
+            const allReports = await query('SELECT week_date, data_json FROM project_reports');
+            for (const report of allReports) {
+                let rows;
+                try { rows = JSON.parse(report.data_json); } catch { continue; }
+                if (!Array.isArray(rows)) continue;
+
+                let changed = false;
+                const updatedRows = rows.map(row => {
+                    if ((row.projectName || '').trim() === oldName.trim()) {
+                        changed = true;
+                        return { ...row, projectName: name };
+                    }
+                    return row;
+                });
+
+                if (changed) {
+                    await run(
+                        'UPDATE project_reports SET data_json = ?, updated_at = CURRENT_TIMESTAMP WHERE week_date = ?',
+                        [JSON.stringify(updatedRows), report.week_date]
+                    );
+                }
+            }
+            console.log(`[PROJECT RENAME] "${oldName}" → "${name}" propagated to project_reports`);
+        }
+
         const updated = await get('SELECT * FROM projects WHERE id = ?', [req.params.id]);
         res.json(updated);
     } catch (error) {
-        import('fs').then(fs => fs.appendFileSync('debug_update_error.log', new Date().toISOString() + ' : ' + error.stack + '\n'));
         res.status(500).json({ error: error.message });
     }
 });
