@@ -17,56 +17,74 @@ router.get('/', async (req, res) => {
 // Get all projects with assignments and allocations (Matrix Data)
 router.get('/matrix', async (req, res) => {
     try {
-        // 1. Get Projects
-        const projects = await query(`
-      SELECT * FROM projects 
-      ORDER BY COALESCE(display_order, id) ASC
-    `);
+        // Single query for projects + assignments + employee/group info
+        const [projects, rows] = await Promise.all([
+            query(`
+                SELECT * FROM projects
+                ORDER BY COALESCE(display_order, id) ASC
+            `),
+            query(`
+                SELECT
+                    pa.id, pa.project_id, pa.employee_id, pa.role,
+                    pa.input_start_date, pa.input_end_date, pa.display_order, pa.work_location,
+                    e.name AS employee_name,
+                    e.position AS employee_position,
+                    e.skill_level AS employee_grade,
+                    e.employment_type AS employee_employment_type,
+                    e.retirement_date,
+                    g.name AS group_name,
+                    g.color AS group_color,
+                    alloc.period_date,
+                    alloc.value AS alloc_value
+                FROM project_assignments pa
+                JOIN employees e ON pa.employee_id = e.id
+                LEFT JOIN groups g ON e.group_id = g.id
+                LEFT JOIN project_allocations alloc ON alloc.assignment_id = pa.id
+                ORDER BY COALESCE(pa.display_order, pa.id) ASC, alloc.period_date ASC
+            `)
+        ]);
 
-        // 2. Get Assignments with Employee info
-        const assignments = await query(`
-      SELECT 
-        pa.*,
-        e.name as employee_name,
-        e.position as employee_position,
-        e.skill_level as employee_grade,
-        e.employment_type as employee_employment_type,
-        e.retirement_date,
-        g.name as group_name,
-        g.color as group_color
-      FROM project_assignments pa
-      JOIN employees e ON pa.employee_id = e.id
-      LEFT JOIN groups g ON e.group_id = g.id
-      ORDER BY COALESCE(pa.display_order, pa.id) ASC
-    `);
-
-        // 3. Get Allocations
-        const allocations = await query(`
-      SELECT * FROM project_allocations
-    `);
-
-        // Organize data: Projects -> Assignments -> Allocations
-        const matrix = projects.map(project => {
-            const projAssignments = assignments.filter(a => a.project_id === project.id);
-
-            const assignmentsWithAllocations = projAssignments.map(assignment => {
-                const assignAllocations = allocations.filter(alloc => alloc.assignment_id === assignment.id);
-                const allocationMap = {};
-                assignAllocations.forEach(alloc => {
-                    allocationMap[alloc.period_date] = parseFloat(alloc.value) || 0;
+        // Build assignment map with allocations using Map for O(1) lookup
+        const assignmentMap = new Map();
+        for (const row of rows) {
+            if (!assignmentMap.has(row.id)) {
+                assignmentMap.set(row.id, {
+                    id: row.id,
+                    project_id: row.project_id,
+                    employee_id: row.employee_id,
+                    role: row.role,
+                    input_start_date: row.input_start_date,
+                    input_end_date: row.input_end_date,
+                    display_order: row.display_order,
+                    work_location: row.work_location,
+                    employee_name: row.employee_name,
+                    employee_position: row.employee_position,
+                    employee_grade: row.employee_grade,
+                    employee_employment_type: row.employee_employment_type,
+                    retirement_date: row.retirement_date,
+                    group_name: row.group_name,
+                    group_color: row.group_color,
+                    allocations: {}
                 });
+            }
+            if (row.period_date) {
+                assignmentMap.get(row.id).allocations[row.period_date] = parseFloat(row.alloc_value) || 0;
+            }
+        }
 
-                return {
-                    ...assignment,
-                    allocations: allocationMap
-                };
-            });
+        // Group assignments by project using Map for O(1) lookup
+        const projectAssignmentsMap = new Map();
+        for (const assignment of assignmentMap.values()) {
+            if (!projectAssignmentsMap.has(assignment.project_id)) {
+                projectAssignmentsMap.set(assignment.project_id, []);
+            }
+            projectAssignmentsMap.get(assignment.project_id).push(assignment);
+        }
 
-            return {
-                ...project,
-                members: assignmentsWithAllocations
-            };
-        });
+        const matrix = projects.map(project => ({
+            ...project,
+            members: projectAssignmentsMap.get(project.id) || []
+        }));
 
         res.json(matrix);
     } catch (error) {

@@ -154,6 +154,13 @@ async function init() {
         await pool.query('CREATE INDEX IF NOT EXISTS idx_attendance_date ON attendance(date)');
         await pool.query('CREATE INDEX IF NOT EXISTS idx_assignments_project ON project_assignments(project_id)');
         await pool.query('CREATE INDEX IF NOT EXISTS idx_allocations_period ON project_allocations(period_date)');
+        // Additional indexes for /matrix JOIN performance
+        await pool.query('CREATE INDEX IF NOT EXISTS idx_assignments_employee ON project_assignments(employee_id)');
+        await pool.query('CREATE INDEX IF NOT EXISTS idx_assignments_project_order ON project_assignments(project_id, display_order)');
+        await pool.query('CREATE INDEX IF NOT EXISTS idx_allocations_assignment ON project_allocations(assignment_id)');
+        await pool.query('CREATE INDEX IF NOT EXISTS idx_allocations_assignment_date ON project_allocations(assignment_id, period_date)');
+        await pool.query('CREATE INDEX IF NOT EXISTS idx_projects_order ON projects(display_order)');
+        await pool.query('CREATE INDEX IF NOT EXISTS idx_employees_status ON employees(status)');
 
         console.log('🎉 Schema initialization complete!');
     } catch (err) {
