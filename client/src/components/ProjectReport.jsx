@@ -1224,7 +1224,11 @@ const ProjectReport = () => {
                 const selectedWeekDate = new Date(selectedDate);
                 const isCurrentOrFutureWeek = selectedWeekDate >= todayMonday;
 
-                if (currentRows.length === 0 || isCurrentOrFutureWeek) {
+                // Admin always seeds missing master projects into any week (past or present)
+                // Non-Admin: seed only when week is empty or current/future
+                const shouldSeed = isCurrentOrFutureWeek || currentRows.length === 0 || user?.role === 'Admin';
+
+                if (shouldSeed) {
                     const existingNames = new Set((currentRows || []).map(r => normalizeProjectName(r.projectName)));
                     const seededRows = [...(currentRows || [])];
 
@@ -1245,9 +1249,20 @@ const ProjectReport = () => {
                     }
 
                     // Current/future week: add any master projects missing from the list
-                    // Past week: only seed if completely empty (already handled above)
-                    if (isCurrentOrFutureWeek) {
-                        activeMasterProjects.forEach((master, index) => {
+                    // Past empty week: also seed so PM/PD can see their projects (blank rows)
+                    // Admin: always add missing master projects even in past weeks with partial data
+                    if (isCurrentOrFutureWeek || currentRows.length === 0 || user?.role === 'Admin') {
+                        // For non-Admin users seeding a past empty week, only include their own projects
+                        let projectsToSeed = activeMasterProjects;
+                        if (!isCurrentOrFutureWeek && user?.role !== 'Admin') {
+                            const seedUserName = String(user?.name || '').normalize('NFC').trim();
+                            projectsToSeed = activeMasterProjects.filter(m => {
+                                const mPm = String(m.pm || '').normalize('NFC').trim();
+                                const mPd = String(m.pd || '').normalize('NFC').trim();
+                                return mPm === seedUserName || mPd === seedUserName;
+                            });
+                        }
+                        projectsToSeed.forEach((master, index) => {
                             const normName = normalizeProjectName(master.name || master.projectName);
                             if (!existingNames.has(normName)) {
                                 seededRows.push({
@@ -1358,6 +1373,7 @@ const ProjectReport = () => {
                 // Final flag update with safety delay to prevent empty-auto-save race condition
                 setTimeout(() => {
                     dataLoaded.current = true;
+                    isDirty.current = false; // reset dirty flag after load
                 }, 500);
 
                 // Notify user if master metadata was updated on load
@@ -1371,7 +1387,7 @@ const ProjectReport = () => {
             } finally {
                 setIsLoading(false);
             }
-    }, [selectedDate]);
+    }, [selectedDate, user]);
 
     useEffect(() => {
         fetchData();
@@ -1388,6 +1404,7 @@ const ProjectReport = () => {
         // If data hasn't finished loading first time, don't try to "save back" an empty state
         if (!dataLoaded.current) return;
 
+        isDirty.current = true; // user made a change
         setAutoSaveStatus('Saving...');
         setIsAutoSaving(true);
 
@@ -1487,9 +1504,10 @@ const ProjectReport = () => {
     };
 
     const handlePrevWeek = async () => {
-        await handleSave(true);
+        if (isDirty.current) await handleSave(true);
         const prevWeekDate = offsetDate(selectedDate, -7);
         dataLoaded.current = false;
+        isDirty.current = false;
         setReportData([]);
         setIsLoading(true);
         setSelectedDate(prevWeekDate);
@@ -1504,8 +1522,9 @@ const ProjectReport = () => {
             return;
         }
 
-        await handleSave(true);
+        if (isDirty.current) await handleSave(true);
         dataLoaded.current = false;
+        isDirty.current = false;
         setReportData([]);
         setIsLoading(true);
         setSelectedDate(nextWeekDate);
@@ -1550,6 +1569,7 @@ const ProjectReport = () => {
     const [autoSaveStatus, setAutoSaveStatus] = useState(''); // 'Saving...', 'Saved', ''
     const isInitialMount = useRef(true);
     const dataLoaded = useRef(false);
+    const isDirty = useRef(false); // tracks whether user made edits since last load
 
     const handleUpdateColumns = useCallback((newCols) => {
         setReportData(prevData => {
