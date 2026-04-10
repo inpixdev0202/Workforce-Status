@@ -1079,6 +1079,10 @@ const ProjectReport = () => {
     const cachedPmList = useRef(null);
     const cachedPdList = useRef(null);
 
+    // Ref to track current selectedDate for auto-save date guard
+    const selectedDateRef = useRef(selectedDate);
+    useEffect(() => { selectedDateRef.current = selectedDate; }, [selectedDate]);
+
     const COLUMN_WIDTHS_KEY = 'project_report_column_widths_v2';
     const ROW_HEIGHTS_KEY = 'project_report_row_heights_v2';
     const COLUMNS_CONFIG_KEY = 'project_report_columns_config_v2';
@@ -1377,10 +1381,12 @@ const ProjectReport = () => {
         setAutoSaveStatus('Saving...');
         setIsAutoSaving(true);
 
+        const capturedDate = selectedDate;
         const timer = setTimeout(async () => {
             try {
                 // Double check it's still the correct date and data is loaded before auto-save
                 if (!dataLoaded.current) return;
+                if (selectedDateRef.current !== capturedDate) return;
 
                 // Apply same filtering as manual save for current/future weeks
                 const todayMon = (() => {
@@ -1474,7 +1480,8 @@ const ProjectReport = () => {
         await handleSave(true);
         const prevWeekDate = offsetDate(selectedDate, -7);
         dataLoaded.current = false;
-        setIsLoading(true); // Show spinner without clearing UI
+        setReportData([]);
+        setIsLoading(true);
         setSelectedDate(prevWeekDate);
     };
 
@@ -1489,7 +1496,8 @@ const ProjectReport = () => {
 
         await handleSave(true);
         dataLoaded.current = false;
-        setIsLoading(true); // Show spinner without clearing UI
+        setReportData([]);
+        setIsLoading(true);
         setSelectedDate(nextWeekDate);
     };
 
