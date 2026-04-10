@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { employeesAPI, groupsAPI } from '../api';
 import EmployeeForm from './EmployeeForm';
-import { Plus, Pencil, Trash2, Info } from 'lucide-react';
+import { Plus, Pencil, Trash2, Info, FileDown } from 'lucide-react';
+import ExcelJS from 'exceljs';
+import { saveAs } from 'file-saver';
 
 function EmployeeList() {
     const [allEmployees, setAllEmployees] = useState([]);
@@ -14,6 +16,7 @@ function EmployeeList() {
         group_id: '',
         status: 'active',
         position: '',
+        skill_level: '',
         employment_type: '',
         search: ''
     });
@@ -58,6 +61,11 @@ function EmployeeList() {
         // Position (Rank) Filter
         if (filters.position) {
             filtered = filtered.filter(emp => emp.position === filters.position);
+        }
+
+        // Skill Level Filter
+        if (filters.skill_level) {
+            filtered = filtered.filter(emp => emp.skill_level === filters.skill_level);
         }
 
         // Employment Type Filter
@@ -107,6 +115,69 @@ function EmployeeList() {
         loadData();
     };
 
+    const handleExcelDownload = async () => {
+        const workbook = new ExcelJS.Workbook();
+        const sheet = workbook.addWorksheet('직원 목록');
+
+        sheet.columns = [
+            { header: '그룹', key: 'group_name', width: 16 },
+            { header: '이름', key: 'name', width: 12 },
+            { header: '직무', key: 'job_role', width: 14 },
+            { header: '직급', key: 'position', width: 10 },
+            { header: '기술등급', key: 'skill_level', width: 10 },
+            { header: '고용형태', key: 'employment_type', width: 10 },
+            { header: '입사일', key: 'join_date', width: 14 },
+            { header: '연락처', key: 'contact_phone', width: 16 },
+            { header: '이메일', key: 'contact_email', width: 26 },
+            { header: '상태', key: 'status', width: 8 },
+        ];
+
+        // Header style
+        const headerRow = sheet.getRow(1);
+        headerRow.eachCell(cell => {
+            cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF10B981' } };
+            cell.alignment = { horizontal: 'center', vertical: 'middle' };
+            cell.border = {
+                top: { style: 'thin' }, bottom: { style: 'thin' },
+                left: { style: 'thin' }, right: { style: 'thin' }
+            };
+        });
+        headerRow.height = 22;
+
+        filteredEmployees.forEach((emp, i) => {
+            const row = sheet.addRow({
+                group_name: emp.group_name || '-',
+                name: emp.name || '',
+                job_role: emp.job_role || '-',
+                position: emp.position || '-',
+                skill_level: emp.skill_level || '-',
+                employment_type: emp.employment_type || '-',
+                join_date: emp.join_date ? new Date(emp.join_date).toLocaleDateString('ko-KR') : '-',
+                contact_phone: emp.contact_phone || '-',
+                contact_email: emp.contact_email || '-',
+                status: emp.status === 'active' ? '재직' : '퇴사',
+            });
+
+            const bg = i % 2 === 0 ? 'FFFFFFFF' : 'FFF0FDF4';
+            row.eachCell(cell => {
+                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+                cell.alignment = { horizontal: 'center', vertical: 'middle' };
+                cell.border = {
+                    top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+                    bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+                    left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+                    right: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+                };
+            });
+            row.height = 18;
+        });
+
+        const buffer = await workbook.xlsx.writeBuffer();
+        const today = new Date().toISOString().slice(0, 10);
+        saveAs(new Blob([buffer], { type: 'application/octet-stream' }), `직원목록_${today}.xlsx`);
+    };
+
     if (loading) {
         return (
             <div className="loading-container">
@@ -145,22 +216,33 @@ function EmployeeList() {
                         </div>
                     </div>
                 </div>
-                <button 
-                    onClick={handleAdd} 
-                    className="premium-icon-btn"
-                    title="직원 추가"
-                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(16, 185, 129, 0.15)'; e.currentTarget.style.color = '#10b981'; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = ''; e.currentTarget.style.color = ''; }}
-                >
-                    <Plus size={20} />
-                </button>
+                <div className="flex gap-xs">
+                    <button
+                        onClick={handleExcelDownload}
+                        className="premium-icon-btn"
+                        title="엑셀 다운로드"
+                        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(16, 185, 129, 0.15)'; e.currentTarget.style.color = '#10b981'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = ''; e.currentTarget.style.color = ''; }}
+                    >
+                        <FileDown size={20} />
+                    </button>
+                    <button
+                        onClick={handleAdd}
+                        className="premium-icon-btn"
+                        title="직원 추가"
+                        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(16, 185, 129, 0.15)'; e.currentTarget.style.color = '#10b981'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = ''; e.currentTarget.style.color = ''; }}
+                    >
+                        <Plus size={20} />
+                    </button>
+                </div>
             </div>
 
             <div className="card mb-lg pb-lg">
-                <div className="grid" style={{ 
-                    display: 'grid', 
-                    gridTemplateColumns: 'repeat(5, 1fr)', 
-                    gap: '1rem' 
+                <div className="grid" style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(6, 1fr)',
+                    gap: '1rem'
                 }}>
                     <div className="form-group mb-0">
                         <label className="form-label" style={{ fontSize: '0.75rem', fontWeight: '800', color: 'var(--text-muted)', marginBottom: '0.5rem', display: 'block' }}>그룹</label>
@@ -198,6 +280,22 @@ function EmployeeList() {
                             <option value="대리">대리</option>
                             <option value="사원">사원</option>
                             <option value="인턴">인턴</option>
+                        </select>
+                    </div>
+
+                    <div className="form-group mb-0">
+                        <label className="form-label" style={{ fontSize: '0.75rem', fontWeight: '800', color: 'var(--text-muted)', marginBottom: '0.5rem', display: 'block' }}>기술등급</label>
+                        <select
+                            className="form-control"
+                            value={filters.skill_level}
+                            onChange={(e) => setFilters({ ...filters, skill_level: e.target.value })}
+                            style={{ height: '42px' }}
+                        >
+                            <option value="">전체</option>
+                            <option value="특급">특급</option>
+                            <option value="고급">고급</option>
+                            <option value="중급">중급</option>
+                            <option value="초급">초급</option>
                         </select>
                     </div>
 

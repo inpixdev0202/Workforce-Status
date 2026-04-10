@@ -62,6 +62,12 @@ app.get('/api/health', async (req, res) => {
 let dashboardStatsCache = { data: null, timestamp: 0 };
 const DASHBOARD_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
+// Clear dashboard cache
+app.post('/api/dashboard/cache/clear', (_req, res) => {
+    dashboardStatsCache = { data: null, timestamp: 0 };
+    res.json({ success: true });
+});
+
 // Dashboard statistics
 app.get('/api/dashboard/stats', async (req, res) => {
     try {
@@ -103,7 +109,7 @@ app.get('/api/dashboard/stats', async (req, res) => {
                   AND (LOWER(p.type) = 'client' OR p.type = '수행')
             `, [todayStr, todayStr]),
             query("SELECT employment_type, COUNT(*) as count FROM employees WHERE status = 'active' AND (exclude_from_stats IS NULL OR exclude_from_stats = 0) GROUP BY employment_type"),
-            query("SELECT skill_level, COUNT(*) as count FROM employees WHERE status = 'active' AND (exclude_from_stats IS NULL OR exclude_from_stats = 0) GROUP BY skill_level"),
+            query("SELECT skill_level, COUNT(*) as count, COUNT(CASE WHEN employment_type = '정규직' THEN 1 END) as regular_count, COUNT(CASE WHEN employment_type = '계약직' THEN 1 END) as contract_count FROM employees WHERE status = 'active' AND (exclude_from_stats IS NULL OR exclude_from_stats = 0) GROUP BY skill_level"),
             query(`
                 SELECT pa.work_location, COUNT(*) as count
                 FROM project_assignments pa

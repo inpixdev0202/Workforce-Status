@@ -793,7 +793,33 @@ function Dashboard() {
                                 <PolarAngleAxis dataKey="skill_level" tick={{ fill: '#CBD5E1', fontSize: 13 }} />
                                 <PolarRadiusAxis angle={30} domain={[0, 'auto']} stroke="#94A3B8" />
                                 <Radar name="Employees" dataKey="count" stroke="#34D399" strokeWidth={3} fill="#34D399" fillOpacity={0.4} />
-                                <Tooltip content={<CustomTooltip />} />
+                                <Tooltip content={({ active, payload, label }) => {
+                                    if (active && payload && payload.length) {
+                                        const d = payload[0]?.payload;
+                                        return (
+                                            <div className="custom-tooltip glass-card p-3 shadow-premium" style={{
+                                                backgroundColor: 'var(--surface-high)',
+                                                border: '1px solid var(--border)',
+                                                borderRadius: '12px',
+                                                minWidth: '160px'
+                                            }}>
+                                                <p className="font-bold mb-2 text-primary" style={{ fontSize: '1rem' }}>{label}</p>
+                                                <p className="text-sm font-semibold" style={{ color: '#34D399', marginBottom: '6px' }}>
+                                                    전체: {d?.count ?? 0}명
+                                                </p>
+                                                <div style={{ borderTop: '1px solid var(--border)', paddingTop: '6px' }}>
+                                                    <p className="text-sm" style={{ color: '#60A5FA', marginBottom: '3px' }}>
+                                                        정규직: {d?.regular_count ?? 0}명
+                                                    </p>
+                                                    <p className="text-sm" style={{ color: '#F59E0B' }}>
+                                                        계약직: {d?.contract_count ?? 0}명
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        );
+                                    }
+                                    return null;
+                                }} />
                             </RadarChart>
                         </ResponsiveContainer>
                     </div>
