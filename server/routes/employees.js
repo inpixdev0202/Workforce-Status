@@ -1,14 +1,14 @@
 import express from 'express';
 import { query, run, get } from '../db.js';
-import { requireRoles } from '../middleware/auth.js';
+import { authenticateToken, requireRoles } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// Employees can be viewed/managed by Admin, GroupLeader, PD, TeamLeader, and GM
-router.use(requireRoles(['Admin', 'GroupLeader', 'PD', 'TeamLeader', 'GM']));
+const READ_ROLES = ['Admin', 'GroupLeader', 'PD', 'PM', 'TeamLeader', 'GM'];
+const WRITE_ROLES = ['Admin', 'GroupLeader', 'PD', 'TeamLeader', 'GM'];
 
 // Get all employees with filters
-router.get('/', async (req, res) => {
+router.get('/', authenticateToken, requireRoles(READ_ROLES), async (req, res) => {
     try {
         const { group_id, status, search, job_role } = req.query;
         let sql = `
@@ -49,7 +49,7 @@ router.get('/', async (req, res) => {
 });
 
 // Get single employee
-router.get('/:id', async (req, res) => {
+router.get('/:id', authenticateToken, requireRoles(READ_ROLES), async (req, res) => {
     try {
         const employee = await get(`
       SELECT e.*, g.name as group_name, g.color as group_color
@@ -69,7 +69,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // Create new employee
-router.post('/', async (req, res) => {
+router.post('/', authenticateToken, requireRoles(WRITE_ROLES), async (req, res) => {
     try {
         const {
             group_id,
@@ -126,7 +126,7 @@ router.post('/', async (req, res) => {
 });
 
 // Update employee
-router.put('/:id', async (req, res) => {
+router.put('/:id', authenticateToken, requireRoles(WRITE_ROLES), async (req, res) => {
     try {
         const allowedFields = [
             'group_id', 'name', 'position', 'skill_level', 'employment_type', 'join_date', 'retirement_date',
@@ -191,7 +191,7 @@ router.put('/:id', async (req, res) => {
 });
 
 // Delete employee
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', authenticateToken, requireRoles(WRITE_ROLES), async (req, res) => {
     try {
         const result = await run('DELETE FROM employees WHERE id = ?', [req.params.id]);
 

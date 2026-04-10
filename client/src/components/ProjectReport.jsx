@@ -526,9 +526,19 @@ const ReportDataRow = React.memo(({
 }) => {
     const { user } = useAuth();
     const isAdmin = user?.role === 'Admin';
-    const isOwner = isAdmin || 
-                    (String(item.pd || '').trim() === String(user?.name || '').trim()) ||
-                    (String(item.pm || '').trim() === String(user?.name || '').trim());
+    const isOwner = (() => {
+        if (isAdmin) return true;
+        const userName = String(user?.name || '').normalize('NFC').trim();
+        if (!userName) return false;
+        if (String(item.pd || '').normalize('NFC').trim() === userName) return true;
+        if (String(item.pm || '').normalize('NFC').trim() === userName) return true;
+        const master = masterProjects.find(m => normalizeProjectName(m.name || m.projectName) === normalizeProjectName(item.projectName));
+        if (master) {
+            if (String(master.pd || '').normalize('NFC').trim() === userName) return true;
+            if (String(master.pm || '').normalize('NFC').trim() === userName) return true;
+        }
+        return false;
+    })();
 
     const catStyle = useMemo(() => getCategoryStyle(item.category, theme === 'dark'), [item.category, theme]);
 
@@ -1809,9 +1819,21 @@ const ProjectReport = () => {
                                       (item.pd || '').toLowerCase().includes(searchTerm.toLowerCase());
 
                 // Ownership Filtering: If not Admin, only show own projects (PD or PM match)
-                const isOwner = user?.role === 'Admin' ||
-                                (String(item.pd || '').trim() === String(user?.name || '').trim()) ||
-                                (String(item.pm || '').trim() === String(user?.name || '').trim());
+                const isOwner = (() => {
+                    if (user?.role === 'Admin') return true;
+                    const userName = String(user?.name || '').normalize('NFC').trim();
+                    if (!userName) return false;
+                    // Check report row fields first
+                    if (String(item.pd || '').normalize('NFC').trim() === userName) return true;
+                    if (String(item.pm || '').normalize('NFC').trim() === userName) return true;
+                    // Fallback: check master project data directly
+                    const master = masterProjectsMap.get(normalizeProjectName(item.projectName));
+                    if (master) {
+                        if (String(master.pd || '').normalize('NFC').trim() === userName) return true;
+                        if (String(master.pm || '').normalize('NFC').trim() === userName) return true;
+                    }
+                    return false;
+                })();
 
                 // Filter by master:
                 // Current/future week: exclude rows not in master + non-Client types
@@ -1886,7 +1908,7 @@ const ProjectReport = () => {
                 const nameB = normalizeProjectName(b.projectName);
                 return nameA.localeCompare(nameB, 'ko');
             });
-    }, [reportData, searchTerm, selectedCategories, masterProjectsMap, selectedDate]);
+    }, [reportData, searchTerm, selectedCategories, masterProjectsMap, selectedDate, user]);
 
     const handleExportExcel = async () => {
         const workbook = new ExcelJS.Workbook();
