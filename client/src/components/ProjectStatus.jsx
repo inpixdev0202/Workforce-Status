@@ -7,6 +7,7 @@ import { ko } from 'date-fns/locale';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
 
 // --- Memoized Sub-components for Performance ---
 
@@ -258,7 +259,8 @@ const MemberRow = React.memo(({
     isCompleted,
     leftSpacerWidth,
     rightSpacerWidth,
-    visibleStartIdx
+    visibleStartIdx,
+    isAdmin
 }) => {
     const opacity = isCompleted ? 0.5 : 1;
     const bgColor = isCompleted ? 'var(--surface-low)' : 'var(--bg-primary)';
@@ -274,20 +276,22 @@ const MemberRow = React.memo(({
             <td style={{ position: 'sticky', left: getStickyLeft('name', 'project'), zIndex: 10, width: columnWidths.name, backgroundColor: bgColor, borderBottom: '1px solid var(--border)' }}>
                 <div className="flex items-center justify-between w-full">
                     <div className="flex items-center gap-sm">
-                        <div className="flex flex-col" style={{ fontSize: '0.8em', color: 'var(--text-muted)', lineHeight: 1 }}>
-                            <button
-                                onClick={() => handleReorderMember(project.id, member.id, 'up')}
-                                disabled={mIdx === 0}
-                                className="reorder-btn"
-                                title="위로 이동"
-                            >▲</button>
-                            <button
-                                onClick={() => handleReorderMember(project.id, member.id, 'down')}
-                                disabled={mIdx === project.members.length - 1}
-                                className="reorder-btn"
-                                title="아래로 이동"
-                            >▼</button>
-                        </div>
+                        {isAdmin && (
+                            <div className="flex flex-col" style={{ fontSize: '0.8em', color: 'var(--text-muted)', lineHeight: 1 }}>
+                                <button
+                                    onClick={() => handleReorderMember(project.id, member.id, 'up')}
+                                    disabled={mIdx === 0}
+                                    className="reorder-btn"
+                                    title="위로 이동"
+                                >▲</button>
+                                <button
+                                    onClick={() => handleReorderMember(project.id, member.id, 'down')}
+                                    disabled={mIdx === project.members.length - 1}
+                                    className="reorder-btn"
+                                    title="아래로 이동"
+                                >▼</button>
+                            </div>
+                        )}
                         <div
                             ref={(el) => (cellRefs.current[`${currentMemberIndex}-swap`] = el)}
                             className="flex items-center gap-xs"
@@ -296,7 +300,7 @@ const MemberRow = React.memo(({
                             <span>{member.employee_name}</span>
                         </div>
                     </div>
-                    {!isCompleted && (
+                    {!isCompleted && isAdmin && (
                         <button
                             onClick={() => handleRemoveMember(member.id, member.employee_name)}
                             className="reorder-btn hover-danger"
@@ -417,19 +421,22 @@ const GroupMemberRow = React.memo(({
     setCursor,
     cellRefs,
     leftSpacerWidth,
-    rightSpacerWidth
+    rightSpacerWidth,
+    isAdmin
 }) => {
     return (
         <tr key={assignment.id} style={{ borderBottom: '1px solid var(--border)' }}>
             <td style={{ position: 'sticky', left: getStickyLeft('name', 'group'), zIndex: 10, width: columnWidths.name, backgroundColor: 'var(--bg-primary)', borderBottom: '1px solid var(--border)' }}>
                 <div className="flex items-center justify-between w-full">
                     <span>{assignment.employee_name}</span>
-                    <button
-                        onClick={() => handleRemoveMember(projectId, assignment.id, assignment.employee_name)}
-                        className="reorder-btn hover-danger"
-                        title="배정 해제"
-                        style={{ marginLeft: '4px', opacity: 0.5 }}
-                    >🗑️</button>
+                    {isAdmin && (
+                        <button
+                            onClick={() => handleRemoveMember(projectId, assignment.id, assignment.employee_name)}
+                            className="reorder-btn hover-danger"
+                            title="배정 해제"
+                            style={{ marginLeft: '4px', opacity: 0.5 }}
+                        >🗑️</button>
+                    )}
                 </div>
             </td>
             <td style={{ position: 'sticky', left: getStickyLeft('position', 'group'), zIndex: 10, width: columnWidths.position, backgroundColor: 'var(--bg-primary)', borderBottom: '1px solid var(--border)' }}>{assignment.employee_position}</td>
@@ -625,7 +632,8 @@ const ProjectItem = React.memo(({
     handleInlineAssign,
     leftSpacerWidth,
     rightSpacerWidth,
-    visibleStartIdx
+    visibleStartIdx,
+    isAdmin
 }) => {
     // If it's a completed project and not expanded, we only show the header
     const showMembers = !isCompleted || isExpanded;
@@ -649,7 +657,7 @@ const ProjectItem = React.memo(({
                                     style={{ transition: 'transform 0.2s', transform: isExpanded ? 'rotate(0deg)' : 'rotate(-90deg)' }}
                                 >▼</button>
                             )}
-                            {!isCompleted && (
+                            {!isCompleted && isAdmin && (
                                 <div className="flex flex-col" style={{ fontSize: '0.9em', color: 'var(--text-muted)', lineHeight: 1 }}>
                                     <button
                                         onClick={() => handleReorderProject(project.id, 'up')}
@@ -672,7 +680,7 @@ const ProjectItem = React.memo(({
                                 </span>
                             </div>
                         </div>
-                        {!isCompleted && (
+                        {!isCompleted && isAdmin && (
                             <button
                                 onClick={() => handleDeleteProject(project.id, project.name)}
                                 className="reorder-btn hover-danger"
@@ -721,11 +729,12 @@ const ProjectItem = React.memo(({
                         leftSpacerWidth={leftSpacerWidth}
                         rightSpacerWidth={rightSpacerWidth}
                         visibleStartIdx={visibleStartIdx}
+                        isAdmin={isAdmin}
                     />
                 );
             })}
 
-            {showMembers && !isCompleted && (
+            {showMembers && !isCompleted && isAdmin && (
                 <InlineAddRow
                     project={project}
                     addRowIndex={memberStartIndex + project.members.length}
@@ -795,6 +804,8 @@ const ProjectItem = React.memo(({
 });
 
 const ProjectStatus = () => {
+    const { user } = useAuth();
+    const isAdmin = user?.role === 'Admin';
     const [data, setData] = useState([]);
     const dataRef = useRef(data);
     useEffect(() => {
@@ -2766,7 +2777,7 @@ const ProjectStatus = () => {
                             </div>
                         )}
 
-                        {!isToolbarCollapsed && (
+                        {!isToolbarCollapsed && isAdmin && (
                             <button
                                 onClick={handleOpenProjectModal}
                                 className="btn btn-primary flex items-center gap-xs px-md py-1.5 rounded-lg text-xs font-semibold"
@@ -3136,6 +3147,7 @@ const ProjectStatus = () => {
                                                     leftSpacerWidth={leftSpacerWidth}
                                                     rightSpacerWidth={rightSpacerWidth}
                                                     visibleStartIdx={visibleColRange.start}
+                                                    isAdmin={isAdmin}
                                                 />
                                             );
                                         })}
@@ -3212,6 +3224,7 @@ const ProjectStatus = () => {
                                                             leftSpacerWidth={leftSpacerWidth}
                                                             rightSpacerWidth={rightSpacerWidth}
                                                             visibleStartIdx={visibleColRange.start}
+                                                            isAdmin={isAdmin}
                                                         />
                                                     );
                                                 })}
@@ -3300,12 +3313,13 @@ const ProjectStatus = () => {
                                                                 cellRefs={cellRefs}
                                                                 leftSpacerWidth={leftSpacerWidth}
                                                                 rightSpacerWidth={rightSpacerWidth}
+                                                                isAdmin={isAdmin}
                                                             />
                                                         );
                                                     })}
 
                                                     {/* Group View Inline Add Row per Project */}
-                                                    {(() => {
+                                                    {isAdmin && (() => {
                                                         const addRowIndex = globalRowIndex++;
                                                         return (
                                                             <InlineAddRow
