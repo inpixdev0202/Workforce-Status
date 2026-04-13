@@ -18,8 +18,6 @@ router.get('/', async (req, res) => {
 // Get all projects with assignments and allocations (Matrix Data)
 router.get('/matrix', authenticateToken, async (req, res) => {
     try {
-        const { role, name: userName } = req.user;
-
         // Single query for projects + assignments + employee/group info
         const [projects, rows] = await Promise.all([
             query(`
@@ -88,15 +86,6 @@ router.get('/matrix', authenticateToken, async (req, res) => {
             ...project,
             members: projectAssignmentsMap.get(project.id) || []
         }));
-
-        // Non-Admin: only return projects where user is pm or pd
-        if (role !== 'Admin') {
-            const normalizedUser = String(userName || '').trim();
-            matrix = matrix.filter(p =>
-                String(p.pm || '').trim() === normalizedUser ||
-                String(p.pd || '').trim() === normalizedUser
-            );
-        }
 
         res.json(matrix);
     } catch (error) {
