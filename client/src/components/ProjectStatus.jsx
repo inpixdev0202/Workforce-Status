@@ -1146,12 +1146,21 @@ const ProjectStatus = () => {
         const allAssignments = [];
         group.projects.forEach(p => p.assignments.forEach(a => allAssignments.push({ ...a, project_type: p.type })));
 
+        // Pre-fetch groupEmployees for weekly status (needed before weeklyStatus loop)
+        const groupEmployees = employees.filter(e => (e.group_name || '미지정') === group.name);
+
         // Weekly status breakdown
         const weeklyStatus = {};
         weeksArr.forEach(week => {
             const dateStr = format(week, 'yyyy-MM-dd');
             const empTotals = {};
             const empLeaveTotals = {};
+
+            // Seed all group employees first so unassigned members show up in zero list
+            groupEmployees.forEach(e => {
+                empTotals[e.id] = { name: e.name, total: 0, empType: e.employment_type, retirement_date: e.retirement_date };
+            });
+
             allAssignments.forEach(a => {
                 const empId = a.employee_id;
                 if (!empTotals[empId]) empTotals[empId] = { name: a.employee_name, total: 0, empType: a.employee_employment_type };
@@ -1167,13 +1176,7 @@ const ProjectStatus = () => {
 
             Object.keys(empTotals).forEach(empId => {
                 const info = empTotals[empId];
-                const { name, total, empType } = info;
-                
-                // Get the assignment object to check retirement_date
-                // Since an employee might have multiple assignments in the group, 
-                // we check any of them (retirement_date is employee-level).
-                const assignment = allAssignments.find(a => a.employee_id == empId);
-                const retirementDate = assignment?.retirement_date;
+                const { name, total, empType, retirement_date: retirementDate } = info;
 
                 if (empType === '정규직') {
                     // Check if retired as of this week
@@ -1197,7 +1200,6 @@ const ProjectStatus = () => {
         });
 
         const activeClientProjects = group.projects.filter(p => p.type === 'Client').length;
-        const groupEmployees = employees.filter(e => (e.group_name || '\ubbf8\uc9c0\uc815') === group.name);
 
         // Calculate work location (Dispatch vs In-house) based on ACTIVE assignments today
         const now = new Date();
