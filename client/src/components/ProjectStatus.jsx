@@ -1486,12 +1486,6 @@ const ProjectStatus = () => {
             const offsetWeeks = Math.round(scrollLeft / columnWidths.week);
             slider.value = offsetWeeks;
 
-            // Update visible date label via React state (avoids DOM conflicts)
-            if (weeks[offsetWeeks]) {
-                const w = weeks[offsetWeeks];
-                setVisibleDate(`${format(w, 'yyyy년 M월 d일')} ~ ${format(addDays(w, 4), 'M월 d일')}`);
-            }
-
             // Update visible column range for virtualization
             const visibleWeeks = Math.ceil(container.clientWidth / columnWidths.week);
             const newStart = Math.max(0, offsetWeeks - COL_BUFFER);
@@ -1523,6 +1517,9 @@ const ProjectStatus = () => {
 
         const today = startOfWeek(new Date(), { weekStartsOn: 1 });
         const todayStr = format(today, 'yyyy-MM-dd');
+
+        // Update date label to today
+        setVisibleDate(`${format(today, 'yyyy년 M월 d일')} ~ ${format(addDays(today, 4), 'M월 d일')}`);
 
         // Check if today is in current weeks
         const weekIdx = weeks.findIndex(w => format(w, 'yyyy-MM-dd') === todayStr);
@@ -2682,7 +2679,13 @@ const ProjectStatus = () => {
                         <button
                             onClick={() => {
                                 if (tableContainerRef.current) {
+                                    const newScrollLeft = tableContainerRef.current.scrollLeft - (4 * columnWidths.week);
                                     tableContainerRef.current.scrollBy({ left: -(4 * columnWidths.week), behavior: 'smooth' });
+                                    const offsetWeeks = Math.max(0, Math.round(newScrollLeft / columnWidths.week));
+                                    if (weeks[offsetWeeks]) {
+                                        const w = weeks[offsetWeeks];
+                                        setVisibleDate(`${format(w, 'yyyy년 M월 d일')} ~ ${format(addDays(w, 4), 'M월 d일')}`);
+                                    }
                                 }
                             }}
                             className="p-xs hover-bg-secondary rounded-full transition-colors cursor-pointer"
@@ -2704,7 +2707,13 @@ const ProjectStatus = () => {
                         <button
                             onClick={() => {
                                 if (tableContainerRef.current) {
+                                    const newScrollLeft = tableContainerRef.current.scrollLeft + (4 * columnWidths.week);
                                     tableContainerRef.current.scrollBy({ left: 4 * columnWidths.week, behavior: 'smooth' });
+                                    const offsetWeeks = Math.min(weeks.length - 1, Math.round(newScrollLeft / columnWidths.week));
+                                    if (weeks[offsetWeeks]) {
+                                        const w = weeks[offsetWeeks];
+                                        setVisibleDate(`${format(w, 'yyyy년 M월 d일')} ~ ${format(addDays(w, 4), 'M월 d일')}`);
+                                    }
                                 }
                             }}
                             className="p-xs hover-bg-secondary rounded-full transition-colors cursor-pointer"
