@@ -2775,7 +2775,7 @@ const ProjectStatus = () => {
 
                     {/* Right: Search & Settings */}
                     <div className="flex items-center gap-xs relative">
-                        {!isToolbarCollapsed && (
+                        {!isToolbarCollapsed && !isMobile && (
                             <div className="search-input-wrapper">
                                 <input
                                     type="text"
@@ -2797,7 +2797,7 @@ const ProjectStatus = () => {
                         )}
 
                         {/* Premium Excel Export Widget */}
-                        {!isToolbarCollapsed && (
+                        {!isToolbarCollapsed && !isMobile && (
                             <div className="premium-export-widget">
                                 <div className="flex items-center gap-xs">
                                     <div className="p-1 rounded-md bg-primary-muted text-primary flex items-center justify-center">
