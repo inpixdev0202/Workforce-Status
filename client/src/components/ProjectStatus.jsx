@@ -905,6 +905,18 @@ const ProjectStatus = () => {
         const today = startOfWeek(new Date(), { weekStartsOn: 1 });
         return `${format(today, 'yyyy년 M월 d일')} ~ ${format(addDays(today, 4), 'M월 d일')}`;
     });
+    const [isMobile, setIsMobile] = useState(() => window.innerWidth < 900);
+    useEffect(() => {
+        const onResize = () => setIsMobile(window.innerWidth < 900);
+        window.addEventListener('resize', onResize);
+        return () => window.removeEventListener('resize', onResize);
+    }, []);
+
+    const mobileDate = useMemo(() => {
+        const m = visibleDate.match(/(\d+)월\s*(\d+)일\s*~\s*(?:\d+월\s*)?(\d+)일/);
+        if (m) return `${m[1]}/${m[2]}~${m[3]}`;
+        return visibleDate;
+    }, [visibleDate]);
 
     const groupOptions = useMemo(() => {
         const uniqueGroups = [...new Set(employees.map(e => e.group_name).filter(Boolean))].sort();
@@ -2630,14 +2642,14 @@ const ProjectStatus = () => {
                                         className={`btn flex items-center gap-xs px-md py-1.5 text-xs font-semibold transition-all cursor-pointer ${viewMode === 'project' ? 'bg-primary text-white shadow-sm' : 'text-muted hover-text-primary'}`}
                                         style={{ border: 'none', background: viewMode === 'project' ? 'var(--primary)' : 'transparent', color: viewMode === 'project' ? 'white' : 'var(--text-muted)', borderRadius: '0' }}
                                     >
-                                        <LayoutGrid size={14} /> 프로젝트
+                                        <LayoutGrid size={14} />{!isMobile && ' 프로젝트'}
                                     </button>
                                     <button
                                         onClick={() => { setViewMode('group'); if (selectedGroup === 'ALL') setSelectedGroup(groupOptions[0]?.id || 'ALL'); }}
                                         className={`btn flex items-center gap-xs px-md py-1.5 text-xs font-semibold transition-all cursor-pointer ${viewMode === 'group' ? 'bg-primary text-white shadow-sm' : 'text-muted hover-text-primary'}`}
                                         style={{ border: 'none', background: viewMode === 'group' ? 'var(--primary)' : 'transparent', color: viewMode === 'group' ? 'white' : 'var(--text-muted)', borderRadius: '0' }}
                                     >
-                                        <Users size={14} /> 그룹별
+                                        <Users size={14} />{!isMobile && ' 그룹별'}
                                     </button>
                                 </div>
 
@@ -2704,7 +2716,7 @@ const ProjectStatus = () => {
                     </div>
 
                     {/* Centered Date Navigation */}
-                    <div className="flex items-center gap-sm bg-tertiary px-sm py-xs rounded-full shadow-sm border border-border scale-95 origin-center">
+                    <div className={`flex items-center gap-sm bg-tertiary ${isMobile ? 'px-xs' : 'px-sm'} py-xs rounded-full shadow-sm border border-border scale-95 origin-center`}>
                         <button
                             onClick={() => {
                                 if (tableContainerRef.current) {
@@ -2725,11 +2737,11 @@ const ProjectStatus = () => {
                         </button>
 
                         <div className="flex items-center gap-xs px-sm border-l border-r border-border mx-xs">
-                            <Calendar size={14} className="text-muted" />
+                            {!isMobile && <Calendar size={14} className="text-muted" />}
                             <span
-                                style={{ fontWeight: 600, fontSize: '0.85em', minWidth: '160px', textAlign: 'center' }}
+                                style={{ fontWeight: 600, fontSize: isMobile ? '0.75em' : '0.85em', minWidth: isMobile ? '70px' : '160px', textAlign: 'center' }}
                             >
-                                {visibleDate}
+                                {isMobile ? mobileDate : visibleDate}
                             </span>
                         </div>
 
