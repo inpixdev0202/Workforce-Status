@@ -821,7 +821,7 @@ const ProjectStatus = () => {
     const assigningProjects = useRef(new Set()); // tracks in-flight assignment requests by projectId
     // Column virtualization: track visible week range
     const [visibleColRange, setVisibleColRange] = useState({ start: 0, end: 50 });
-    const COL_BUFFER = 20; // extra weeks to render beyond visible area
+    const COL_BUFFER = 52; // extra weeks to render beyond visible area
     const [showProjectModal, setShowProjectModal] = useState(false);
     const [showMemberModal, setShowMemberModal] = useState(false);
     const [selectedProject, setSelectedProject] = useState(null);
