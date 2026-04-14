@@ -1552,6 +1552,14 @@ select.form-control {
   white-space: nowrap;
 }
 
+/* Force GPU compositing layer on sticky cells to prevent mobile scroll paint artifacts */
+.project-grid th[style*="sticky"],
+.project-grid td[style*="sticky"] {
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+  will-change: transform;
+}
+
 .project-grid input:focus {
   background: rgba(59, 130, 246, 0.1) !important;
   outline: none;
