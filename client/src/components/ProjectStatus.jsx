@@ -2616,7 +2616,7 @@ const ProjectStatus = () => {
         <div className="container page" style={{ maxWidth: '100%', overflowX: 'hidden' }}>
             <PortraitWarning />
             {/* New Toolbar Layout */}
-            <div className={`flex flex-col gap-sm border-b transition-all duration-300 ${isToolbarCollapsed ? 'pb-xs' : 'pb-xs'} ${isMobile ? 'mb-xs' : 'mb-md'}`}>
+            <div className={`flex flex-col gap-sm border-b transition-all duration-300 ${isToolbarCollapsed ? 'pb-xs' : 'pb-sm'} ${isMobile ? 'mb-sm' : 'mb-md'}`}>
                 {/* Row 1: Title, Date Nav, Primary Actions */}
                 <div className="flex justify-between items-center">
                     <div className="flex items-center gap-md">
