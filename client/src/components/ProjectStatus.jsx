@@ -2572,8 +2572,37 @@ const ProjectStatus = () => {
         </div>
     );
 
+    // Portrait mode warning overlay for mobile
+    const PortraitWarning = () => {
+        const [isPortrait, setIsPortrait] = useState(
+            () => window.innerWidth <= 768 && window.innerHeight > window.innerWidth
+        );
+        useEffect(() => {
+            const update = () => setIsPortrait(window.innerWidth <= 768 && window.innerHeight > window.innerWidth);
+            window.addEventListener('resize', update);
+            window.addEventListener('orientationchange', update);
+            return () => { window.removeEventListener('resize', update); window.removeEventListener('orientationchange', update); };
+        }, []);
+        if (!isPortrait) return null;
+        return (
+            <div style={{
+                position: 'fixed', inset: 0, zIndex: 9999,
+                background: 'rgba(0,0,0,0.92)',
+                display: 'flex', flexDirection: 'column',
+                alignItems: 'center', justifyContent: 'center', gap: '20px'
+            }}>
+                <div style={{ fontSize: '56px', display: 'inline-block', transform: 'rotate(90deg)' }}>📱</div>
+                <p style={{ color: '#fff', fontSize: '18px', fontWeight: 700, margin: 0 }}>기기를 가로로 돌려주세요</p>
+                <p style={{ color: '#94a3b8', fontSize: '13px', margin: 0, textAlign: 'center', lineHeight: 1.6 }}>
+                    프로젝트 배정 화면은<br />가로 모드에서 잘 보입니다
+                </p>
+            </div>
+        );
+    };
+
     return (
         <div className="container page" style={{ maxWidth: '100%', overflowX: 'hidden' }}>
+            <PortraitWarning />
             {/* New Toolbar Layout */}
             <div className={`flex flex-col gap-sm mb-md border-b transition-all duration-300 ${isToolbarCollapsed ? 'pb-xs' : 'pb-md'}`}>
                 {/* Row 1: Title, Date Nav, Primary Actions */}
