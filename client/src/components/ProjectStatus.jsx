@@ -2616,7 +2616,7 @@ const ProjectStatus = () => {
         <div className="container page" style={{ maxWidth: '100%', overflowX: 'hidden' }}>
             <PortraitWarning />
             {/* New Toolbar Layout */}
-            <div className={`flex flex-col gap-sm mb-md border-b transition-all duration-300 ${isToolbarCollapsed ? 'pb-xs' : 'pb-md'}`}>
+            <div className={`flex flex-col gap-sm border-b transition-all duration-300 ${isToolbarCollapsed ? 'pb-xs' : 'pb-xs'} ${isMobile ? 'mb-xs' : 'mb-md'}`}>
                 {/* Row 1: Title, Date Nav, Primary Actions */}
                 <div className="flex justify-between items-center">
                     <div className="flex items-center gap-md">
@@ -2653,18 +2653,15 @@ const ProjectStatus = () => {
                                     </button>
                                 </div>
 
-                                {/* Space-saving Group Selector Dropdown */}
+                                {/* Group Selector Dropdown — only rendered in group mode */}
+                                {viewMode === 'group' && (
                                 <div
                                     ref={groupDropdownRef}
                                     style={{
                                         position: 'relative',
                                         display: 'flex',
                                         alignItems: 'center',
-                                        maxWidth: viewMode === 'group' ? '200px' : '0px',
-                                        opacity: viewMode === 'group' ? 1 : 0,
-                                        visibility: viewMode === 'group' ? 'visible' : 'hidden',
-                                        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                                        marginLeft: viewMode === 'group' ? '8px' : '0px',
+                                        marginLeft: '8px',
                                     }}
                                 >
                                     <button
@@ -2711,6 +2708,7 @@ const ProjectStatus = () => {
                                         </div>
                                     )}
                                 </div>
+                                )}
                             </div>
                         )}
                     </div>
