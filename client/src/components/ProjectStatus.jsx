@@ -2562,6 +2562,19 @@ const ProjectStatus = () => {
         }
     };
 
+    if (loading) return (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '60vh', gap: '16px' }}>
+            <div style={{
+                width: '44px', height: '44px',
+                border: '4px solid var(--border)',
+                borderTopColor: 'var(--primary)',
+                borderRadius: '50%',
+                animation: 'spin 0.8s linear infinite'
+            }} />
+            <span style={{ color: 'var(--text-muted)', fontSize: '14px' }}>데이터를 불러오는 중...</span>
+        </div>
+    );
+
     return (
         <div className="container page" style={{ maxWidth: '100%', overflowX: 'hidden' }}>
             {/* New Toolbar Layout */}
