@@ -1,6 +1,6 @@
 {
-  "name": "WTIS - Workforce Total Information System",
-  "short_name": "WTIS",
+  "name": "WMS - Workforce Status Management System",
+  "short_name": "WMS",
   "description": "인력 현황 및 프로젝트 관리 시스템",
   "start_url": "/",
   "display": "standalone",
