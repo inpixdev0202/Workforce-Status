@@ -830,6 +830,19 @@ const SalesStatus = () => {
         saveAs(new Blob([buffer]), `영업현황_${new Date().toISOString().split('T')[0]}.xlsx`);
     };
 
+    if (isLoading) return (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '60vh', gap: '16px' }}>
+            <div style={{
+                width: '44px', height: '44px',
+                border: '4px solid var(--border)',
+                borderTopColor: 'var(--primary)',
+                borderRadius: '50%',
+                animation: 'spin 0.8s linear infinite'
+            }} />
+            <span style={{ color: 'var(--text-muted)', fontSize: '14px' }}>데이터를 불러오는 중...</span>
+        </div>
+    );
+
     return (
         <div className={`flex flex-col h-full min-h-0 animate-in fade-in duration-700 ${theme === 'light' ? 'light-theme' : ''}`}>
             <style>
@@ -982,11 +995,6 @@ const SalesStatus = () => {
                 </div>
             </div>
             <div className="flex-1 overflow-auto bg-[var(--bg-primary)] sales-spreadsheet-container relative">
-                {isLoading && (
-                    <div className="absolute inset-0 bg-slate-900/30 backdrop-blur-[1px] z-[1000] flex items-center justify-center pointer-events-none">
-                        <div className="w-8 h-8 border-2 border-blue-500/20 border-t-blue-500 rounded-full animate-spin shadow-[0_0_15px_rgba(59,130,246,0.5)]" />
-                    </div>
-                )}
                 <table className="table-fixed">
                     <thead className="z-40">
                         <tr className="bg-[var(--bg-tertiary)]">
