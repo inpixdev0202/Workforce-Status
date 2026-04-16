@@ -1549,7 +1549,7 @@ const ProjectStatus = () => {
 
     // Auto-scroll to "Today" when weeks load initially
     useEffect(() => {
-        if (weeks.length > 0 && !hasAutoScrolled.current && tableContainerRef.current) {
+        if (weeks.length > 0 && !loading && !hasAutoScrolled.current && tableContainerRef.current) {
             handleToday(null, false); // Instant scroll on load
             hasAutoScrolled.current = true;
 
@@ -1568,7 +1568,7 @@ const ProjectStatus = () => {
                 });
             }
         }
-    }, [weeks, handleToday, columnWidths.week, COL_BUFFER]);
+    }, [weeks, loading, handleToday, columnWidths.week, COL_BUFFER]);
 
 
 
