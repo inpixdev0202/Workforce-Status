@@ -471,9 +471,12 @@ const ProjectMaster = () => {
                 }}>
                     <div
                         className={isDark ? '' : 'light-theme'}
-                        style={{ 
-                        width: '100%', 
-                        maxWidth: '680px', 
+                        style={{
+                        width: '100%',
+                        maxWidth: '680px',
+                        maxHeight: '90vh',
+                        display: 'flex',
+                        flexDirection: 'column',
                         backgroundColor: isDark ? 'rgba(21, 28, 48, 0.97)' : '#ffffff',
                         borderRadius: '24px',
                         border: isDark ? '1px solid rgba(255, 255, 255, 0.1)' : '1px solid var(--border)',
@@ -509,7 +512,7 @@ const ProjectMaster = () => {
                             <X size={18} />
                         </button>
 
-                        <div style={{ padding: '40px 32px 24px' }}>
+                        <div style={{ padding: '40px 32px 24px', flexShrink: 0 }}>
                             {/* Header */}
                             <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '8px' }}>
                                 <div style={{ 
@@ -535,7 +538,7 @@ const ProjectMaster = () => {
                             </div>
                         </div>
                         
-                        <form onSubmit={handleSave} style={{ padding: '0 32px 40px' }}>
+                        <form onSubmit={handleSave} style={{ padding: '0 32px 40px', overflowY: 'auto', flex: 1 }}>
                             <div className="grid grid-2 gap-x-6 gap-y-5">
                                 <div className="form-group col-span-full">
                                     <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-muted)', paddingLeft: '4px', marginBottom: '8px', display: 'block' }}>프로젝트명</label>
