@@ -51,7 +51,8 @@ const ProjectMaster = () => {
         pd: '',
         pm: '',
         project_group: '',
-        note: ''
+        note: '',
+        count_in_stats: true
     });
 
     // Delete confirmation
@@ -99,7 +100,8 @@ const ProjectMaster = () => {
                 pd: project.pd || '',
                 pm: project.pm || '',
                 project_group: project.project_group || '',
-                note: project.note || ''
+                note: project.note || '',
+                count_in_stats: project.count_in_stats !== false
             });
         } else {
             setEditingProject(null);
@@ -112,7 +114,8 @@ const ProjectMaster = () => {
                 pd: '',
                 pm: '',
                 project_group: '',
-                note: ''
+                note: '',
+                count_in_stats: true
             });
         }
         setIsModalOpen(true);
@@ -578,7 +581,15 @@ const ProjectMaster = () => {
                                             backgroundSize: '16px'
                                         }}
                                         value={formData.type}
-                                        onChange={e => setFormData({...formData, type: e.target.value})}
+                                        onChange={e => {
+                                            const newType = e.target.value;
+                                            setFormData({
+                                                ...formData,
+                                                type: newType,
+                                                // Internal로 변경 시 통계 제외 기본값, 다른 타입은 포함
+                                                count_in_stats: newType === 'Internal' ? false : true
+                                            });
+                                        }}
                                         onFocus={(e) => { e.currentTarget.style.borderColor = 'rgba(34, 211, 238, 0.5)'; e.currentTarget.style.boxShadow = '0 0 0 4px rgba(34, 211, 238, 0.1)'; }}
                                         onBlur={(e) => { e.currentTarget.style.borderColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'var(--border)'; e.currentTarget.style.boxShadow = 'none'; }}
                                     >
@@ -871,6 +882,26 @@ const ProjectMaster = () => {
                                         <ArrowUpDown style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', color: '#64748b', pointerEvents: 'none' }} size={14} />
                                     </div>
                                 </div>
+
+                                {formData.type === 'Internal' && (
+                                    <div className="form-group col-span-full">
+                                        <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-muted)', paddingLeft: '4px', marginBottom: '8px', display: 'block' }}>투입 통계 설정</label>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', padding: '14px 20px', borderRadius: '14px', background: isDark ? '#0f172a' : 'var(--surface-high)', border: isDark ? '1px solid rgba(255,255,255,0.1)' : '1px solid var(--border)' }}>
+                                            <input
+                                                type="checkbox"
+                                                checked={!!formData.count_in_stats}
+                                                onChange={e => setFormData({ ...formData, count_in_stats: e.target.checked })}
+                                                style={{ width: '16px', height: '16px', accentColor: 'var(--primary)', cursor: 'pointer' }}
+                                            />
+                                            <span style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: '500' }}>
+                                                미투입 / 부분투입 / 풀투입 통계에 포함
+                                            </span>
+                                            <span style={{ fontSize: '12px', color: 'var(--text-muted)', marginLeft: 'auto' }}>
+                                                {formData.count_in_stats ? '포함' : '제외'}
+                                            </span>
+                                        </label>
+                                    </div>
+                                )}
 
                                 <div className="form-group col-span-full">
                                     <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-muted)', paddingLeft: '4px', marginBottom: '8px', display: 'block' }}>비고 (Notes)</label>

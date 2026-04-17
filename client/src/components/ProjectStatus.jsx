@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { projectsAPI, employeesAPI } from '../api';
-import { ChevronLeft, ChevronRight, Calendar, Settings, Plus, LayoutGrid, LayoutDashboard, Users, Search, X, Check, ChevronDown, Briefcase, Clock, User, AlertCircle, Shield, Key, FileDown } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar, Settings, Plus, LayoutGrid, LayoutDashboard, Users, Search, X, Check, ChevronDown, Briefcase, Clock, User, AlertCircle, Shield, Key, FileDown, Eye, EyeOff } from 'lucide-react';
 import { format, addWeeks, addDays, startOfWeek, endOfWeek, eachWeekOfInterval, parseISO, isWithinInterval, startOfDay, endOfDay, areIntervalsOverlapping, isAfter, isBefore } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import ExcelJS from 'exceljs';
@@ -634,7 +634,8 @@ const ProjectItem = React.memo(({
     leftSpacerWidth,
     rightSpacerWidth,
     visibleStartIdx,
-    canEdit
+    canEdit,
+    onToggleCountInStats
 }) => {
     // If it's a completed project and not expanded, we only show the header
     const showMembers = !isCompleted || isExpanded;
@@ -679,6 +680,15 @@ const ProjectItem = React.memo(({
                                 <span className={`badge ${project.type === 'Internal' ? 'badge-primary' : (project.type === 'Leave' || project.type === 'Annual' ? 'badge-neutral' : 'badge-success')}`} style={{ fontSize: '0.7em', opacity: 0.8 }}>
                                     {project.type || 'Client'}
                                 </span>
+                                {project.type === 'Internal' && canEdit && (
+                                    <button
+                                        onClick={() => onToggleCountInStats(project.id, project.count_in_stats)}
+                                        title={project.count_in_stats ? '통계 포함 중 (클릭 시 제외)' : '통계 제외 중 (클릭 시 포함)'}
+                                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px', display: 'flex', alignItems: 'center', color: project.count_in_stats ? 'var(--primary)' : 'var(--text-muted)', opacity: project.count_in_stats ? 1 : 0.5 }}
+                                    >
+                                        {project.count_in_stats ? <Eye size={13} /> : <EyeOff size={13} />}
+                                    </button>
+                                )}
                             </div>
                         </div>
                         {!isCompleted && canEdit && (
@@ -1154,9 +1164,12 @@ const ProjectStatus = () => {
             return total;
         });
 
-        // All assignments in this group
+        // All assignments in this group (exclude Internal projects not counted in stats)
         const allAssignments = [];
-        group.projects.forEach(p => p.assignments.forEach(a => allAssignments.push({ ...a, project_type: p.type })));
+        group.projects.forEach(p => {
+            if (p.type === 'Internal' && !p.count_in_stats) return;
+            p.assignments.forEach(a => allAssignments.push({ ...a, project_type: p.type }));
+        });
 
         // Pre-fetch groupEmployees for weekly status (needed before weeklyStatus loop)
         const groupEmployees = employees.filter(e => (e.group_name || '미지정') === group.name);
@@ -2242,6 +2255,19 @@ const ProjectStatus = () => {
         });
     };
 
+    const handleToggleCountInStats = useCallback(async (projectId, currentValue) => {
+        const newValue = !currentValue;
+        // Optimistic update
+        setData(prev => prev.map(p => p.id === projectId ? { ...p, count_in_stats: newValue } : p));
+        try {
+            await projectsAPI.update(projectId, { count_in_stats: newValue });
+        } catch (err) {
+            console.error('Failed to toggle count_in_stats', err);
+            // Revert on error
+            setData(prev => prev.map(p => p.id === projectId ? { ...p, count_in_stats: currentValue } : p));
+        }
+    }, [setData]);
+
     // Helper to highlight matched text
     const highlightMatch = useCallback((text, term) => {
         if (!term.trim()) return text;
@@ -3213,6 +3239,7 @@ const ProjectStatus = () => {
                                                     rightSpacerWidth={rightSpacerWidth}
                                                     visibleStartIdx={visibleColRange.start}
                                                     canEdit={canEdit}
+                                                    onToggleCountInStats={handleToggleCountInStats}
                                                 />
                                             );
                                         })}
@@ -3290,6 +3317,7 @@ const ProjectStatus = () => {
                                                             rightSpacerWidth={rightSpacerWidth}
                                                             visibleStartIdx={visibleColRange.start}
                                                             canEdit={canEdit}
+                                                            onToggleCountInStats={handleToggleCountInStats}
                                                         />
                                                     );
                                                 })}

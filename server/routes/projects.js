@@ -96,7 +96,7 @@ router.get('/matrix', authenticateToken, async (req, res) => {
 // Create Project
 router.post('/', async (req, res) => {
     try {
-        const { name, start_date, end_date, status, note, type, pd, pm, project_group } = req.body;
+        const { name, start_date, end_date, status, note, type, pd, pm, project_group, count_in_stats } = req.body;
 
         if (!name) {
             return res.status(400).json({ error: 'Project name is required' });
@@ -105,11 +105,15 @@ router.post('/', async (req, res) => {
         // Get max order
         const maxOrder = (await get('SELECT MAX(display_order) as max_order FROM projects'))?.max_order || 0;
 
+        // Internal projects default to excluded from stats unless explicitly set
+        const resolvedType = type || 'Client';
+        const resolvedCountInStats = count_in_stats !== undefined ? count_in_stats : (resolvedType === 'Internal' ? false : true);
+
         const result = await run(`
-      INSERT INTO projects (name, start_date, end_date, status, note, type, display_order, pd, pm, project_group)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO projects (name, start_date, end_date, status, note, type, display_order, pd, pm, project_group, count_in_stats)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       RETURNING id
-    `, [name, start_date || null, end_date || null, status || '진행중', note || '', type || 'Client', maxOrder + 1, pd || '', pm || '', project_group || null]);
+    `, [name, start_date || null, end_date || null, status || '진행중', note || '', resolvedType, maxOrder + 1, pd || '', pm || '', project_group || null, resolvedCountInStats]);
 
         const newProject = await get('SELECT * FROM projects WHERE id = ?', [result.rows[0].id]);
         res.status(201).json(newProject);
@@ -161,17 +165,22 @@ router.put('/assignments/reorder', async (req, res) => {
 // Update Project
 router.put('/:id', async (req, res) => {
     try {
-        const { name, start_date, end_date, status, note, type, pd, pm, project_group } = req.body;
+        const { name, start_date, end_date, status, note, type, pd, pm, project_group, count_in_stats } = req.body;
 
         // Get old name before update to detect rename
         const existing = await get('SELECT name FROM projects WHERE id = ?', [req.params.id]);
         const oldName = existing?.name;
 
+        const updateParams = [name, start_date || null, end_date || null, status || '진행중', note || '', type || 'Client', pd || '', pm || '', project_group || null];
+        const countInStatsClause = count_in_stats !== undefined ? ', count_in_stats = ?' : '';
+        if (count_in_stats !== undefined) updateParams.push(count_in_stats);
+        updateParams.push(req.params.id);
+
         await run(`
       UPDATE projects
-      SET name = ?, start_date = ?, end_date = ?, status = ?, note = ?, type = ?, pd = ?, pm = ?, project_group = ?
+      SET name = ?, start_date = ?, end_date = ?, status = ?, note = ?, type = ?, pd = ?, pm = ?, project_group = ?${countInStatsClause}
       WHERE id = ?
-    `, [name, start_date || null, end_date || null, status || '진행중', note || '', type || 'Client', pd || '', pm || '', project_group || null, req.params.id]);
+    `, updateParams);
 
         // Propagate name change to all project_reports JSON
         if (oldName && name && oldName !== name) {
