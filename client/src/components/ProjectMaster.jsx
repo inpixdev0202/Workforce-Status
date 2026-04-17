@@ -1,17 +1,17 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { 
-    Briefcase, 
-    Plus, 
-    Search, 
-    Pencil, 
-    Trash2, 
-    X, 
-    Filter, 
-    Calendar, 
-    User, 
-    CheckCircle2, 
-    Clock, 
+    Briefcase,
+    Plus,
+    Search,
+    Pencil,
+    Trash2,
+    X,
+    Filter,
+    Calendar,
+    User,
+    CheckCircle2,
+    Clock,
     AlertCircle,
     ChevronRight,
     ArrowUpDown,
@@ -19,7 +19,8 @@ import {
     Layers,
     Activity,
     Building2,
-    CheckCircle
+    CheckCircle,
+    HelpCircle
 } from 'lucide-react';
 import { projectsAPI, employeesAPI } from '../api';
 import { format, parseISO, isAfter, isBefore, isValid } from 'date-fns';
@@ -888,7 +889,54 @@ const ProjectMaster = () => {
 
                                 {formData.type === 'Internal' && (
                                     <div className="form-group col-span-full">
-                                        <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-muted)', paddingLeft: '4px', marginBottom: '8px', display: 'block' }}>투입 통계 설정</label>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', paddingLeft: '4px', marginBottom: '8px' }}>
+                                            <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-muted)' }}>투입 통계 설정</span>
+                                            <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}
+                                                onMouseEnter={e => e.currentTarget.querySelector('.stat-tooltip').style.opacity = '1'}
+                                                onMouseLeave={e => e.currentTarget.querySelector('.stat-tooltip').style.opacity = '0'}
+                                            >
+                                                <HelpCircle size={13} style={{ color: 'var(--text-muted)', cursor: 'help', opacity: 0.7 }} />
+                                                <div className="stat-tooltip" style={{
+                                                    opacity: 0,
+                                                    pointerEvents: 'none',
+                                                    transition: 'opacity 0.15s',
+                                                    position: 'absolute',
+                                                    bottom: 'calc(100% + 8px)',
+                                                    left: '50%',
+                                                    transform: 'translateX(-50%)',
+                                                    background: isDark ? '#1e293b' : '#1e293b',
+                                                    color: '#f1f5f9',
+                                                    fontSize: '12px',
+                                                    lineHeight: '1.6',
+                                                    padding: '10px 14px',
+                                                    borderRadius: '10px',
+                                                    width: '260px',
+                                                    boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+                                                    border: '1px solid rgba(255,255,255,0.08)',
+                                                    zIndex: 9999,
+                                                    whiteSpace: 'normal'
+                                                }}>
+                                                    <div style={{ fontWeight: '700', marginBottom: '6px', color: '#5dd6f3' }}>📊 투입 통계란?</div>
+                                                    <div>그룹별 보기의 <strong style={{ color: '#4de082' }}>미투입 / 부분투입 / 풀투입</strong> 현황에 이 프로젝트의 배정 인력이 반영됩니다.</div>
+                                                    <div style={{ marginTop: '8px', color: '#94a3b8' }}>
+                                                        ✅ <strong>포함</strong> — 제안작업에 투입된 인력도 통계에 집계<br/>
+                                                        ☑️ <strong>제외</strong> — 제안작업 배정과 무관하게 통계 산정
+                                                    </div>
+                                                    {/* Tooltip arrow */}
+                                                    <div style={{
+                                                        position: 'absolute',
+                                                        bottom: '-5px',
+                                                        left: '50%',
+                                                        transform: 'translateX(-50%) rotate(45deg)',
+                                                        width: '10px',
+                                                        height: '10px',
+                                                        background: '#1e293b',
+                                                        borderRight: '1px solid rgba(255,255,255,0.08)',
+                                                        borderBottom: '1px solid rgba(255,255,255,0.08)'
+                                                    }} />
+                                                </div>
+                                            </div>
+                                        </div>
                                         <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', padding: '14px 20px', borderRadius: '14px', background: isDark ? '#0f172a' : 'var(--surface-high)', border: isDark ? '1px solid rgba(255,255,255,0.1)' : '1px solid var(--border)' }}>
                                             <input
                                                 type="checkbox"
