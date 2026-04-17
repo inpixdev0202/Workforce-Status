@@ -635,7 +635,8 @@ const ProjectItem = React.memo(({
     rightSpacerWidth,
     visibleStartIdx,
     canEdit,
-    onToggleCountInStats
+    onToggleCountInStats,
+    isAdmin
 }) => {
     // If it's a completed project and not expanded, we only show the header
     const showMembers = !isCompleted || isExpanded;
@@ -680,7 +681,7 @@ const ProjectItem = React.memo(({
                                 <span className={`badge ${project.type === 'Internal' ? 'badge-primary' : (project.type === 'Leave' || project.type === 'Annual' ? 'badge-neutral' : 'badge-success')}`} style={{ fontSize: '0.7em', opacity: 0.8 }}>
                                     {project.type || 'Client'}
                                 </span>
-                                {project.type === 'Internal' && user?.role === 'Admin' && (
+                                {project.type === 'Internal' && isAdmin && (
                                     <button
                                         onClick={() => onToggleCountInStats(project.id, project.count_in_stats)}
                                         title={project.count_in_stats ? '통계 포함 중 (클릭 시 제외)' : '통계 제외 중 (클릭 시 포함)'}
@@ -3240,6 +3241,7 @@ const ProjectStatus = () => {
                                                     visibleStartIdx={visibleColRange.start}
                                                     canEdit={canEdit}
                                                     onToggleCountInStats={handleToggleCountInStats}
+                                                    isAdmin={user?.role === 'Admin'}
                                                 />
                                             );
                                         })}
