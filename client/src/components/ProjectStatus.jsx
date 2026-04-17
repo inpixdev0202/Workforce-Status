@@ -680,7 +680,7 @@ const ProjectItem = React.memo(({
                                 <span className={`badge ${project.type === 'Internal' ? 'badge-primary' : (project.type === 'Leave' || project.type === 'Annual' ? 'badge-neutral' : 'badge-success')}`} style={{ fontSize: '0.7em', opacity: 0.8 }}>
                                     {project.type || 'Client'}
                                 </span>
-                                {project.type === 'Internal' && canEdit && (
+                                {project.type === 'Internal' && user?.role === 'Admin' && (
                                     <button
                                         onClick={() => onToggleCountInStats(project.id, project.count_in_stats)}
                                         title={project.count_in_stats ? '통계 포함 중 (클릭 시 제외)' : '통계 제외 중 (클릭 시 포함)'}
