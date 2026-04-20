@@ -1189,7 +1189,7 @@ const ProjectStatus = () => {
 
             allAssignments.forEach(a => {
                 const empId = a.employee_id;
-                if (!empTotals[empId]) empTotals[empId] = { name: a.employee_name, total: 0, empType: a.employee_employment_type };
+                if (!empTotals[empId]) empTotals[empId] = { name: a.employee_name, total: 0, empType: a.employee_employment_type, retirement_date: a.retirement_date };
                 empTotals[empId].total += parseFloat(a.allocations?.[dateStr] || 0);
 
                 if (a.project_type === 'Leave') {
