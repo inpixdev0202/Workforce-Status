@@ -851,6 +851,7 @@ const ProjectStatus = () => {
     const [inlineInputRect, setInlineInputRect] = useState(null);
 
     const [allMasterProjects, setAllMasterProjects] = useState([]);
+    const [masterDataLoading, setMasterDataLoading] = useState(false);
 
     const handleAddProject = async (newProjectData) => {
         try {
@@ -879,6 +880,7 @@ const ProjectStatus = () => {
     };
 
     const loadMasterData = useCallback(async () => {
+        setMasterDataLoading(true);
         try {
             const [projRes, empRes] = await Promise.all([
                 projectsAPI.getAll(),
@@ -888,6 +890,8 @@ const ProjectStatus = () => {
             setEmployees(empRes.data.sort((a, b) => a.name.localeCompare(b.name, 'ko')));
         } catch (err) {
             console.error('Failed to load master data:', err);
+        } finally {
+            setMasterDataLoading(false);
         }
     }, []);
 
@@ -3619,7 +3623,7 @@ const ProjectStatus = () => {
 
 
             {/* Add Project Modal (Optimized) */}
-            <AddProjectModal 
+            <AddProjectModal
                 isOpen={showProjectModal}
                 onClose={() => setShowProjectModal(false)}
                 onAdd={handleAddProject}
@@ -3628,6 +3632,7 @@ const ProjectStatus = () => {
                 currentProjects={data}
                 viewMode={viewMode}
                 selectedGroup={selectedGroup}
+                isLoading={masterDataLoading}
             />
 
             {/* Member Assignment Modal */}
@@ -3743,9 +3748,9 @@ const ProjectStatus = () => {
  * AddProjectModal Component
  * Extracted to prevent main ProjectStatus table re-renders on every keystroke.
  */
-const AddProjectModal = React.memo(({ isOpen, onClose, onAdd, allMasterProjects, employees, currentProjects, viewMode, selectedGroup }) => {
+const AddProjectModal = React.memo(({ isOpen, onClose, onAdd, allMasterProjects, employees, currentProjects, viewMode, selectedGroup, isLoading }) => {
     const [searchQuery, setSearchQuery] = useState('');
-    
+
     if (!isOpen) return null;
 
     const currentProjectNames = new Set(currentProjects.map(p => p.name));
@@ -3894,13 +3899,19 @@ const AddProjectModal = React.memo(({ isOpen, onClose, onAdd, allMasterProjects,
                 </div>
 
                 {/* List Container */}
-                <div style={{ 
-                    flex: 1, 
-                    overflowY: 'auto', 
+                <div style={{
+                    flex: 1,
+                    overflowY: 'auto',
                     padding: '16px 32px 32px',
                     scrollbarWidth: 'thin',
                     scrollbarColor: 'rgba(255,255,255,0.1) transparent'
                 }}>
+                    {isLoading ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '200px', gap: '16px' }}>
+                            <div style={{ width: '40px', height: '40px', border: '3px solid rgba(255,255,255,0.1)', borderTopColor: '#22d3ee', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                            <span style={{ color: '#64748b', fontSize: '14px' }}>프로젝트 목록을 불러오는 중...</span>
+                        </div>
+                    ) : (
                     <div style={{ display: 'grid', gap: '10px' }}>
                         {filteredProjects.length > 0 ? (
                             filteredProjects.map((p, idx) => (
@@ -3988,6 +3999,7 @@ const AddProjectModal = React.memo(({ isOpen, onClose, onAdd, allMasterProjects,
                             </div>
                         )}
                     </div>
+                    )}
                 </div>
 
                 <style>{`
