@@ -1184,12 +1184,12 @@ const ProjectStatus = () => {
 
             // Seed all group employees first so unassigned members show up in zero list
             groupEmployees.forEach(e => {
-                empTotals[e.id] = { name: e.name, total: 0, empType: e.employment_type, retirement_date: e.retirement_date };
+                empTotals[e.id] = { name: e.name, total: 0, empType: e.employment_type, retirement_date: e.retirement_date, exclude_from_stats: e.exclude_from_stats };
             });
 
             allAssignments.forEach(a => {
                 const empId = a.employee_id;
-                if (!empTotals[empId]) empTotals[empId] = { name: a.employee_name, total: 0, empType: a.employee_employment_type, retirement_date: a.retirement_date };
+                if (!empTotals[empId]) empTotals[empId] = { name: a.employee_name, total: 0, empType: a.employee_employment_type, retirement_date: a.retirement_date, exclude_from_stats: a.employee_exclude_from_stats };
                 empTotals[empId].total += parseFloat(a.allocations?.[dateStr] || 0);
 
                 if (a.project_type === 'Leave') {
@@ -1202,9 +1202,12 @@ const ProjectStatus = () => {
 
             Object.keys(empTotals).forEach(empId => {
                 const info = empTotals[empId];
-                const { name, total, empType, retirement_date: retirementDate } = info;
+                const { name, total, empType, retirement_date: retirementDate, exclude_from_stats: excludeFromStats } = info;
 
                 if (empType === '정규직') {
+                    // Check exclude_from_stats flag
+                    if (excludeFromStats) return;
+
                     // Check if retired as of this week
                     if (retirementDate && dateStr > retirementDate) {
                         return; // Exclude retired employees

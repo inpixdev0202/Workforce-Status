@@ -33,6 +33,7 @@ router.get('/matrix', authenticateToken, async (req, res) => {
                     e.skill_level AS employee_grade,
                     e.employment_type AS employee_employment_type,
                     e.retirement_date,
+                    e.exclude_from_stats AS employee_exclude_from_stats,
                     g.name AS group_name,
                     g.color AS group_color,
                     alloc.period_date,
@@ -63,6 +64,7 @@ router.get('/matrix', authenticateToken, async (req, res) => {
                     employee_grade: row.employee_grade,
                     employee_employment_type: row.employee_employment_type,
                     retirement_date: row.retirement_date,
+                    employee_exclude_from_stats: row.employee_exclude_from_stats,
                     group_name: row.group_name,
                     group_color: row.group_color,
                     allocations: {}
