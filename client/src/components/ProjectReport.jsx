@@ -1227,7 +1227,8 @@ const ProjectReport = () => {
 
                 // Admin always seeds missing master projects into any week (past or present)
                 // Non-Admin: seed only when week is empty or current/future
-                const shouldSeed = isCurrentOrFutureWeek || currentRows.length === 0 || user?.role === 'Admin';
+                const isReportAdmin = user?.role === 'Admin' || user?.permissions?.report_admin === true;
+                const shouldSeed = isCurrentOrFutureWeek || currentRows.length === 0 || isReportAdmin;
 
                 if (shouldSeed) {
                     const existingNames = new Set((currentRows || []).map(r => normalizeProjectName(r.projectName)));
@@ -1252,10 +1253,10 @@ const ProjectReport = () => {
                     // Current/future week: add any master projects missing from the list
                     // Past empty week: also seed so PM/PD can see their projects (blank rows)
                     // Admin: always add missing master projects even in past weeks with partial data
-                    if (isCurrentOrFutureWeek || currentRows.length === 0 || user?.role === 'Admin') {
+                    if (isCurrentOrFutureWeek || currentRows.length === 0 || isReportAdmin) {
                         // For non-Admin users seeding a past empty week, only include their own projects
                         let projectsToSeed = activeMasterProjects;
-                        if (!isCurrentOrFutureWeek && user?.role !== 'Admin') {
+                        if (!isCurrentOrFutureWeek && !isReportAdmin) {
                             const seedUserName = String(user?.name || '').normalize('NFC').trim();
                             projectsToSeed = activeMasterProjects.filter(m => {
                                 const mPm = String(m.pm || '').normalize('NFC').trim();
@@ -1842,7 +1843,7 @@ const ProjectReport = () => {
 
                 // Ownership Filtering: If not Admin, only show own projects (PD or PM match)
                 const isOwner = (() => {
-                    if (user?.role === 'Admin') return true;
+                    if (user?.role === 'Admin' || user?.permissions?.report_admin === true) return true;
                     const userName = String(user?.name || '').normalize('NFC').trim();
                     if (!userName) return false;
                     // Check report row fields first
