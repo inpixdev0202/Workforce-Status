@@ -13,9 +13,10 @@ router.get('/:date', authenticateToken, async (req, res) => {
         
         if (report) {
             let data = JSON.parse(report.data_json);
-            
-            // If not Admin, filter rows to only show those owned by the user (PD or PM)
-            if (role !== 'Admin') {
+
+            // If not Admin and not report_admin, filter rows to only show those owned by the user (PD or PM)
+            const isReportAdmin = role === 'Admin' || (req.user.permissions && req.user.permissions.report_admin === true);
+            if (!isReportAdmin) {
                 const rows = Array.isArray(data) ? data : (data.rows || []);
                 const filteredRows = rows.filter(row => {
                     const pdVal = String(row.pd || '').trim();
@@ -54,8 +55,9 @@ router.post('/', authenticateToken, async (req, res) => {
         let incomingRows = Array.isArray(data) ? data : (data.rows || []);
         let finalData = data;
 
-        // Merge logic for non-Admin users to prevent data loss of other users' projects
-        if (role !== 'Admin') {
+        // Merge logic for non-report-admin users to prevent data loss of other users' projects
+        const isReportAdmin = role === 'Admin' || (req.user.permissions && req.user.permissions.report_admin === true);
+        if (!isReportAdmin) {
             const existingReport = await get('SELECT * FROM project_reports WHERE week_date = ?', [week_date]);
             let existingRows = [];
 
