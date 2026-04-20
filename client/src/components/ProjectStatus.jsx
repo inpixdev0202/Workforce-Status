@@ -1225,8 +1225,8 @@ const ProjectStatus = () => {
                     activeRegularCount++;
 
                     if (total === 0) zero.push(name);
-                    if (total <= 0.5) under50.push(name); // 미투입(0) 포함
-                    if (total >= 1.0) over100.push(name);
+                    if (total < 1.0) under50.push(name); // 미투입(0) 포함, 1.0 미만 전체
+                    if (total >= 1.1) over100.push(name); // 1.1 MM 이상 풀투입
                 }
             });
             weeklyStatus[dateStr] = { zero, under50, over100, activeRegularCount };
@@ -3550,7 +3550,7 @@ const ProjectStatus = () => {
                                                         </tr>
                                                         <tr style={{ backgroundColor: '#fffbeb', borderBottom: '1px solid #fcd34d' }}>
                                                             <td style={{ position: 'sticky', left: 0, zIndex: 10, backgroundColor: '#fffbeb', padding: '4px 8px', fontSize: '0.75em', fontWeight: 'bold', color: '#d97706', textAlign: 'right', borderRight: '1px solid #fcd34d' }} colSpan={7}>
-                                                                부분 투입 (0.5 MM 이하)
+                                                                부분 투입 (1.0 MM 미만)
                                                             </td>
                                                             {leftSpacerWidth > 0 && <td style={{ width: leftSpacerWidth, backgroundColor: '#fffbeb' }} />}
                                                             {visibleWeeks.map(week => {
@@ -3580,7 +3580,7 @@ const ProjectStatus = () => {
                                                         </tr>
                                                         <tr style={{ backgroundColor: '#eff6ff', borderBottom: '2px solid var(--border)' }}>
                                                             <td style={{ position: 'sticky', left: 0, zIndex: 10, backgroundColor: '#eff6ff', padding: '4px 8px', fontSize: '0.75em', fontWeight: 'bold', color: '#2563eb', textAlign: 'right', borderRight: '1px solid #bfdbfe' }} colSpan={7}>
-                                                                풀투입 (1 MM 이상)
+                                                                풀투입 (1.1 MM 이상)
                                                             </td>
                                                             {leftSpacerWidth > 0 && <td style={{ width: leftSpacerWidth, backgroundColor: '#eff6ff' }} />}
                                                             {visibleWeeks.map(week => {
