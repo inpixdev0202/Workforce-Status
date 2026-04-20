@@ -525,7 +525,7 @@ const ReportDataRow = React.memo(({
     pdList = []
 }) => {
     const { user } = useAuth();
-    const isAdmin = user?.role === 'Admin';
+    const isAdmin = user?.role === 'Admin' || user?.permissions?.report_admin === true;
     const isOwner = (() => {
         if (isAdmin) return true;
         const userName = String(user?.name || '').normalize('NFC').trim();

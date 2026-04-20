@@ -366,6 +366,49 @@ export default function UserManagement() {
                                         })}
                                     </div>
 
+                                    {/* 세부 기능 권한 */}
+                                    <div style={{ marginTop: '16px' }}>
+                                        <div style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '8px', paddingLeft: '4px' }}>세부 기능 권한</div>
+                                        <div className="rounded-2xl border border-white/5 overflow-hidden">
+                                            {[
+                                                { key: 'report_admin', label: '프로젝트 보고 전체 조회', desc: '본인 프로젝트 외 모든 프로젝트 열람/편집', icon: <FileText size={16} /> }
+                                            ].map((opt) => {
+                                                const isEnabled = formData.permissions[opt.key] === true;
+                                                const toggle = () => {
+                                                    setFormData({ ...formData, permissions: { ...formData.permissions, [opt.key]: !isEnabled } });
+                                                };
+                                                return (
+                                                    <div
+                                                        key={opt.key}
+                                                        onClick={toggle}
+                                                        className="flex items-center gap-4 px-5 py-4 cursor-pointer transition-all duration-200"
+                                                    >
+                                                        <div style={{
+                                                            width: '36px', height: '36px', borderRadius: '12px',
+                                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                            flexShrink: 0, transition: 'all 0.2s',
+                                                            background: isEnabled ? 'rgba(59,130,246,0.15)' : 'rgba(100,116,139,0.15)',
+                                                            color: isEnabled ? '#60a5fa' : '#64748b'
+                                                        }}>
+                                                            {opt.icon}
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <div style={{ fontSize: '0.875rem', fontWeight: 700, color: isEnabled ? '#60a5fa' : 'var(--text-muted)', transition: 'color 0.2s' }}>
+                                                                {opt.label}
+                                                            </div>
+                                                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                                                                {opt.desc}
+                                                            </div>
+                                                        </div>
+                                                        <div className={`relative w-11 h-6 rounded-full transition-all duration-300 flex-shrink-0 ${isEnabled ? 'bg-blue-500' : 'bg-slate-600'}`}>
+                                                            <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-all duration-300 ${isEnabled ? 'left-5' : 'left-0.5'}`} />
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+
                                 </div>
                             )}
 
