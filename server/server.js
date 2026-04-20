@@ -395,8 +395,8 @@ app.get('/api/dashboard/stats', async (req, res) => {
                     SELECT employee_id 
                     FROM project_assignments pa
                     JOIN projects p ON pa.project_id = p.id
-                    WHERE (pa.input_end_date >= ? OR pa.input_end_date IS NULL) 
-                      AND (pa.input_start_date <= ? OR pa.input_start_date IS NULL)
+                    WHERE (pa.input_end_date >= ? OR pa.input_end_date IS NULL)
+                      AND pa.input_start_date IS NOT NULL AND pa.input_start_date <= ?
                       AND (LOWER(p.type) = 'client' OR p.type = '수행')
                 )
                 AND (e.exclude_from_stats IS NULL OR e.exclude_from_stats = 0)
@@ -414,9 +414,12 @@ app.get('/api/dashboard/stats', async (req, res) => {
         const groupWorkforceDetails = await Promise.all(groups.map(async g => {
             const groupEmployees = await query(`
                 SELECT e.id, e.name, e.employment_type, e.exclude_from_stats,
-                (SELECT p.type FROM project_assignments pa JOIN projects p ON pa.project_id = p.id 
-                 WHERE pa.employee_id = e.id AND (pa.input_end_date >= ? OR pa.input_end_date IS NULL) 
-                 AND (pa.input_start_date <= ? OR pa.input_start_date IS NULL) 
+                (SELECT p.type FROM project_assignments pa JOIN projects p ON pa.project_id = p.id
+                 WHERE pa.employee_id = e.id AND (pa.input_end_date >= ? OR pa.input_end_date IS NULL)
+                 AND (
+                     (pa.input_start_date IS NOT NULL AND pa.input_start_date <= ?)
+                     OR (pa.input_start_date IS NULL AND LOWER(p.type) NOT IN ('client') AND p.type != '수행')
+                 )
                  ORDER BY CASE p.type WHEN 'Client' THEN 1 WHEN 'Leave' THEN 2 WHEN 'Internal' THEN 3 WHEN 'Bench' THEN 4 WHEN 'Annual' THEN 5 ELSE 6 END, pa.input_start_date DESC LIMIT 1) as current_project_type
                 FROM employees e
                 WHERE e.group_id = ? AND (e.status = 'active' OR e.retirement_date >= ?) AND (e.retirement_date >= ? OR e.retirement_date IS NULL)
