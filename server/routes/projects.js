@@ -28,20 +28,21 @@ router.get('/matrix', authenticateToken, async (req, res) => {
                 SELECT
                     pa.id, pa.project_id, pa.employee_id, pa.role,
                     pa.input_start_date, pa.input_end_date, pa.display_order, pa.work_location,
-                    pa.tbd_employment_type,
+                    pa.tbd_employment_type, pa.group_id,
                     e.name AS employee_name,
                     e.position AS employee_position,
                     e.skill_level AS employee_grade,
                     e.employment_type AS employee_employment_type,
                     e.retirement_date,
                     e.exclude_from_stats AS employee_exclude_from_stats,
-                    g.name AS group_name,
-                    g.color AS group_color,
+                    COALESCE(g.name, tbd_g.name) AS group_name,
+                    COALESCE(g.color, tbd_g.color) AS group_color,
                     alloc.period_date,
                     alloc.value AS alloc_value
                 FROM project_assignments pa
                 LEFT JOIN employees e ON pa.employee_id = e.id
                 LEFT JOIN groups g ON e.group_id = g.id
+                LEFT JOIN groups tbd_g ON pa.group_id = tbd_g.id
                 LEFT JOIN project_allocations alloc ON alloc.assignment_id = pa.id
                 ORDER BY COALESCE(pa.display_order, pa.id) ASC, alloc.period_date ASC
             `)
@@ -259,7 +260,7 @@ router.delete('/:id', async (req, res) => {
 // Assign Employee to Project
 router.post('/:id/assign', async (req, res) => {
     try {
-        const { employee_id, role, input_start_date, input_end_date, tbd_employment_type } = req.body;
+        const { employee_id, role, input_start_date, input_end_date, tbd_employment_type, group_id } = req.body;
 
         // Duplicate check only for real employees (TBD allows multiple slots)
         if (employee_id) {
@@ -276,19 +277,21 @@ router.post('/:id/assign', async (req, res) => {
         const maxOrder = (await get('SELECT MAX(display_order) as max_order FROM project_assignments WHERE project_id = ?', [req.params.id]))?.max_order || 0;
 
         const result = await run(`
-      INSERT INTO project_assignments (project_id, employee_id, role, input_start_date, input_end_date, display_order, tbd_employment_type)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO project_assignments (project_id, employee_id, role, input_start_date, input_end_date, display_order, tbd_employment_type, group_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       RETURNING id
-    `, [req.params.id, employee_id || null, role || '', input_start_date || null, input_end_date || null, maxOrder + 1, tbd_employment_type || null]);
+    `, [req.params.id, employee_id || null, role || '', input_start_date || null, input_end_date || null, maxOrder + 1, tbd_employment_type || null, group_id || null]);
 
         const insertedId = result.rows[0].id;
         console.log(`[ASSIGN] Inserted ID: ${insertedId}`);
 
         const newAssignment = await get(`
-      SELECT pa.*, e.name as employee_name, e.position as employee_position, e.skill_level as employee_grade, e.employment_type as employee_employment_type, g.name as group_name, g.color as group_color
+      SELECT pa.*, e.name as employee_name, e.position as employee_position, e.skill_level as employee_grade, e.employment_type as employee_employment_type,
+             COALESCE(g.name, tbd_g.name) as group_name, COALESCE(g.color, tbd_g.color) as group_color
       FROM project_assignments pa
       LEFT JOIN employees e ON pa.employee_id = e.id
       LEFT JOIN groups g ON e.group_id = g.id
+      LEFT JOIN groups tbd_g ON pa.group_id = tbd_g.id
       WHERE pa.id = ?
     `, [insertedId]);
 

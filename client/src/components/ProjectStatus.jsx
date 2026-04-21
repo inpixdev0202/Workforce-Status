@@ -1026,13 +1026,14 @@ const ProjectStatus = () => {
     const transformDataByGroup = useCallback(() => {
         const groupMap = {};
 
-        // Initialize groups from employees (captures color and count)
+        // Initialize groups from employees (captures color, id, and count)
         employees.forEach(emp => {
             const gName = emp.group_name || '미지정';
             if (!groupMap[gName]) {
                 groupMap[gName] = {
                     name: gName,
                     color: emp.group_color || '#6b7280',
+                    id: emp.group_id || null,
                     projects: {},
                     _employeeIds: new Set()
                 };
@@ -2223,7 +2224,7 @@ const ProjectStatus = () => {
         }
     };
 
-    const handleAssignTBD = useCallback(async (projectId, tbdType, groupName = null, groupColor = null) => {
+    const handleAssignTBD = useCallback(async (projectId, tbdType, groupName = null, groupColor = null, groupId = null) => {
         setShowMemberModal(false);
 
         const tempId = `temp-tbd-${Date.now()}`;
@@ -2242,7 +2243,7 @@ const ProjectStatus = () => {
         ));
 
         try {
-            const response = await projectsAPI.assignMember(projectId, { tbd_employment_type: tbdType });
+            const response = await projectsAPI.assignMember(projectId, { tbd_employment_type: tbdType, group_id: groupId });
             const newMember = {
                 ...response.data,
                 group_name: groupName || response.data.group_name,
@@ -3533,7 +3534,7 @@ const ProjectStatus = () => {
                                                                 cursor={cursor}
                                                                 addRowIndex={addRowIndex}
                                                                 handleInlineAssign={handleInlineAssign}
-                                                                handleTBDAssign={(projectId, tbdType) => handleAssignTBD(projectId, tbdType, group.name, group.color)}
+                                                                handleTBDAssign={(projectId, tbdType) => handleAssignTBD(projectId, tbdType, group.name, group.color, group.id)}
                                                                 getFilteredEmployees={getFilteredEmployees}
                                                                 setCursor={setCursor}
                                                                 cellRefs={cellRefs}
