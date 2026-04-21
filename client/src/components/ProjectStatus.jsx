@@ -592,16 +592,16 @@ const InlineAddRow = React.memo(({
                     getFilteredEmployees={getFilteredEmployees}
                 />
             </td>
-            <td colSpan={viewMode === 'project' ? 3 : 6} style={{ position: 'sticky', left: getStickyLeft(viewMode === 'project' ? 'workLocation' : 'position', viewMode), zIndex: 10, backgroundColor: 'var(--bg-primary)', height: '28px', borderBottom: '1px solid var(--border)', padding: '0 6px' }}>
+            <td colSpan={viewMode === 'project' ? 3 : 6} style={{ backgroundColor: 'var(--bg-primary)', height: '28px', borderBottom: '1px solid var(--border)', padding: '0 6px' }}>
                 {handleTBDAssign && (
                     <div className="flex items-center gap-xs" style={{ height: '100%' }}>
                         <button
-                            onMouseDown={(e) => { e.preventDefault(); handleTBDAssign(project.id, 'Regular'); }}
+                            onClick={() => handleTBDAssign(project.id, 'Regular')}
                             style={{ background: '#6366f1', color: 'white', border: 'none', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer', fontSize: '0.7em', whiteSpace: 'nowrap' }}
                             title="정규직 TBD 추가"
                         >TBD 정규직</button>
                         <button
-                            onMouseDown={(e) => { e.preventDefault(); handleTBDAssign(project.id, 'Contract'); }}
+                            onClick={() => handleTBDAssign(project.id, 'Contract')}
                             style={{ background: '#f59e0b', color: 'white', border: 'none', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer', fontSize: '0.7em', whiteSpace: 'nowrap' }}
                             title="계약직 TBD 추가"
                         >TBD 계약직</button>
