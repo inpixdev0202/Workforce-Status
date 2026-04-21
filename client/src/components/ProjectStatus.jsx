@@ -495,7 +495,7 @@ const GroupMemberRow = React.memo(({
             <td style={{ position: 'sticky', left: getStickyLeft('position', 'group'), zIndex: 10, width: columnWidths.position, backgroundColor: 'var(--bg-primary)', borderBottom: '1px solid var(--border)', padding: assignment.employee_id == null ? 0 : undefined }}>
                 {assignment.employee_id == null ? (
                     <select className="grid-input" style={{ fontSize: '0.85em', textAlign: 'center' }}
-                        value={assignment.employee_position || ''}
+                        value={assignment.tbd_position || ''}
                         onChange={(e) => handleAssignmentUpdate(assignment.id, 'tbd_position', e.target.value)}>
                         <option value="">-</option>
                         <option value="사원">사원</option>
@@ -512,7 +512,7 @@ const GroupMemberRow = React.memo(({
             <td style={{ position: 'sticky', left: getStickyLeft('grade', 'group'), zIndex: 10, width: columnWidths.grade, backgroundColor: 'var(--bg-primary)', fontSize: '0.8em', color: 'var(--text-muted)', borderBottom: '1px solid var(--border)', padding: assignment.employee_id == null ? 0 : undefined }}>
                 {assignment.employee_id == null ? (
                     <select className="grid-input" style={{ fontSize: '0.85em', textAlign: 'center' }}
-                        value={assignment.employee_grade || ''}
+                        value={assignment.tbd_grade || ''}
                         onChange={(e) => handleAssignmentUpdate(assignment.id, 'tbd_grade', e.target.value)}>
                         <option value="">-</option>
                         <option value="초급">초급</option>

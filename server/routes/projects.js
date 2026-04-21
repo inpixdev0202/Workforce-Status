@@ -28,7 +28,7 @@ router.get('/matrix', authenticateToken, async (req, res) => {
                 SELECT
                     pa.id, pa.project_id, pa.employee_id, pa.role,
                     pa.input_start_date, pa.input_end_date, pa.display_order, pa.work_location,
-                    pa.tbd_employment_type, pa.group_id,
+                    pa.tbd_employment_type, pa.tbd_position, pa.tbd_grade, pa.group_id,
                     e.name AS employee_name,
                     COALESCE(e.position, pa.tbd_position) AS employee_position,
                     COALESCE(e.skill_level, pa.tbd_grade) AS employee_grade,
@@ -70,6 +70,8 @@ router.get('/matrix', authenticateToken, async (req, res) => {
                     group_name: row.group_name,
                     group_color: row.group_color,
                     tbd_employment_type: row.tbd_employment_type,
+                    tbd_position: row.tbd_position,
+                    tbd_grade: row.tbd_grade,
                     allocations: {}
                 });
             }
