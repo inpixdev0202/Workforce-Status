@@ -220,7 +220,7 @@ const InlineSearchInput = React.memo(({
                         <>
                             <div
                                 className="inline-search-item"
-                                onMouseDown={(e) => { e.preventDefault(); handleTBDAssign(projectId, 'Regular'); setIsOpen(false); }}
+                                onClick={() => { handleTBDAssign(projectId, 'Regular'); setIsOpen(false); }}
                                 style={{ borderLeft: '3px solid #6366f1', cursor: 'pointer' }}
                             >
                                 <div className="flex justify-between items-center">
@@ -231,7 +231,7 @@ const InlineSearchInput = React.memo(({
                             </div>
                             <div
                                 className="inline-search-item"
-                                onMouseDown={(e) => { e.preventDefault(); handleTBDAssign(projectId, 'Contract'); setIsOpen(false); }}
+                                onClick={() => { handleTBDAssign(projectId, 'Contract'); setIsOpen(false); }}
                                 style={{ borderLeft: '3px solid #f59e0b', cursor: 'pointer' }}
                             >
                                 <div className="flex justify-between items-center">
@@ -2214,7 +2214,7 @@ const ProjectStatus = () => {
         }
     };
 
-    const handleAssignTBD = async (projectId, tbdType) => {
+    const handleAssignTBD = useCallback(async (projectId, tbdType) => {
         setShowMemberModal(false);
 
         const tempId = `temp-tbd-${Date.now()}`;
@@ -2242,9 +2242,9 @@ const ProjectStatus = () => {
             setData(prev => prev.map(p =>
                 p.id === projectId ? { ...p, members: p.members.filter(m => m.id !== tempId) } : p
             ));
-            alert('TBD 배정에 실패했습니다.');
+            alert('TBD 배정에 실패했습니다: ' + (err.response?.data?.error || err.message));
         }
-    };
+    }, [setData]);
 
     const handleReorderProject = async (projectId, direction) => {
         const index = data.findIndex(p => p.id === projectId);
