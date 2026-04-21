@@ -371,7 +371,8 @@ export default function UserManagement() {
                                         <div style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '8px', paddingLeft: '4px' }}>세부 기능 권한</div>
                                         <div className="rounded-2xl border border-white/5 overflow-hidden">
                                             {[
-                                                { key: 'report_admin', label: '프로젝트 보고 전체 조회', desc: '본인 프로젝트 외 모든 프로젝트 열람/편집', icon: <FileText size={16} /> }
+                                                { key: 'report_admin', label: '프로젝트 보고 전체 조회', desc: '본인 프로젝트 외 모든 프로젝트 열람/편집', icon: <FileText size={16} /> },
+                                                { key: 'sales_delete', label: '영업현황 행 삭제', desc: '영업현황 스프레드시트에서 행 삭제 가능', icon: <Trash2 size={16} /> }
                                             ].map((opt) => {
                                                 const isEnabled = formData.permissions[opt.key] === true;
                                                 const toggle = () => {
