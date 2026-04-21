@@ -1120,6 +1120,7 @@ const ProjectStatus = () => {
             return {
                 name: g.name,
                 color: g.color,
+                id: g.id,
                 memberCount: g._employeeIds.size,
                 projects: filteredProjects
             };
