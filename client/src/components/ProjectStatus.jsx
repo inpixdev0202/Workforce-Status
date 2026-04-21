@@ -569,6 +569,7 @@ const InlineAddRow = React.memo(({
     cursor,
     addRowIndex,
     handleInlineAssign,
+    handleTBDAssign,
     getFilteredEmployees,
     setCursor,
     cellRefs,
@@ -591,7 +592,22 @@ const InlineAddRow = React.memo(({
                     getFilteredEmployees={getFilteredEmployees}
                 />
             </td>
-            <td colSpan={viewMode === 'project' ? 3 : 6} style={{ position: 'sticky', left: getStickyLeft(viewMode === 'project' ? 'workLocation' : 'position', viewMode), zIndex: 10, backgroundColor: 'var(--bg-primary)', height: '28px', borderBottom: '1px solid var(--border)' }}></td>
+            <td colSpan={viewMode === 'project' ? 3 : 6} style={{ position: 'sticky', left: getStickyLeft(viewMode === 'project' ? 'workLocation' : 'position', viewMode), zIndex: 10, backgroundColor: 'var(--bg-primary)', height: '28px', borderBottom: '1px solid var(--border)', padding: '0 6px' }}>
+                {handleTBDAssign && (
+                    <div className="flex items-center gap-xs" style={{ height: '100%' }}>
+                        <button
+                            onMouseDown={(e) => { e.preventDefault(); handleTBDAssign(project.id, 'Regular'); }}
+                            style={{ background: '#6366f1', color: 'white', border: 'none', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer', fontSize: '0.7em', whiteSpace: 'nowrap' }}
+                            title="정규직 TBD 추가"
+                        >TBD 정규직</button>
+                        <button
+                            onMouseDown={(e) => { e.preventDefault(); handleTBDAssign(project.id, 'Contract'); }}
+                            style={{ background: '#f59e0b', color: 'white', border: 'none', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer', fontSize: '0.7em', whiteSpace: 'nowrap' }}
+                            title="계약직 TBD 추가"
+                        >TBD 계약직</button>
+                    </div>
+                )}
+            </td>
             {weeks.map(week => (
                 <td key={format(week, 'yyyy-MM-dd')} style={{
                     minWidth: `${columnWidths.week}px`,
@@ -640,6 +656,7 @@ const ProjectItem = React.memo(({
     handleReorderMember,
     getFilteredEmployees,
     handleInlineAssign,
+    handleTBDAssign,
     leftSpacerWidth,
     rightSpacerWidth,
     visibleStartIdx,
@@ -766,6 +783,7 @@ const ProjectItem = React.memo(({
                     isCurrentWeek={isCurrentWeek}
                     cursor={cursor}
                     handleInlineAssign={handleInlineAssign}
+                    handleTBDAssign={handleTBDAssign}
                     getFilteredEmployees={getFilteredEmployees}
                     setCursor={setCursor}
                     cellRefs={cellRefs}
@@ -2176,9 +2194,7 @@ const ProjectStatus = () => {
         }
     };
 
-    const handleAssignTBD = async (tbdType) => {
-        if (!selectedProject) return;
-        const projectId = selectedProject.id;
+    const handleAssignTBD = async (projectId, tbdType) => {
         setShowMemberModal(false);
 
         const tempId = `temp-tbd-${Date.now()}`;
@@ -3287,6 +3303,7 @@ const ProjectStatus = () => {
                                                     handleReorderMember={handleReorderMember}
                                                     getFilteredEmployees={getFilteredEmployees}
                                                     handleInlineAssign={handleInlineAssign}
+                                                    handleTBDAssign={handleAssignTBD}
                                                     leftSpacerWidth={leftSpacerWidth}
                                                     rightSpacerWidth={rightSpacerWidth}
                                                     visibleStartIdx={visibleColRange.start}
@@ -3366,6 +3383,7 @@ const ProjectStatus = () => {
                                                             handleReorderMember={handleReorderMember}
                                                             getFilteredEmployees={getFilteredEmployees}
                                                             handleInlineAssign={handleInlineAssign}
+                                                            handleTBDAssign={handleAssignTBD}
                                                             leftSpacerWidth={leftSpacerWidth}
                                                             rightSpacerWidth={rightSpacerWidth}
                                                             visibleStartIdx={visibleColRange.start}
@@ -3479,6 +3497,7 @@ const ProjectStatus = () => {
                                                                 cursor={cursor}
                                                                 addRowIndex={addRowIndex}
                                                                 handleInlineAssign={handleInlineAssign}
+                                                                handleTBDAssign={handleAssignTBD}
                                                                 getFilteredEmployees={getFilteredEmployees}
                                                                 setCursor={setCursor}
                                                                 cellRefs={cellRefs}
@@ -3696,12 +3715,12 @@ const ProjectStatus = () => {
                                         <button
                                             className="btn btn-sm"
                                             style={{ background: '#6366f1', color: 'white', border: 'none', borderRadius: '6px', padding: '5px 14px', cursor: 'pointer', fontSize: '0.85em' }}
-                                            onClick={() => handleAssignTBD('Regular')}
+                                            onClick={() => handleAssignTBD(selectedProject?.id, 'Regular')}
                                         >정규직 TBD 추가</button>
                                         <button
                                             className="btn btn-sm"
                                             style={{ background: '#f59e0b', color: 'white', border: 'none', borderRadius: '6px', padding: '5px 14px', cursor: 'pointer', fontSize: '0.85em' }}
-                                            onClick={() => handleAssignTBD('Contract')}
+                                            onClick={() => handleAssignTBD(selectedProject?.id, 'Contract')}
                                         >계약직 TBD 추가</button>
                                     </div>
                                 </div>
