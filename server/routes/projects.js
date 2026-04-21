@@ -30,8 +30,8 @@ router.get('/matrix', authenticateToken, async (req, res) => {
                     pa.input_start_date, pa.input_end_date, pa.display_order, pa.work_location,
                     pa.tbd_employment_type, pa.group_id,
                     e.name AS employee_name,
-                    e.position AS employee_position,
-                    e.skill_level AS employee_grade,
+                    COALESCE(e.position, pa.tbd_position) AS employee_position,
+                    COALESCE(e.skill_level, pa.tbd_grade) AS employee_grade,
                     e.employment_type AS employee_employment_type,
                     e.retirement_date,
                     e.exclude_from_stats AS employee_exclude_from_stats,
@@ -311,7 +311,7 @@ router.post('/:id/assign', async (req, res) => {
 // Update Assignment (Role, Dates, Employee)
 router.put('/assignments/:id', async (req, res) => {
     try {
-        const { role, input_start_date, input_end_date, employee_id, work_location, tbd_employment_type } = req.body;
+        const { role, input_start_date, input_end_date, employee_id, work_location, tbd_employment_type, tbd_position, tbd_grade } = req.body;
         console.log(`[ASSIGN UPDATE] ID: ${req.params.id}, role: ${role}, start: ${input_start_date}, end: ${input_end_date}, emp: ${employee_id}, loc: ${work_location}`);
 
         const updates = [];
@@ -332,6 +332,8 @@ router.put('/assignments/:id', async (req, res) => {
         }
         if (work_location !== undefined) { updates.push('work_location = ?'); params.push(work_location); }
         if (tbd_employment_type !== undefined) { updates.push('tbd_employment_type = ?'); params.push(tbd_employment_type); }
+        if (tbd_position !== undefined) { updates.push('tbd_position = ?'); params.push(tbd_position); }
+        if (tbd_grade !== undefined) { updates.push('tbd_grade = ?'); params.push(tbd_grade); }
 
         if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });
 

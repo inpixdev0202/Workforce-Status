@@ -492,8 +492,36 @@ const GroupMemberRow = React.memo(({
                     )}
                 </div>
             </td>
-            <td style={{ position: 'sticky', left: getStickyLeft('position', 'group'), zIndex: 10, width: columnWidths.position, backgroundColor: 'var(--bg-primary)', borderBottom: '1px solid var(--border)' }}>{assignment.employee_id == null ? '-' : assignment.employee_position}</td>
-            <td style={{ position: 'sticky', left: getStickyLeft('grade', 'group'), zIndex: 10, width: columnWidths.grade, backgroundColor: 'var(--bg-primary)', fontSize: '0.8em', color: 'var(--text-muted)', borderBottom: '1px solid var(--border)' }}>{assignment.employee_id == null ? '-' : assignment.employee_grade}</td>
+            <td style={{ position: 'sticky', left: getStickyLeft('position', 'group'), zIndex: 10, width: columnWidths.position, backgroundColor: 'var(--bg-primary)', borderBottom: '1px solid var(--border)', padding: assignment.employee_id == null ? 0 : undefined }}>
+                {assignment.employee_id == null ? (
+                    <select className="grid-input" style={{ fontSize: '0.85em', textAlign: 'center' }}
+                        value={assignment.employee_position || ''}
+                        onChange={(e) => handleAssignmentUpdate(assignment.id, 'tbd_position', e.target.value)}>
+                        <option value="">-</option>
+                        <option value="사원">사원</option>
+                        <option value="대리">대리</option>
+                        <option value="과장">과장</option>
+                        <option value="차장">차장</option>
+                        <option value="부장">부장</option>
+                        <option value="이사">이사</option>
+                        <option value="상무">상무</option>
+                        <option value="대표이사">대표이사</option>
+                    </select>
+                ) : assignment.employee_position}
+            </td>
+            <td style={{ position: 'sticky', left: getStickyLeft('grade', 'group'), zIndex: 10, width: columnWidths.grade, backgroundColor: 'var(--bg-primary)', fontSize: '0.8em', color: 'var(--text-muted)', borderBottom: '1px solid var(--border)', padding: assignment.employee_id == null ? 0 : undefined }}>
+                {assignment.employee_id == null ? (
+                    <select className="grid-input" style={{ fontSize: '0.85em', textAlign: 'center' }}
+                        value={assignment.employee_grade || ''}
+                        onChange={(e) => handleAssignmentUpdate(assignment.id, 'tbd_grade', e.target.value)}>
+                        <option value="">-</option>
+                        <option value="초급">초급</option>
+                        <option value="중급">중급</option>
+                        <option value="고급">고급</option>
+                        <option value="특급">특급</option>
+                    </select>
+                ) : assignment.employee_grade}
+            </td>
             <td style={{ position: 'sticky', left: getStickyLeft('employmentType', 'group'), zIndex: 10, width: columnWidths.employmentType, backgroundColor: 'var(--bg-primary)', fontSize: '0.8em', color: 'var(--text-muted)', borderBottom: '1px solid var(--border)' }}>{assignment.employee_id == null ? '-' : assignment.employee_employment_type}</td>
             <td style={{ position: 'sticky', left: getStickyLeft('workLocation', 'group'), zIndex: 10, width: columnWidths.workLocation, backgroundColor: 'var(--bg-primary)', padding: 0, borderBottom: '1px solid var(--border)' }}>
                 <select
