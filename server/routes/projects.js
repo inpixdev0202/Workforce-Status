@@ -28,6 +28,7 @@ router.get('/matrix', authenticateToken, async (req, res) => {
                 SELECT
                     pa.id, pa.project_id, pa.employee_id, pa.role,
                     pa.input_start_date, pa.input_end_date, pa.display_order, pa.work_location,
+                    pa.tbd_employment_type,
                     e.name AS employee_name,
                     e.position AS employee_position,
                     e.skill_level AS employee_grade,
@@ -39,7 +40,7 @@ router.get('/matrix', authenticateToken, async (req, res) => {
                     alloc.period_date,
                     alloc.value AS alloc_value
                 FROM project_assignments pa
-                JOIN employees e ON pa.employee_id = e.id
+                LEFT JOIN employees e ON pa.employee_id = e.id
                 LEFT JOIN groups g ON e.group_id = g.id
                 LEFT JOIN project_allocations alloc ON alloc.assignment_id = pa.id
                 ORDER BY COALESCE(pa.display_order, pa.id) ASC, alloc.period_date ASC
@@ -67,6 +68,7 @@ router.get('/matrix', authenticateToken, async (req, res) => {
                     employee_exclude_from_stats: row.employee_exclude_from_stats,
                     group_name: row.group_name,
                     group_color: row.group_color,
+                    tbd_employment_type: row.tbd_employment_type,
                     allocations: {}
                 });
             }
@@ -257,26 +259,27 @@ router.delete('/:id', async (req, res) => {
 // Assign Employee to Project
 router.post('/:id/assign', async (req, res) => {
     try {
-        const { employee_id, role, input_start_date, input_end_date } = req.body;
+        const { employee_id, role, input_start_date, input_end_date, tbd_employment_type } = req.body;
 
-        // Check if already assigned
-        const exists = await get(
-            'SELECT id FROM project_assignments WHERE project_id = ? AND employee_id = ?',
-            [req.params.id, employee_id]
-        );
-
-        if (exists) {
-            return res.status(400).json({ error: 'Employee already assigned to this project' });
+        // Duplicate check only for real employees (TBD allows multiple slots)
+        if (employee_id) {
+            const exists = await get(
+                'SELECT id FROM project_assignments WHERE project_id = ? AND employee_id = ?',
+                [req.params.id, employee_id]
+            );
+            if (exists) {
+                return res.status(400).json({ error: 'Employee already assigned to this project' });
+            }
         }
 
         // Get max order
         const maxOrder = (await get('SELECT MAX(display_order) as max_order FROM project_assignments WHERE project_id = ?', [req.params.id]))?.max_order || 0;
 
         const result = await run(`
-      INSERT INTO project_assignments (project_id, employee_id, role, input_start_date, input_end_date, display_order)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO project_assignments (project_id, employee_id, role, input_start_date, input_end_date, display_order, tbd_employment_type)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
       RETURNING id
-    `, [req.params.id, employee_id, role || '', input_start_date || null, input_end_date || null, maxOrder + 1]);
+    `, [req.params.id, employee_id || null, role || '', input_start_date || null, input_end_date || null, maxOrder + 1, tbd_employment_type || null]);
 
         const insertedId = result.rows[0].id;
         console.log(`[ASSIGN] Inserted ID: ${insertedId}`);
@@ -305,7 +308,7 @@ router.post('/:id/assign', async (req, res) => {
 // Update Assignment (Role, Dates, Employee)
 router.put('/assignments/:id', async (req, res) => {
     try {
-        const { role, input_start_date, input_end_date, employee_id, work_location } = req.body;
+        const { role, input_start_date, input_end_date, employee_id, work_location, tbd_employment_type } = req.body;
         console.log(`[ASSIGN UPDATE] ID: ${req.params.id}, role: ${role}, start: ${input_start_date}, end: ${input_end_date}, emp: ${employee_id}, loc: ${work_location}`);
 
         const updates = [];
@@ -325,6 +328,7 @@ router.put('/assignments/:id', async (req, res) => {
             params.push(employee_id === '' ? null : employee_id); 
         }
         if (work_location !== undefined) { updates.push('work_location = ?'); params.push(work_location); }
+        if (tbd_employment_type !== undefined) { updates.push('tbd_employment_type = ?'); params.push(tbd_employment_type); }
 
         if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });
 

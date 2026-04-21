@@ -269,11 +269,11 @@ const MemberRow = React.memo(({
     return (
         <tr key={`mem-${member.id}`} style={{ opacity, borderBottom: '1px solid var(--border)' }}>
             <td style={{ position: 'sticky', left: getStickyLeft('group', 'project'), zIndex: 10, width: columnWidths.group, backgroundColor: bgColor, borderBottom: '1px solid var(--border)' }}>
-                <span className="badge" style={{ backgroundColor: member.group_color, fontSize: '0.7em' }}>{member.group_name}</span>
+                {member.employee_id != null && <span className="badge" style={{ backgroundColor: member.group_color, fontSize: '0.7em' }}>{member.group_name}</span>}
             </td>
-            <td style={{ position: 'sticky', left: getStickyLeft('position', 'project'), zIndex: 10, width: columnWidths.position, backgroundColor: bgColor, borderBottom: '1px solid var(--border)' }}>{member.employee_position}</td>
-            <td style={{ position: 'sticky', left: getStickyLeft('grade', 'project'), zIndex: 10, width: columnWidths.grade, backgroundColor: bgColor, fontSize: '0.8em', color: 'var(--text-muted)', borderBottom: '1px solid var(--border)' }}>{member.employee_grade}</td>
-            <td style={{ position: 'sticky', left: getStickyLeft('employmentType', 'project'), zIndex: 10, width: columnWidths.employmentType, backgroundColor: bgColor, fontSize: '0.8em', color: 'var(--text-muted)', borderBottom: '1px solid var(--border)' }}>{member.employee_employment_type}</td>
+            <td style={{ position: 'sticky', left: getStickyLeft('position', 'project'), zIndex: 10, width: columnWidths.position, backgroundColor: bgColor, borderBottom: '1px solid var(--border)' }}>{member.employee_id != null ? member.employee_position : '-'}</td>
+            <td style={{ position: 'sticky', left: getStickyLeft('grade', 'project'), zIndex: 10, width: columnWidths.grade, backgroundColor: bgColor, fontSize: '0.8em', color: 'var(--text-muted)', borderBottom: '1px solid var(--border)' }}>{member.employee_id != null ? member.employee_grade : '-'}</td>
+            <td style={{ position: 'sticky', left: getStickyLeft('employmentType', 'project'), zIndex: 10, width: columnWidths.employmentType, backgroundColor: bgColor, fontSize: '0.8em', color: 'var(--text-muted)', borderBottom: '1px solid var(--border)' }}>{member.employee_id != null ? member.employee_employment_type : '-'}</td>
             <td style={{ position: 'sticky', left: getStickyLeft('name', 'project'), zIndex: 10, width: columnWidths.name, backgroundColor: bgColor, borderBottom: '1px solid var(--border)' }}>
                 <div className="flex items-center justify-between w-full">
                     <div className="flex items-center gap-sm">
@@ -298,12 +298,21 @@ const MemberRow = React.memo(({
                             className="flex items-center gap-xs"
                             style={{ padding: '2px 4px' }}
                         >
-                            <span>{member.employee_name}</span>
+                            {member.employee_id == null ? (
+                                <span style={{
+                                    background: member.tbd_employment_type === 'Regular' ? '#6366f1' : '#f59e0b',
+                                    color: 'white', padding: '2px 8px', borderRadius: '4px', fontSize: '0.75em', whiteSpace: 'nowrap'
+                                }}>
+                                    TBD — {member.tbd_employment_type === 'Regular' ? '정규직' : '계약직'}
+                                </span>
+                            ) : (
+                                <span>{member.employee_name}</span>
+                            )}
                         </div>
                     </div>
                     {!isCompleted && canEdit && (
                         <button
-                            onClick={() => handleRemoveMember(member.id, member.employee_name)}
+                            onClick={() => handleRemoveMember(member.id, member.employee_id == null ? `TBD (${member.tbd_employment_type === 'Regular' ? '정규직' : '계약직'})` : member.employee_name)}
                             className="reorder-btn hover-danger"
                             title="배정 해제"
                             style={{ marginLeft: '4px', opacity: 0.5 }}
@@ -1192,6 +1201,7 @@ const ProjectStatus = () => {
             });
 
             allAssignments.forEach(a => {
+                if (!a.employee_id) return; // TBD 슬롯은 통계 제외
                 const empId = a.employee_id;
                 if (!empTotals[empId]) empTotals[empId] = { name: a.employee_name, total: 0, empType: a.employee_employment_type, retirement_date: a.retirement_date, exclude_from_stats: a.employee_exclude_from_stats };
                 empTotals[empId].total += parseFloat(a.allocations?.[dateStr] || 0);
@@ -2163,6 +2173,40 @@ const ProjectStatus = () => {
             }
         } finally {
             assigningProjects.current.delete(key);
+        }
+    };
+
+    const handleAssignTBD = async (tbdType) => {
+        if (!selectedProject) return;
+        const projectId = selectedProject.id;
+        setShowMemberModal(false);
+
+        const tempId = `temp-tbd-${Date.now()}`;
+        const tempMember = {
+            id: tempId,
+            project_id: projectId,
+            employee_id: null,
+            employee_name: null,
+            tbd_employment_type: tbdType,
+            allocations: {}
+        };
+        setData(prev => prev.map(p =>
+            p.id === projectId ? { ...p, members: [...p.members, tempMember] } : p
+        ));
+
+        try {
+            const response = await projectsAPI.assignMember(projectId, { tbd_employment_type: tbdType });
+            const newMember = { ...response.data, allocations: {} };
+            setData(prev => prev.map(p =>
+                p.id === projectId
+                    ? { ...p, members: p.members.map(m => m.id === tempId ? newMember : m) }
+                    : p
+            ));
+        } catch (err) {
+            setData(prev => prev.map(p =>
+                p.id === projectId ? { ...p, members: p.members.filter(m => m.id !== tempId) } : p
+            ));
+            alert('TBD 배정에 실패했습니다.');
         }
     };
 
@@ -3646,6 +3690,22 @@ const ProjectStatus = () => {
                             </div>
 
                             <div className="p-md">
+                                <div className="mb-md" style={{ padding: '12px', background: 'var(--surface-high)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
+                                    <div style={{ fontSize: '0.8em', color: 'var(--text-muted)', marginBottom: '8px', fontWeight: 600 }}>TBD 플레이스홀더 추가</div>
+                                    <div className="flex gap-sm">
+                                        <button
+                                            className="btn btn-sm"
+                                            style={{ background: '#6366f1', color: 'white', border: 'none', borderRadius: '6px', padding: '5px 14px', cursor: 'pointer', fontSize: '0.85em' }}
+                                            onClick={() => handleAssignTBD('Regular')}
+                                        >정규직 TBD 추가</button>
+                                        <button
+                                            className="btn btn-sm"
+                                            style={{ background: '#f59e0b', color: 'white', border: 'none', borderRadius: '6px', padding: '5px 14px', cursor: 'pointer', fontSize: '0.85em' }}
+                                            onClick={() => handleAssignTBD('Contract')}
+                                        >계약직 TBD 추가</button>
+                                    </div>
+                                </div>
+
                                 <div className="form-group mb-md">
                                     <label className="form-label">이름으로 검색</label>
                                     <input
