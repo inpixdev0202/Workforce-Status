@@ -472,7 +472,16 @@ const GroupMemberRow = React.memo(({
         <tr key={assignment.id} style={{ borderBottom: '1px solid var(--border)' }}>
             <td style={{ position: 'sticky', left: getStickyLeft('name', 'group'), zIndex: 10, width: columnWidths.name, backgroundColor: 'var(--bg-primary)', borderBottom: '1px solid var(--border)' }}>
                 <div className="flex items-center justify-between w-full">
-                    <span>{assignment.employee_name}</span>
+                    {assignment.employee_id == null ? (
+                        <span style={{
+                            background: assignment.tbd_employment_type === 'Regular' ? '#6366f1' : '#f59e0b',
+                            color: 'white', borderRadius: '4px', padding: '2px 8px', fontSize: '0.8em'
+                        }}>
+                            TBD — {assignment.tbd_employment_type === 'Regular' ? '정규직' : '계약직'}
+                        </span>
+                    ) : (
+                        <span>{assignment.employee_name}</span>
+                    )}
                     {canEdit && (
                         <button
                             onClick={() => handleRemoveMember(projectId, assignment.id, assignment.employee_name)}
@@ -483,9 +492,9 @@ const GroupMemberRow = React.memo(({
                     )}
                 </div>
             </td>
-            <td style={{ position: 'sticky', left: getStickyLeft('position', 'group'), zIndex: 10, width: columnWidths.position, backgroundColor: 'var(--bg-primary)', borderBottom: '1px solid var(--border)' }}>{assignment.employee_position}</td>
-            <td style={{ position: 'sticky', left: getStickyLeft('grade', 'group'), zIndex: 10, width: columnWidths.grade, backgroundColor: 'var(--bg-primary)', fontSize: '0.8em', color: 'var(--text-muted)', borderBottom: '1px solid var(--border)' }}>{assignment.employee_grade}</td>
-            <td style={{ position: 'sticky', left: getStickyLeft('employmentType', 'group'), zIndex: 10, width: columnWidths.employmentType, backgroundColor: 'var(--bg-primary)', fontSize: '0.8em', color: 'var(--text-muted)', borderBottom: '1px solid var(--border)' }}>{assignment.employee_employment_type}</td>
+            <td style={{ position: 'sticky', left: getStickyLeft('position', 'group'), zIndex: 10, width: columnWidths.position, backgroundColor: 'var(--bg-primary)', borderBottom: '1px solid var(--border)' }}>{assignment.employee_id == null ? '-' : assignment.employee_position}</td>
+            <td style={{ position: 'sticky', left: getStickyLeft('grade', 'group'), zIndex: 10, width: columnWidths.grade, backgroundColor: 'var(--bg-primary)', fontSize: '0.8em', color: 'var(--text-muted)', borderBottom: '1px solid var(--border)' }}>{assignment.employee_id == null ? '-' : assignment.employee_grade}</td>
+            <td style={{ position: 'sticky', left: getStickyLeft('employmentType', 'group'), zIndex: 10, width: columnWidths.employmentType, backgroundColor: 'var(--bg-primary)', fontSize: '0.8em', color: 'var(--text-muted)', borderBottom: '1px solid var(--border)' }}>{assignment.employee_id == null ? '-' : assignment.employee_employment_type}</td>
             <td style={{ position: 'sticky', left: getStickyLeft('workLocation', 'group'), zIndex: 10, width: columnWidths.workLocation, backgroundColor: 'var(--bg-primary)', padding: 0, borderBottom: '1px solid var(--border)' }}>
                 <select
                     className="grid-input"
@@ -2214,7 +2223,7 @@ const ProjectStatus = () => {
         }
     };
 
-    const handleAssignTBD = useCallback(async (projectId, tbdType) => {
+    const handleAssignTBD = useCallback(async (projectId, tbdType, groupName = null, groupColor = null) => {
         setShowMemberModal(false);
 
         const tempId = `temp-tbd-${Date.now()}`;
@@ -2224,6 +2233,8 @@ const ProjectStatus = () => {
             employee_id: null,
             employee_name: null,
             tbd_employment_type: tbdType,
+            group_name: groupName,
+            group_color: groupColor,
             allocations: {}
         };
         setData(prev => prev.map(p =>
@@ -2232,7 +2243,12 @@ const ProjectStatus = () => {
 
         try {
             const response = await projectsAPI.assignMember(projectId, { tbd_employment_type: tbdType });
-            const newMember = { ...response.data, allocations: {} };
+            const newMember = {
+                ...response.data,
+                group_name: groupName || response.data.group_name,
+                group_color: groupColor || response.data.group_color,
+                allocations: {}
+            };
             setData(prev => prev.map(p =>
                 p.id === projectId
                     ? { ...p, members: p.members.map(m => m.id === tempId ? newMember : m) }
@@ -3517,7 +3533,7 @@ const ProjectStatus = () => {
                                                                 cursor={cursor}
                                                                 addRowIndex={addRowIndex}
                                                                 handleInlineAssign={handleInlineAssign}
-                                                                handleTBDAssign={handleAssignTBD}
+                                                                handleTBDAssign={(projectId, tbdType) => handleAssignTBD(projectId, tbdType, group.name, group.color)}
                                                                 getFilteredEmployees={getFilteredEmployees}
                                                                 setCursor={setCursor}
                                                                 cellRefs={cellRefs}
