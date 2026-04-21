@@ -140,7 +140,8 @@ const InlineSearchInput = React.memo(({
     onKeyDown,
     getFilteredEmployees,
     inputRef,
-    onCancel
+    onCancel,
+    handleTBDAssign
 }) => {
     const [searchTerm, setSearchTerm] = useState(initialTerm);
     const [autoCompleteIdx, setAutoCompleteIdx] = useState(-1);
@@ -164,6 +165,7 @@ const InlineSearchInput = React.memo(({
 
     const handleFocus = (e) => {
         setInputRect(e.target.getBoundingClientRect());
+        if (handleTBDAssign) setIsOpen(true);
         if (onFocus) onFocus(e);
     };
 
@@ -180,6 +182,8 @@ const InlineSearchInput = React.memo(({
         }
         if (onKeyDown) onKeyDown(e);
     };
+
+    const showDropdown = isOpen && inputRect && (searchTerm || handleTBDAssign);
 
     return (
         <div className="inline-search-wrapper" style={{ height: '100%' }}>
@@ -199,19 +203,48 @@ const InlineSearchInput = React.memo(({
                 onBlur={() => setTimeout(() => setIsOpen(false), 200)}
                 onKeyDown={handleInputKeyDown}
             />
-            {isOpen && searchTerm && inputRect && createPortal(
+            {showDropdown && createPortal(
                 <div
                     className="inline-search-results"
                     style={{
                         position: 'fixed',
                         left: `${inputRect.left}px`,
                         top: `${inputRect.bottom + 4 + 250 > window.innerHeight
-                            ? inputRect.top - Math.min(filteredEmployees.length * 52 + 10, 250) - 4
+                            ? inputRect.top - Math.min((filteredEmployees.length + 2) * 52 + 10, 300) - 4
                             : inputRect.bottom + 4}px`,
                         width: `${Math.max(inputRect.width, 300)}px`,
                         zIndex: 9999
                     }}
                 >
+                    {handleTBDAssign && (
+                        <>
+                            <div
+                                className="inline-search-item"
+                                onMouseDown={(e) => { e.preventDefault(); handleTBDAssign(projectId, 'Regular'); setIsOpen(false); }}
+                                style={{ borderLeft: '3px solid #6366f1', cursor: 'pointer' }}
+                            >
+                                <div className="flex justify-between items-center">
+                                    <strong style={{ color: '#6366f1' }}>TBD — 정규직</strong>
+                                    <span style={{ background: '#6366f1', color: 'white', borderRadius: '4px', padding: '1px 6px', fontSize: '0.7em' }}>TBD</span>
+                                </div>
+                                <div className="text-muted" style={{ fontSize: '0.75em' }}>정규직 플레이스홀더 추가</div>
+                            </div>
+                            <div
+                                className="inline-search-item"
+                                onMouseDown={(e) => { e.preventDefault(); handleTBDAssign(projectId, 'Contract'); setIsOpen(false); }}
+                                style={{ borderLeft: '3px solid #f59e0b', cursor: 'pointer' }}
+                            >
+                                <div className="flex justify-between items-center">
+                                    <strong style={{ color: '#f59e0b' }}>TBD — 계약직</strong>
+                                    <span style={{ background: '#f59e0b', color: 'white', borderRadius: '4px', padding: '1px 6px', fontSize: '0.7em' }}>TBD</span>
+                                </div>
+                                <div className="text-muted" style={{ fontSize: '0.75em' }}>계약직 플레이스홀더 추가</div>
+                            </div>
+                            {(filteredEmployees.length > 0 || searchTerm) && (
+                                <div style={{ borderTop: '1px solid var(--border)', padding: '4px 8px', fontSize: '0.7em', color: 'var(--text-muted)' }}>직원 검색 결과</div>
+                            )}
+                        </>
+                    )}
                     {filteredEmployees.map((emp, i) => (
                         <div
                             key={emp.id}
@@ -226,7 +259,8 @@ const InlineSearchInput = React.memo(({
                             <div className="text-muted" style={{ fontSize: '0.75em' }}>{emp.position}</div>
                         </div>
                     ))}
-                    {filteredEmployees.length === 0 && <div className="p-sm text-center text-muted">결과 없음</div>}
+                    {!handleTBDAssign && filteredEmployees.length === 0 && <div className="p-sm text-center text-muted">결과 없음</div>}
+                    {handleTBDAssign && searchTerm && filteredEmployees.length === 0 && <div className="p-sm text-center text-muted">직원 검색 결과 없음</div>}
                 </div>,
                 document.body
             )}
@@ -590,24 +624,10 @@ const InlineAddRow = React.memo(({
                         setCursor({ memberIndex: addRowIndex, weekIndex: 0 });
                     }}
                     getFilteredEmployees={getFilteredEmployees}
+                    handleTBDAssign={handleTBDAssign}
                 />
             </td>
-            <td colSpan={viewMode === 'project' ? 3 : 6} style={{ position: 'sticky', left: getStickyLeft(viewMode === 'project' ? 'workLocation' : 'position', viewMode), zIndex: 110, backgroundColor: 'var(--bg-primary)', height: '28px', borderBottom: '1px solid var(--border)', padding: '0 6px', overflow: 'visible' }}>
-                {handleTBDAssign && (
-                    <div className="flex items-center gap-xs" style={{ height: '100%' }}>
-                        <button
-                            onClick={() => handleTBDAssign(project.id, 'Regular')}
-                            style={{ background: '#6366f1', color: 'white', border: 'none', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer', fontSize: '0.7em', whiteSpace: 'nowrap', position: 'relative', zIndex: 111 }}
-                            title="정규직 TBD 추가"
-                        >TBD 정규직</button>
-                        <button
-                            onClick={() => handleTBDAssign(project.id, 'Contract')}
-                            style={{ background: '#f59e0b', color: 'white', border: 'none', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer', fontSize: '0.7em', whiteSpace: 'nowrap', position: 'relative', zIndex: 111 }}
-                            title="계약직 TBD 추가"
-                        >TBD 계약직</button>
-                    </div>
-                )}
-            </td>
+            <td colSpan={viewMode === 'project' ? 3 : 6} style={{ position: 'sticky', left: getStickyLeft(viewMode === 'project' ? 'workLocation' : 'position', viewMode), zIndex: 10, backgroundColor: 'var(--bg-primary)', height: '28px', borderBottom: '1px solid var(--border)' }}></td>
             {weeks.map(week => (
                 <td key={format(week, 'yyyy-MM-dd')} style={{
                     minWidth: `${columnWidths.week}px`,
