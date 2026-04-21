@@ -4,6 +4,7 @@ import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import { salesAPI } from '../api';
 import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
 
 const SpreadsheetCellInput = React.memo(({ initialValue, onCommit, onFocus, isFocused, className = "", isMultilineField = false }) => {
     const [localValue, setLocalValue] = useState(initialValue || '');
@@ -185,17 +186,18 @@ const getCategoryStyle = (category, isDark) => {
     }
 };
 
-const SalesDataRow = React.memo(({ 
-    item, 
-    rowIndex, 
-    columns, 
-    columnWidths, 
-    rowHeight, 
-    focusedCell, 
+const SalesDataRow = React.memo(({
+    item,
+    rowIndex,
+    columns,
+    columnWidths,
+    rowHeight,
+    focusedCell,
     setFocusedCell,
     onCellChange,
     onDelete,
     onRowResize,
+    canDelete,
     theme
 }) => {
     const catStyle = useMemo(() => getCategoryStyle(item.category, theme === 'dark'), [item.category, theme]);
@@ -214,17 +216,16 @@ const SalesDataRow = React.memo(({
                 if (col.key === 'manage') {
                     return (
                         <td key={col.key} className="border border-[var(--border)] p-0 text-center w-[60px] relative" style={{ height: rowHeight }}>
-                            <button 
-                                onClick={() => onDelete(item.id)}
-                                className="trash-delete-btn relative z-10 w-full h-full flex items-center justify-center cursor-pointer"
-                                title="행삭제"
-                                style={{ border: 'none', background: 'none', padding: 0 }}
-                            >
-                                <Trash2 
-                                    size={16} 
-                                    className="trash-delete-icon"
-                                />
-                            </button>
+                            {canDelete && (
+                                <button
+                                    onClick={() => onDelete(item.id)}
+                                    className="trash-delete-btn relative z-10 w-full h-full flex items-center justify-center cursor-pointer"
+                                    title="행삭제"
+                                    style={{ border: 'none', background: 'none', padding: 0 }}
+                                >
+                                    <Trash2 size={16} className="trash-delete-icon" />
+                                </button>
+                            )}
                         </td>
                     );
                 }
@@ -472,6 +473,8 @@ const ColumnSettingsModal = ({ isOpen, onClose, columns, onUpdateColumns }) => {
 };
 
 const SalesStatus = () => {
+    const { user } = useAuth();
+    const canDelete = user?.role === 'Admin' || user?.permissions?.sales_delete === true;
     const STORAGE_KEY = 'sales_data_v3';
     const COLUMN_WIDTHS_KEY = 'sales_column_widths_v3';
     const ROW_HEIGHTS_KEY = 'sales_row_heights_v3';
@@ -1029,7 +1032,7 @@ const SalesStatus = () => {
                     </thead>
                     <tbody>
                         {filteredData.map((item, rowIndex) => (
-                            <SalesDataRow key={item.id} item={item} rowIndex={rowIndex} columns={columns} columnWidths={columnWidths} rowHeight={rowHeights[item.id] || 80} focusedCell={focusedCell} setFocusedCell={setFocusedCell} onCellChange={handleCellChange} onDelete={deleteRow} onRowResize={handleRowMouseDown} theme={theme} />
+                            <SalesDataRow key={item.id} item={item} rowIndex={rowIndex} columns={columns} columnWidths={columnWidths} rowHeight={rowHeights[item.id] || 80} focusedCell={focusedCell} setFocusedCell={setFocusedCell} onCellChange={handleCellChange} onDelete={deleteRow} onRowResize={handleRowMouseDown} canDelete={canDelete} theme={theme} />
                         ))}
                     </tbody>
                 </table>
