@@ -765,10 +765,9 @@ const ProjectItem = React.memo(({
                                     {project.type || 'Client'}
                                 </span>
                                 {project.status && (
-                                    <span style={{
-                                        fontSize: '0.65em', padding: '1px 6px', borderRadius: '4px', fontWeight: 600,
-                                        background: project.status === '진행중' ? '#16a34a' : project.status === '진행예정' ? '#2563eb' : '#6b7280',
-                                        color: 'white'
+                                    <span className="badge" style={{
+                                        backgroundColor: project.status === '진행중' ? '#16a34a' : project.status === '진행예정' ? '#2563eb' : '#6b7280',
+                                        fontSize: '0.7em', opacity: 0.8
                                     }}>{project.status}</span>
                                 )}
                                 {project.type === 'Internal' && isAdmin && (
@@ -3517,10 +3516,9 @@ const ProjectStatus = () => {
                                                                     {p.type || 'Client'}
                                                                 </span>
                                                                 {p.status && (
-                                                                    <span style={{
-                                                                        fontSize: '0.65em', padding: '1px 6px', borderRadius: '4px', fontWeight: 600,
-                                                                        background: p.status === '진행중' ? '#16a34a' : p.status === '진행예정' ? '#2563eb' : '#6b7280',
-                                                                        color: 'white'
+                                                                    <span className="badge" style={{
+                                                                        backgroundColor: p.status === '진행중' ? '#16a34a' : p.status === '진행예정' ? '#2563eb' : '#6b7280',
+                                                                        fontSize: '0.7em', opacity: 0.8
                                                                     }}>{p.status}</span>
                                                                 )}
                                                             </div>
