@@ -767,7 +767,7 @@ const ProjectItem = React.memo(({
                                 {project.status && (
                                     <span className="badge" style={{
                                         backgroundColor: project.status === '진행중' ? '#16a34a' : project.status === '진행예정' ? '#2563eb' : '#6b7280',
-                                        fontSize: '0.7em', opacity: 0.8
+                                        fontSize: '0.7em', opacity: 0.8, color: 'white'
                                     }}>{project.status}</span>
                                 )}
                                 {project.type === 'Internal' && isAdmin && (
