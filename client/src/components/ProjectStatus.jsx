@@ -764,6 +764,13 @@ const ProjectItem = React.memo(({
                                 <span className={`badge ${project.type === 'Internal' ? 'badge-primary' : (project.type === 'Leave' || project.type === 'Annual' ? 'badge-neutral' : 'badge-success')}`} style={{ fontSize: '0.7em', opacity: 0.8 }}>
                                     {project.type || 'Client'}
                                 </span>
+                                {project.status && (
+                                    <span style={{
+                                        fontSize: '0.65em', padding: '1px 6px', borderRadius: '4px', fontWeight: 600,
+                                        background: project.status === '진행중' ? '#16a34a' : project.status === '진행예정' ? '#2563eb' : '#6b7280',
+                                        color: 'white'
+                                    }}>{project.status}</span>
+                                )}
                                 {project.type === 'Internal' && isAdmin && (
                                     <button
                                         onClick={() => onToggleCountInStats(project.id, project.count_in_stats)}
@@ -3509,6 +3516,13 @@ const ProjectStatus = () => {
                                                                 <span className={`badge ${p.type === 'Internal' ? 'badge-primary' : (p.type === 'Leave' || p.type === 'Annual' ? 'badge-neutral' : 'badge-success')}`} style={{ fontSize: '0.7em', opacity: 0.8 }}>
                                                                     {p.type || 'Client'}
                                                                 </span>
+                                                                {p.status && (
+                                                                    <span style={{
+                                                                        fontSize: '0.65em', padding: '1px 6px', borderRadius: '4px', fontWeight: 600,
+                                                                        background: p.status === '진행중' ? '#16a34a' : p.status === '진행예정' ? '#2563eb' : '#6b7280',
+                                                                        color: 'white'
+                                                                    }}>{p.status}</span>
+                                                                )}
                                                             </div>
                                                         </td>
                                                         {leftSpacerWidth > 0 && <td style={{ width: leftSpacerWidth, backgroundColor: 'rgba(59, 130, 246, 0.02)' }} />}
