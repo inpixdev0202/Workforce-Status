@@ -3518,7 +3518,7 @@ const ProjectStatus = () => {
                                                                 {p.status && (
                                                                     <span className="badge" style={{
                                                                         backgroundColor: p.status === '진행중' ? '#16a34a' : p.status === '진행예정' ? '#2563eb' : '#6b7280',
-                                                                        fontSize: '0.7em', opacity: 0.8
+                                                                        fontSize: '0.7em', opacity: 0.8, color: 'white'
                                                                     }}>{p.status}</span>
                                                                 )}
                                                             </div>
