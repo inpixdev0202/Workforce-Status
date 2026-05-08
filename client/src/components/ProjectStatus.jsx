@@ -1160,13 +1160,8 @@ const ProjectStatus = () => {
             };
         }).filter(g => g.projects.length > 0);
 
-        // Filter by selected group if any
-        const filtered = (selectedGroup && selectedGroup !== 'ALL')
-            ? result.filter(g => g.name === selectedGroup)
-            : result;
-
-        return filtered.sort((a, b) => a.name.localeCompare(b.name));
-    }, [data, employees, selectedGroup]);
+        return result.sort((a, b) => a.name.localeCompare(b.name));
+    }, [data, employees]);
 
     const filteredData = useMemo(() => {
         const todayStr = format(new Date(), 'yyyy-MM-dd');
@@ -1242,6 +1237,13 @@ const ProjectStatus = () => {
     }, [data, projectSearchTerm]);
 
     const groupStats = useMemo(() => transformDataByGroup(), [transformDataByGroup]);
+
+    // Pre-compute stats for all groups so calculateGroupStats is not called inside render loop
+    const groupCalcMap = useMemo(() => {
+        const map = {};
+        groupStats.forEach(g => { map[g.name] = calculateGroupStats(g, weeks); });
+        return map;
+    }, [groupStats, weeks, calculateGroupStats]);
 
     // Calculate aggregate stats for a group across weeks
     const calculateGroupStats = useCallback((group, weeksArr) => {
@@ -3473,7 +3475,7 @@ const ProjectStatus = () => {
                             (() => {
                                 let globalRowIndex = 0;
                                 return groupStats.filter(g => selectedGroup === 'ALL' || g.name === selectedGroup).map((group) => {
-                                    const groupCalc = calculateGroupStats(group, weeks);
+                                    const groupCalc = groupCalcMap[group.name];
                                     return (
                                         <React.Fragment key={group.name}>
                                             {/* Group Header Row */}
