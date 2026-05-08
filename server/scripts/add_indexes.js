@@ -19,6 +19,7 @@ const indexes = [
     'CREATE INDEX IF NOT EXISTS idx_allocations_assignment_date ON project_allocations(assignment_id, period_date)',
     'CREATE INDEX IF NOT EXISTS idx_projects_order ON projects(display_order)',
     'CREATE INDEX IF NOT EXISTS idx_employees_status ON employees(status)',
+    'CREATE INDEX IF NOT EXISTS idx_project_assignments_group_id ON project_assignments(group_id)',
 ];
 
 try {
