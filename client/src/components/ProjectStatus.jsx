@@ -1238,13 +1238,6 @@ const ProjectStatus = () => {
 
     const groupStats = useMemo(() => transformDataByGroup(), [transformDataByGroup]);
 
-    // Pre-compute stats for all groups so calculateGroupStats is not called inside render loop
-    const groupCalcMap = useMemo(() => {
-        const map = {};
-        groupStats.forEach(g => { map[g.name] = calculateGroupStats(g, weeks); });
-        return map;
-    }, [groupStats, weeks, calculateGroupStats]);
-
     // Calculate aggregate stats for a group across weeks
     const calculateGroupStats = useCallback((group, weeksArr) => {
         // Weekly MM totals array (one per week) — only count in-range allocations
@@ -1391,7 +1384,12 @@ const ProjectStatus = () => {
         return { stats: statsArr, weeklyStatus, activeClientProjects, headcount, idle };
     }, [employees]);
 
-
+    // Pre-compute stats for all groups so calculateGroupStats is not called inside render loop
+    const groupCalcMap = useMemo(() => {
+        const map = {};
+        groupStats.forEach(g => { map[g.name] = calculateGroupStats(g, weeks); });
+        return map;
+    }, [groupStats, weeks, calculateGroupStats]);
 
     // Column Resizing State
     const [isResizeMode, setIsResizeMode] = useState(false);
