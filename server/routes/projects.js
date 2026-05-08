@@ -18,8 +18,14 @@ router.get('/', async (req, res) => {
 // Get all projects with assignments and allocations (Matrix Data)
 router.get('/matrix', authenticateToken, async (req, res) => {
     try {
-        // Single query for projects + assignments + employee/group info
-        const [projects, rows] = await Promise.all([
+        // Three parallel narrow queries, joined in memory.
+        //
+        // Previously this was one big query with LEFT JOIN project_allocations,
+        // which produced an assignments × allocations cartesian explosion
+        // (e.g. 500 assignments × 100 weeks ≈ 50k wide rows, ~217KB, ~5s).
+        // Splitting the alloc join out keeps each query's row count linear and
+        // its columns narrow — total payload and DB time drop dramatically.
+        const [projects, assignments, allocations] = await Promise.all([
             query(`
                 SELECT * FROM projects
                 ORDER BY COALESCE(display_order, id) ASC
@@ -36,60 +42,41 @@ router.get('/matrix', authenticateToken, async (req, res) => {
                     e.retirement_date,
                     e.exclude_from_stats AS employee_exclude_from_stats,
                     COALESCE(g.name, tbd_g.name) AS group_name,
-                    COALESCE(g.color, tbd_g.color) AS group_color,
-                    alloc.period_date,
-                    alloc.value AS alloc_value
+                    COALESCE(g.color, tbd_g.color) AS group_color
                 FROM project_assignments pa
                 LEFT JOIN employees e ON pa.employee_id = e.id
                 LEFT JOIN groups g ON e.group_id = g.id
                 LEFT JOIN groups tbd_g ON pa.group_id = tbd_g.id
-                LEFT JOIN project_allocations alloc ON alloc.assignment_id = pa.id
-                ORDER BY COALESCE(pa.display_order, pa.id) ASC, alloc.period_date ASC
+                ORDER BY COALESCE(pa.display_order, pa.id) ASC
+            `),
+            query(`
+                SELECT assignment_id, period_date, value
+                FROM project_allocations
             `)
         ]);
 
-        // Build assignment map with allocations using Map for O(1) lookup
+        // Build the assignment map (one entry per assignment, with empty allocations object)
         const assignmentMap = new Map();
-        for (const row of rows) {
-            if (!assignmentMap.has(row.id)) {
-                assignmentMap.set(row.id, {
-                    id: row.id,
-                    project_id: row.project_id,
-                    employee_id: row.employee_id,
-                    role: row.role,
-                    input_start_date: row.input_start_date,
-                    input_end_date: row.input_end_date,
-                    display_order: row.display_order,
-                    work_location: row.work_location,
-                    employee_name: row.employee_name,
-                    employee_position: row.employee_position,
-                    employee_grade: row.employee_grade,
-                    employee_employment_type: row.employee_employment_type,
-                    retirement_date: row.retirement_date,
-                    employee_exclude_from_stats: row.employee_exclude_from_stats,
-                    group_name: row.group_name,
-                    group_color: row.group_color,
-                    tbd_employment_type: row.tbd_employment_type,
-                    tbd_position: row.tbd_position,
-                    tbd_grade: row.tbd_grade,
-                    allocations: {}
-                });
-            }
-            if (row.period_date) {
-                assignmentMap.get(row.id).allocations[row.period_date] = parseFloat(row.alloc_value) || 0;
-            }
+        for (const a of assignments) {
+            assignmentMap.set(a.id, { ...a, allocations: {} });
         }
 
-        // Group assignments by project using Map for O(1) lookup
+        // Fold allocations in via O(1) lookup
+        for (const al of allocations) {
+            const a = assignmentMap.get(al.assignment_id);
+            if (a) a.allocations[al.period_date] = parseFloat(al.value) || 0;
+        }
+
+        // Group assignments by project
         const projectAssignmentsMap = new Map();
-        for (const assignment of assignmentMap.values()) {
-            if (!projectAssignmentsMap.has(assignment.project_id)) {
-                projectAssignmentsMap.set(assignment.project_id, []);
+        for (const a of assignmentMap.values()) {
+            if (!projectAssignmentsMap.has(a.project_id)) {
+                projectAssignmentsMap.set(a.project_id, []);
             }
-            projectAssignmentsMap.get(assignment.project_id).push(assignment);
+            projectAssignmentsMap.get(a.project_id).push(a);
         }
 
-        let matrix = projects.map(project => ({
+        const matrix = projects.map(project => ({
             ...project,
             members: projectAssignmentsMap.get(project.id) || []
         }));
