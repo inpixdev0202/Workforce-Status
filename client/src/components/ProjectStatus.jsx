@@ -1385,12 +1385,16 @@ const ProjectStatus = () => {
         return { stats: statsArr, weeklyStatus, activeClientProjects, headcount, idle };
     }, [employees]);
 
-    // Pre-compute stats for all groups so calculateGroupStats is not called inside render loop
+    // Compute stats only for the active group (lazy: skip entirely in project view)
     const groupCalcMap = useMemo(() => {
+        if (viewMode !== 'group') return {};
         const map = {};
-        groupStats.forEach(g => { map[g.name] = calculateGroupStats(g, weeks); });
+        const targets = selectedGroup === 'ALL'
+            ? groupStats
+            : groupStats.filter(g => g.name === selectedGroup);
+        targets.forEach(g => { map[g.name] = calculateGroupStats(g, weeks); });
         return map;
-    }, [groupStats, weeks, calculateGroupStats]);
+    }, [viewMode, selectedGroup, groupStats, weeks, calculateGroupStats]);
 
     // Column Resizing State
     const [isResizeMode, setIsResizeMode] = useState(false);
