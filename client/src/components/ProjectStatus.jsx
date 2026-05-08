@@ -272,12 +272,13 @@ const MemberRow = React.memo(({
     member,
     project,
     weeks,
+    weekDateStrs,
+    weekEndStrs,
+    currentWeekIdx,
     columnWidths,
     cursor,
     currentMemberIndex,
     getStickyLeft,
-    isCurrentWeek,
-    isDateInRange,
     autoFormatDate,
     handleAssignmentUpdate,
     handleAllocationChange,
@@ -401,12 +402,16 @@ const MemberRow = React.memo(({
             {leftSpacerWidth > 0 && <td style={{ minWidth: leftSpacerWidth, width: leftSpacerWidth, borderBottom: '1px solid var(--border)' }} />}
             {
                 weeks.map((week, weekIndex) => {
-                    const dateStr = format(week, 'yyyy-MM-dd');
+                    const dateStr = weekDateStrs[weekIndex];
+                    const wEnd = weekEndStrs[weekIndex];
                     const val = member.allocations?.[dateStr] || '';
                     const globalWeekIdx = (visibleStartIdx + weekIndex) + 2;
                     const isFocused = cursor.memberIndex === currentMemberIndex && cursor.weekIndex === globalWeekIdx;
-                    const inRange = project.type === 'Annual' ? true : isDateInRange(week, member.input_start_date, member.input_end_date);
-                    const isCurrent = isCurrentWeek(week);
+                    const inRange = project.type === 'Annual'
+                        ? true
+                        : (!!member.input_start_date && !!member.input_end_date
+                            && member.input_start_date <= wEnd && member.input_end_date >= dateStr);
+                    const isCurrent = weekIndex === currentWeekIdx;
 
                     return (
                         <td key={dateStr} style={{
@@ -447,12 +452,13 @@ const MemberRow = React.memo(({
 const GroupMemberRow = React.memo(({
     assignment,
     weeks,
+    weekDateStrs,
+    weekEndStrs,
+    currentWeekIdx,
     columnWidths,
     cursor,
     currentMemberIndex,
     getStickyLeft,
-    isCurrentWeek,
-    isDateInRange,
     autoFormatDate,
     handleAssignmentUpdate,
     handleAllocationChange,
@@ -568,12 +574,16 @@ const GroupMemberRow = React.memo(({
 
             {leftSpacerWidth > 0 && <td style={{ width: leftSpacerWidth, backgroundColor: 'var(--bg-primary)', borderBottom: '1px solid var(--border)' }} />}
             {weeks.map((week, weekIndex) => {
-                const dateStr = format(week, 'yyyy-MM-dd');
+                const dateStr = weekDateStrs[weekIndex];
+                const wEnd = weekEndStrs[weekIndex];
                 const val = assignment.allocations?.[dateStr] || '';
                 const globalWeekIdx = weekIndex + 2;
                 const isFocused = cursor.memberIndex === currentMemberIndex && cursor.weekIndex === globalWeekIdx;
-                const inRange = assignment.project_type === 'Annual' ? true : isDateInRange(week, assignment.input_start_date, assignment.input_end_date);
-                const isCurrent = isCurrentWeek(week);
+                const inRange = assignment.project_type === 'Annual'
+                    ? true
+                    : (!!assignment.input_start_date && !!assignment.input_end_date
+                        && assignment.input_start_date <= wEnd && assignment.input_end_date >= dateStr);
+                const isCurrent = weekIndex === currentWeekIdx;
 
                 return (
                     <td key={dateStr} style={{
@@ -690,6 +700,9 @@ const ProjectItem = React.memo(({
     isExpanded,
     onToggleExpand,
     weeks,
+    weekDateStrs,
+    weekEndStrs,
+    currentWeekIdx,
     columnWidths,
     cursor,
     setCursor,
@@ -809,11 +822,12 @@ const ProjectItem = React.memo(({
                         currentMemberIndex={rowIndex}
                         mIdx={mIdx}
                         weeks={weeks}
+                        weekDateStrs={weekDateStrs}
+                        weekEndStrs={weekEndStrs}
+                        currentWeekIdx={currentWeekIdx}
                         columnWidths={columnWidths}
                         cursor={cursor}
                         getStickyLeft={getStickyLeft}
-                        isCurrentWeek={isCurrentWeek}
-                        isDateInRange={isDateInRange}
                         autoFormatDate={autoFormatDate}
                         handleAssignmentUpdate={handleAssignmentUpdate}
                         handleAllocationChange={handleAllocationChange}
@@ -1241,10 +1255,13 @@ const ProjectStatus = () => {
 
     // Calculate aggregate stats for a group across weeks
     const calculateGroupStats = useCallback((group, weeksArr) => {
+        // Pre-compute date strings once — avoids repeated format() calls inside loops
+        const weekDateStrs = weeksArr.map(w => format(w, 'yyyy-MM-dd'));
+        const weekEndStrs = weeksArr.map(w => format(addDays(w, 6), 'yyyy-MM-dd'));
+
         // Weekly MM totals array (one per week) — only count in-range allocations
-        const statsArr = weeksArr.map(week => {
-            const dateStr = format(week, 'yyyy-MM-dd');
-            const wEnd = format(addDays(new Date(week), 6), 'yyyy-MM-dd');
+        const statsArr = weekDateStrs.map((dateStr, i) => {
+            const wEnd = weekEndStrs[i];
             let total = 0;
             group.projects.forEach(p => {
                 p.assignments.forEach(a => {
@@ -1267,10 +1284,16 @@ const ProjectStatus = () => {
         // Pre-fetch groupEmployees for weekly status (needed before weeklyStatus loop)
         const groupEmployees = employees.filter(e => (e.group_name || '미지정') === group.name);
 
-        // Weekly status breakdown
+        // Weekly status breakdown — restricted to near-today range
+        // idle stats use at most month3 = today+15w; no need to compute all 156 weeks
         const weeklyStatus = {};
-        weeksArr.forEach(week => {
-            const dateStr = format(week, 'yyyy-MM-dd');
+        const nowTime = Date.now();
+        const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+        weeksArr.forEach((week, i) => {
+            const diffWeeks = (week.getTime() - nowTime) / WEEK_MS;
+            if (diffWeeks < -4 || diffWeeks > 20) return;
+
+            const dateStr = weekDateStrs[i];
             const empTotals = {};
             const empLeaveTotals = {};
 
@@ -1298,24 +1321,14 @@ const ProjectStatus = () => {
                 const { name, total, empType, retirement_date: retirementDate, exclude_from_stats: excludeFromStats } = info;
 
                 if (empType === '정규직') {
-                    // Check exclude_from_stats flag
                     if (excludeFromStats) return;
-
-                    // Check if retired as of this week
-                    if (retirementDate && dateStr > retirementDate) {
-                        return; // Exclude retired employees
-                    }
-
+                    if (retirementDate && dateStr > retirementDate) return;
                     const leaveTotal = empLeaveTotals[empId] || 0;
-                    if (leaveTotal >= 0.1) {
-                        return; // Exclude entirely if on leave
-                    }
-
+                    if (leaveTotal >= 0.1) return;
                     activeRegularCount++;
-
                     if (total === 0) zero.push(name);
-                    if (total < 1.0) under50.push(name); // 미투입(0) 포함, 1.0 미만 전체
-                    if (total >= 1.1) over100.push(name); // 1.1 MM 이상 풀투입
+                    if (total < 1.0) under50.push(name);
+                    if (total >= 1.1) over100.push(name);
                 }
             });
             weeklyStatus[dateStr] = { zero, under50, over100, activeRegularCount };
@@ -2452,6 +2465,24 @@ const ProjectStatus = () => {
         return weeks.slice(visibleColRange.start, visibleColRange.end + 1);
     }, [weeks, visibleColRange]);
 
+    // Pre-compute date strings and current-week index for visible weeks once per scroll/range change.
+    // This avoids running format() 5x per cell (~5-10만 회/그룹전환) inside MemberRow/GroupMemberRow.
+    const visibleWeekDateStrs = useMemo(
+        () => visibleWeeks.map(w => format(w, 'yyyy-MM-dd')),
+        [visibleWeeks]
+    );
+    const visibleWeekEndStrs = useMemo(
+        () => visibleWeeks.map(w => format(addDays(w, 6), 'yyyy-MM-dd')),
+        [visibleWeeks]
+    );
+    const visibleCurrentWeekIdx = useMemo(() => {
+        const today = format(new Date(), 'yyyy-MM-dd');
+        for (let i = 0; i < visibleWeekDateStrs.length; i++) {
+            if (visibleWeekDateStrs[i] <= today && today <= visibleWeekEndStrs[i]) return i;
+        }
+        return -1;
+    }, [visibleWeekDateStrs, visibleWeekEndStrs]);
+
     // Spacer widths for columns before and after visible range
     const leftSpacerWidth = visibleColRange.start * columnWidths.week;
     const rightSpacerWidth = Math.max(0, (weeks.length - 1 - visibleColRange.end)) * columnWidths.week;
@@ -3376,6 +3407,9 @@ const ProjectStatus = () => {
                                                     dataLength={filteredData.active.length}
                                                     isCompleted={false}
                                                     weeks={visibleWeeks}
+                                                    weekDateStrs={visibleWeekDateStrs}
+                                                    weekEndStrs={visibleWeekEndStrs}
+                                                    currentWeekIdx={visibleCurrentWeekIdx}
                                                     columnWidths={columnWidths}
                                                     cursor={cursor}
                                                     setCursor={setCursor}
@@ -3560,12 +3594,13 @@ const ProjectStatus = () => {
                                                                 key={`gmem-${assignment.id}`}
                                                                 assignment={assignment}
                                                                 weeks={visibleWeeks}
+                                                                weekDateStrs={visibleWeekDateStrs}
+                                                                weekEndStrs={visibleWeekEndStrs}
+                                                                currentWeekIdx={visibleCurrentWeekIdx}
                                                                 columnWidths={columnWidths}
                                                                 cursor={cursor}
                                                                 currentMemberIndex={currentMemberIndex}
                                                                 getStickyLeft={getStickyLeft}
-                                                                isCurrentWeek={isCurrentWeek}
-                                                                isDateInRange={isDateInRange}
                                                                 autoFormatDate={autoFormatDate}
                                                                 handleAssignmentUpdate={handleAssignmentUpdate}
                                                                 handleAllocationChange={handleAllocationChange}
