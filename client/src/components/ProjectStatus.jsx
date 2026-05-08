@@ -1385,15 +1385,29 @@ const ProjectStatus = () => {
         return { stats: statsArr, weeklyStatus, activeClientProjects, headcount, idle };
     }, [employees]);
 
-    // Compute stats only for the active group (lazy: skip entirely in project view)
+    // Persistent cache: computed once per group, invalidated only when source data changes
+    const groupCalcCache = useRef({ groupStats: null, weeks: null, map: new Map() });
+
     const groupCalcMap = useMemo(() => {
         if (viewMode !== 'group') return {};
-        const map = {};
+
+        // Invalidate cache when groupStats or weeks reference changes (data/employees updated)
+        if (groupCalcCache.current.groupStats !== groupStats || groupCalcCache.current.weeks !== weeks) {
+            groupCalcCache.current = { groupStats, weeks, map: new Map() };
+        }
+
+        const cache = groupCalcCache.current.map;
         const targets = selectedGroup === 'ALL'
             ? groupStats
             : groupStats.filter(g => g.name === selectedGroup);
-        targets.forEach(g => { map[g.name] = calculateGroupStats(g, weeks); });
-        return map;
+        const result = {};
+        targets.forEach(g => {
+            if (!cache.has(g.name)) {
+                cache.set(g.name, calculateGroupStats(g, weeks));
+            }
+            result[g.name] = cache.get(g.name);
+        });
+        return result;
     }, [viewMode, selectedGroup, groupStats, weeks, calculateGroupStats]);
 
     // Column Resizing State
