@@ -940,7 +940,16 @@ const ProjectStatus = () => {
     useEffect(() => {
         if (employees.length > 0) dataCache.setEmployeesData({ status: 'active' }, employees);
     }, [employees, dataCache]);
-    const [weeks, setWeeks] = useState([]); // Moved up
+    // Initialize weeks synchronously so the first render already has the
+    // full 156-week column set. Otherwise we render once with weeks=[] (only
+    // sticky columns visible) and again after the useEffect sets weeks —
+    // that second pass is the "MM 숫자가 늦게 차오르는" effect users see.
+    const [weeks, setWeeks] = useState(() => {
+        const initialStart = addWeeks(startOfWeek(new Date(), { weekStartsOn: 1 }), -52);
+        const start = startOfWeek(initialStart, { weekStartsOn: 1 });
+        const end = addWeeks(start, 155);
+        return eachWeekOfInterval({ start, end }, { weekStartsOn: 1 });
+    });
     const [cursor, setCursor] = useState({ memberIndex: null, weekIndex: null });
     const cellRefs = useRef({});
     // Skip the initial spinner if we already have cached data from a prior mount.
@@ -1563,8 +1572,15 @@ const ProjectStatus = () => {
         }
     }, [dataCache]);
 
+    // Skip the first run — the initial value was already computed in useState
+    // from this same startDate. Re-running here would only create a new array
+    // reference and force an extra full re-render of all cells.
+    const startDateInitRef = useRef(true);
     useEffect(() => {
-        // Restore to 156 weeks (3 years) for flawless UI
+        if (startDateInitRef.current) {
+            startDateInitRef.current = false;
+            return;
+        }
         const start = startOfWeek(startDate, { weekStartsOn: 1 });
         const end = addWeeks(start, 155);
         const intervals = eachWeekOfInterval({ start, end }, { weekStartsOn: 1 });
@@ -1729,10 +1745,14 @@ const ProjectStatus = () => {
             const todayIdx = weeks.findIndex(w => format(w, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd'));
             if (todayIdx !== -1) {
                 const visibleWeeks = Math.ceil(container.clientWidth / columnWidths.week);
-                setVisibleColRange({
-                    start: Math.max(0, todayIdx - COL_BUFFER),
-                    end: Math.min(weeks.length - 1, todayIdx + visibleWeeks + COL_BUFFER)
-                });
+                const newStart = Math.max(0, todayIdx - COL_BUFFER);
+                const newEnd = Math.min(weeks.length - 1, todayIdx + visibleWeeks + COL_BUFFER);
+                // Bail out if the initial state (set in useState) already matches —
+                // otherwise we'd trigger an extra full re-render of all cells just
+                // to land on the same range.
+                setVisibleColRange(prev =>
+                    prev.start === newStart && prev.end === newEnd ? prev : { start: newStart, end: newEnd }
+                );
             }
         }
     }, [weeks, loading, handleToday, columnWidths.week, COL_BUFFER]);
