@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, useTransition } from 'react';
 import { createPortal } from 'react-dom';
 import { projectsAPI, employeesAPI } from '../api';
 import { ChevronLeft, ChevronRight, Calendar, Settings, Plus, LayoutGrid, LayoutDashboard, Users, Search, X, Check, ChevronDown, Briefcase, Clock, User, AlertCircle, Shield, Key, FileDown, Eye, EyeOff } from 'lucide-react';
@@ -930,6 +930,7 @@ const ProjectStatus = () => {
     const [startDate, setStartDate] = useState(() => addWeeks(startOfWeek(new Date(), { weekStartsOn: 1 }), -52));
     const [viewMode, setViewMode] = useState('project'); // 'project' or 'group'
     const [selectedGroup, setSelectedGroup] = useState('ALL'); // 'ALL' or specific group name
+    const [isGroupTransitioning, startGroupTransition] = useTransition();
     // Scroll Sync Refs
     const tableContainerRef = useRef(null);
     const sliderRef = useRef(null);
@@ -2345,7 +2346,7 @@ const ProjectStatus = () => {
         }
     }, [data, setData, loadData]);
 
-    const handleRemoveMember = async (projectId, assignmentId, memberName) => {
+    const handleRemoveMember = useCallback(async (projectId, assignmentId, memberName) => {
         setConfirmConfig({
             isOpen: true,
             title: '배정 해제',
@@ -2372,7 +2373,7 @@ const ProjectStatus = () => {
                 setConfirmConfig(prev => ({ ...prev, isOpen: false }));
             }
         });
-    };
+    }, [data, loadData]);
 
     const handleDeleteProject = async (projectId, projectName) => {
         setConfirmConfig({
@@ -2850,7 +2851,10 @@ const ProjectStatus = () => {
                                         }}
                                     >
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                            <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: currentGroupOpt.color, boxShadow: `0 0 8px ${currentGroupOpt.color}80` }} />
+                                            {isGroupTransitioning
+                                                ? <div style={{ width: '8px', height: '8px', borderRadius: '50%', border: '2px solid var(--border)', borderTopColor: currentGroupOpt.color, animation: 'spin 0.6s linear infinite' }} />
+                                                : <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: currentGroupOpt.color, boxShadow: `0 0 8px ${currentGroupOpt.color}80` }} />
+                                            }
                                             <span>{currentGroupOpt.name}</span>
                                         </div>
                                         <ChevronDown size={14} style={{ transform: showGroupDropdown ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }} />
@@ -2863,8 +2867,10 @@ const ProjectStatus = () => {
                                                     key={opt.id}
                                                     className={`premium-dropdown-item ${selectedGroup === opt.id ? 'active' : ''}`}
                                                     onClick={() => {
-                                                        setSelectedGroup(opt.id);
                                                         setShowGroupDropdown(false);
+                                                        startGroupTransition(() => {
+                                                            setSelectedGroup(opt.id);
+                                                        });
                                                     }}
                                                 >
                                                     <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: opt.color }} />
