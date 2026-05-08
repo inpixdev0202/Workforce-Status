@@ -17,14 +17,17 @@ function AppRoutes() {
 }
 
 import { ThemeProvider } from './context/ThemeContext';
+import { DataCacheProvider } from './context/DataCacheContext';
 
 function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <Router>
-          <AppRoutes />
-        </Router>
+        <DataCacheProvider>
+          <Router>
+            <AppRoutes />
+          </Router>
+        </DataCacheProvider>
       </AuthProvider>
     </ThemeProvider>
   );

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, useTransition } from 'react';
 import { createPortal } from 'react-dom';
-import { projectsAPI, employeesAPI } from '../api';
+import { projectsAPI } from '../api';
 import { ChevronLeft, ChevronRight, Calendar, Settings, Plus, LayoutGrid, LayoutDashboard, Users, Search, X, Check, ChevronDown, Briefcase, Clock, User, AlertCircle, Shield, Key, FileDown, Eye, EyeOff } from 'lucide-react';
 import { format, addWeeks, addDays, startOfWeek, endOfWeek, eachWeekOfInterval, parseISO, isWithinInterval, startOfDay, endOfDay, areIntervalsOverlapping, isAfter, isBefore } from 'date-fns';
 import { ko } from 'date-fns/locale';
@@ -8,6 +8,7 @@ import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
+import { useDataCache } from '../context/DataCacheContext';
 import { hasAccess, MENU_ITEMS } from '../constants/menuConfig';
 
 // --- Memoized Sub-components for Performance ---
@@ -923,16 +924,27 @@ const ProjectStatus = () => {
     const { user } = useAuth();
     const projectsMenu = MENU_ITEMS.find(m => m.id === 'projects');
     const canEdit = hasAccess(user, projectsMenu);
-    const [data, setData] = useState([]);
+    const dataCache = useDataCache();
+    // Initialize from cache so a remount (after navigating from another menu)
+    // shows the previous data instantly — no spinner, no API wait.
+    const initialMatrix = dataCache.getMatrixSync() || [];
+    const initialEmployees = dataCache.getEmployeesSync({ status: 'active' }) || [];
+    const [data, setData] = useState(initialMatrix);
     const dataRef = useRef(data);
     useEffect(() => {
         dataRef.current = data;
-    }, [data]);
-    const [employees, setEmployees] = useState([]);
+        // Mirror local edits into cache so the next mount sees them.
+        if (data.length > 0) dataCache.setMatrixData(data);
+    }, [data, dataCache]);
+    const [employees, setEmployees] = useState(initialEmployees);
+    useEffect(() => {
+        if (employees.length > 0) dataCache.setEmployeesData({ status: 'active' }, employees);
+    }, [employees, dataCache]);
     const [weeks, setWeeks] = useState([]); // Moved up
     const [cursor, setCursor] = useState({ memberIndex: null, weekIndex: null });
     const cellRefs = useRef({});
-    const [loading, setLoading] = useState(true);
+    // Skip the initial spinner if we already have cached data from a prior mount.
+    const [loading, setLoading] = useState(initialMatrix.length === 0);
     const assigningProjects = useRef(new Set()); // tracks in-flight assignment requests by projectId
     // Buffer of 8 weeks on each side is enough to prevent flicker during scroll.
     // Previously 52 (1 year), which effectively rendered all 156 weeks and caused
@@ -990,7 +1002,7 @@ const ProjectStatus = () => {
 
             await projectsAPI.create(newProjectData);
             setShowProjectModal(false);
-            loadData();
+            loadData({ force: true });
         } catch (err) {
             console.error('Failed to create project:', err);
             alert('프로젝트 추가 중 오류가 발생했습니다.');
@@ -1000,18 +1012,18 @@ const ProjectStatus = () => {
     const loadMasterData = useCallback(async () => {
         setMasterDataLoading(true);
         try {
-            const [projRes, empRes] = await Promise.all([
+            const [projRes, empData] = await Promise.all([
                 projectsAPI.getAll(),
-                employeesAPI.getAll({ status: 'active' })
+                dataCache.getEmployees({ status: 'active' }), // shared cache
             ]);
             setAllMasterProjects(projRes.data);
-            setEmployees(empRes.data.sort((a, b) => a.name.localeCompare(b.name, 'ko')));
+            setEmployees([...empData].sort((a, b) => a.name.localeCompare(b.name, 'ko')));
         } catch (err) {
             console.error('Failed to load master data:', err);
         } finally {
             setMasterDataLoading(false);
         }
-    }, []);
+    }, [dataCache]);
 
     const handleOpenProjectModal = () => {
         setShowProjectModal(true);
@@ -1528,33 +1540,27 @@ const ProjectStatus = () => {
         }
     }, [columnWidths]);
 
-    const loadData = useCallback(async () => {
-        console.log('ProjectStatus: loadData called');
-        setLoading(true);
+    const loadData = useCallback(async ({ force = false } = {}) => {
+        // Show the spinner only when we don't have anything to display yet.
+        // Background refreshes (cache hit but stale, or post-mutation refetch)
+        // keep the existing data visible.
+        if (dataRef.current.length === 0) setLoading(true);
         try {
-            const [matrixRes, empRes] = await Promise.all([
-                projectsAPI.getMatrix(),
-                employeesAPI.getAll({ status: 'active' })
+            const [matrixData, empData] = await Promise.all([
+                dataCache.getMatrix({ force }),
+                dataCache.getEmployees({ status: 'active' }, { force }),
             ]);
 
-            console.log('ProjectStatus: Data fetched', {
-                matrixData: matrixRes.data?.length,
-                empData: empRes.data?.length
-            });
-
-            // Apply state in a transition so the heavy table render runs
-            // concurrently — main thread stays responsive (no "응답 없음")
-            // and the spinner remains visible until the new tree is ready.
             React.startTransition(() => {
-                if (matrixRes.data) setData(matrixRes.data);
-                if (empRes.data) setEmployees(empRes.data);
+                if (matrixData) setData(matrixData);
+                if (empData) setEmployees(empData);
                 setLoading(false);
             });
         } catch (err) {
             console.error('Failed to load project status data:', err);
             setLoading(false);
         }
-    }, []);
+    }, [dataCache]);
 
     useEffect(() => {
         // Restore to 156 weeks (3 years) for flawless UI
@@ -2015,7 +2021,7 @@ const ProjectStatus = () => {
         } catch (err) {
             console.error('Assignment update failed', err);
             alert('정보 업데이트에 실패했습니다. 다시 시도해 주세요.');
-            loadData(); // Revert to server state
+            loadData({ force: true }); // Revert to server state
         }
     }, [employees, triggerAutoAllocation, loadData]);
 
@@ -2236,7 +2242,7 @@ const ProjectStatus = () => {
             } catch (err) {
                 console.error('Batch update failed', err);
                 alert('저장 중 오류가 발생했습니다.');
-                loadData();
+                loadData({ force: true });
             }
         }
     }, [data, getFlatRows, weeks, loadData, setData]);
@@ -2361,7 +2367,7 @@ const ProjectStatus = () => {
             await projectsAPI.reorderProjects(newDataIds);
         } catch (err) {
             console.error('Reorder failed', err);
-            loadData(); // Revert on error
+            loadData({ force: true }); // Revert on error
         }
     };
 
@@ -2387,7 +2393,7 @@ const ProjectStatus = () => {
             await projectsAPI.reorderMembers(newMembers.map(m => m.id));
         } catch (err) {
             console.error('Failed to update member order:', err);
-            loadData(); // Revert on error
+            loadData({ force: true }); // Revert on error
         }
     }, [data, setData, loadData]);
 
@@ -2413,7 +2419,7 @@ const ProjectStatus = () => {
                     await projectsAPI.removeMember(assignmentId);
                 } catch (err) {
                     console.error('Remove member failed', err);
-                    loadData();
+                    loadData({ force: true });
                 }
                 setConfirmConfig(prev => ({ ...prev, isOpen: false }));
             }
@@ -2434,7 +2440,7 @@ const ProjectStatus = () => {
                     await projectsAPI.delete(projectId);
                 } catch (err) {
                     console.error('Delete project failed', err);
-                    loadData();
+                    loadData({ force: true });
                 }
                 setConfirmConfig(prev => ({ ...prev, isOpen: false }));
             }
