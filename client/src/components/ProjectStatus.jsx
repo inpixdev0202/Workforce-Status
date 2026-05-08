@@ -934,12 +934,22 @@ const ProjectStatus = () => {
     const cellRefs = useRef({});
     const [loading, setLoading] = useState(true);
     const assigningProjects = useRef(new Set()); // tracks in-flight assignment requests by projectId
-    // Column virtualization: track visible week range
-    const [visibleColRange, setVisibleColRange] = useState({ start: 0, end: 50 });
     // Buffer of 8 weeks on each side is enough to prevent flicker during scroll.
     // Previously 52 (1 year), which effectively rendered all 156 weeks and caused
     // 30k+ cells per group → main-thread block on group switch ("응답 없음").
     const COL_BUFFER = 8;
+    // Column virtualization: track visible week range.
+    // startDate is today-52w, so today sits at index 52. Initialize the range
+    // around today (instead of 0..50) so the very first render isn't wasted on
+    // a year-ago window before the auto-scroll-to-today effect kicks in.
+    const [visibleColRange, setVisibleColRange] = useState(() => {
+        const todayIdx = 52;
+        const visibleEstimate = 50; // refined by handleTableScroll on first scroll
+        return {
+            start: Math.max(0, todayIdx - COL_BUFFER),
+            end: todayIdx + visibleEstimate + COL_BUFFER,
+        };
+    });
     const [showProjectModal, setShowProjectModal] = useState(false);
     const [showMemberModal, setShowMemberModal] = useState(false);
     const [selectedProject, setSelectedProject] = useState(null);
@@ -1520,8 +1530,8 @@ const ProjectStatus = () => {
 
     const loadData = useCallback(async () => {
         console.log('ProjectStatus: loadData called');
+        setLoading(true);
         try {
-            setLoading(true);
             const [matrixRes, empRes] = await Promise.all([
                 projectsAPI.getMatrix(),
                 employeesAPI.getAll({ status: 'active' })
@@ -1532,15 +1542,16 @@ const ProjectStatus = () => {
                 empData: empRes.data?.length
             });
 
-            if (matrixRes.data) {
-                setData(matrixRes.data);
-            }
-            if (empRes.data) {
-                setEmployees(empRes.data);
-            }
+            // Apply state in a transition so the heavy table render runs
+            // concurrently — main thread stays responsive (no "응답 없음")
+            // and the spinner remains visible until the new tree is ready.
+            React.startTransition(() => {
+                if (matrixRes.data) setData(matrixRes.data);
+                if (empRes.data) setEmployees(empRes.data);
+                setLoading(false);
+            });
         } catch (err) {
             console.error('Failed to load project status data:', err);
-        } finally {
             setLoading(false);
         }
     }, []);
