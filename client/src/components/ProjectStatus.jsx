@@ -1319,15 +1319,10 @@ const ProjectStatus = () => {
         // Pre-fetch groupEmployees for weekly status (needed before weeklyStatus loop)
         const groupEmployees = employees.filter(e => (e.group_name || '미지정') === group.name);
 
-        // Weekly status breakdown — restricted to near-today range
-        // idle stats use at most month3 = today+15w; no need to compute all 156 weeks
+        // Weekly status breakdown — covers all weeks so the per-week
+        // 미투입 / 부분투입 / 풀투입 rows show names everywhere users scroll.
         const weeklyStatus = {};
-        const nowTime = Date.now();
-        const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
         weeksArr.forEach((week, i) => {
-            const diffWeeks = (week.getTime() - nowTime) / WEEK_MS;
-            if (diffWeeks < -4 || diffWeeks > 20) return;
-
             const dateStr = weekDateStrs[i];
             const empTotals = {};
             const empLeaveTotals = {};
