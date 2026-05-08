@@ -936,7 +936,10 @@ const ProjectStatus = () => {
     const assigningProjects = useRef(new Set()); // tracks in-flight assignment requests by projectId
     // Column virtualization: track visible week range
     const [visibleColRange, setVisibleColRange] = useState({ start: 0, end: 50 });
-    const COL_BUFFER = 52; // extra weeks to render beyond visible area
+    // Buffer of 8 weeks on each side is enough to prevent flicker during scroll.
+    // Previously 52 (1 year), which effectively rendered all 156 weeks and caused
+    // 30k+ cells per group → main-thread block on group switch ("응답 없음").
+    const COL_BUFFER = 8;
     const [showProjectModal, setShowProjectModal] = useState(false);
     const [showMemberModal, setShowMemberModal] = useState(false);
     const [selectedProject, setSelectedProject] = useState(null);
@@ -3355,8 +3358,8 @@ const ProjectStatus = () => {
                             )}
 
                             {leftSpacerWidth > 0 && <th style={{ width: leftSpacerWidth, minWidth: leftSpacerWidth, backgroundColor: 'var(--surface-high)' }} />}
-                            {visibleWeeks.map((week) => {
-                                const isCurrent = isCurrentWeek(week);
+                            {visibleWeeks.map((week, wIdx) => {
+                                const isCurrent = wIdx === visibleCurrentWeekIdx;
                                 return (
                                     <th key={week.toString()} style={{
                                         width: `${columnWidths.week}px`,
@@ -3548,7 +3551,7 @@ const ProjectStatus = () => {
                                                 {leftSpacerWidth > 0 && <td style={{ width: leftSpacerWidth, backgroundColor: 'var(--surface-high)' }} />}
                                                 {visibleWeeks.map((week, wIdx) => {
                                                     const total = groupCalc.stats[visibleColRange.start + wIdx] || 0;
-                                                    const isCurrent = isCurrentWeek(week);
+                                                    const isCurrent = wIdx === visibleCurrentWeekIdx;
                                                     return (
                                                         <td key={wIdx} style={{
                                                             textAlign: 'center',
@@ -3583,7 +3586,7 @@ const ProjectStatus = () => {
                                                         </td>
                                                         {leftSpacerWidth > 0 && <td style={{ width: leftSpacerWidth, backgroundColor: 'rgba(59, 130, 246, 0.02)' }} />}
                                                         {visibleWeeks.map((week, wIdx) => (
-                                                            <td key={wIdx} style={{ backgroundColor: 'rgba(59, 130, 246, 0.02)', borderRight: isCurrentWeek(week) ? '2px solid #ef4444' : 'none' }}></td>
+                                                            <td key={wIdx} style={{ backgroundColor: 'rgba(59, 130, 246, 0.02)', borderRight: wIdx === visibleCurrentWeekIdx ? '2px solid #ef4444' : 'none' }}></td>
                                                         ))}
                                                         {rightSpacerWidth > 0 && <td style={{ width: rightSpacerWidth, backgroundColor: 'rgba(59, 130, 246, 0.02)' }} />}
                                                     </tr>
@@ -3723,10 +3726,10 @@ const ProjectStatus = () => {
                                                                 미투입 (0 MM)
                                                             </td>
                                                             {leftSpacerWidth > 0 && <td style={{ width: leftSpacerWidth, backgroundColor: '#f1f5f9' }} />}
-                                                            {visibleWeeks.map(week => {
-                                                                const dateStr = format(week, 'yyyy-MM-dd');
+                                                            {visibleWeeks.map((week, wIdx) => {
+                                                                const dateStr = visibleWeekDateStrs[wIdx];
                                                                 const members = weeklyStatus[dateStr]?.zero || [];
-                                                                const isCurrent = isCurrentWeek(week);
+                                                                const isCurrent = wIdx === visibleCurrentWeekIdx;
                                                                 return (
                                                                     <td key={`zero-${dateStr}`} style={{
                                                                         minWidth: `${columnWidths.week}px`,
@@ -3753,10 +3756,10 @@ const ProjectStatus = () => {
                                                                 부분 투입 (1.0 MM 미만)
                                                             </td>
                                                             {leftSpacerWidth > 0 && <td style={{ width: leftSpacerWidth, backgroundColor: '#fffbeb' }} />}
-                                                            {visibleWeeks.map(week => {
-                                                                const dateStr = format(week, 'yyyy-MM-dd');
+                                                            {visibleWeeks.map((week, wIdx) => {
+                                                                const dateStr = visibleWeekDateStrs[wIdx];
                                                                 const members = weeklyStatus[dateStr]?.under50 || [];
-                                                                const isCurrent = isCurrentWeek(week);
+                                                                const isCurrent = wIdx === visibleCurrentWeekIdx;
                                                                 return (
                                                                     <td key={`under50-${dateStr}`} style={{
                                                                         minWidth: `${columnWidths.week}px`,
@@ -3783,10 +3786,10 @@ const ProjectStatus = () => {
                                                                 풀투입 (1.1 MM 이상)
                                                             </td>
                                                             {leftSpacerWidth > 0 && <td style={{ width: leftSpacerWidth, backgroundColor: '#eff6ff' }} />}
-                                                            {visibleWeeks.map(week => {
-                                                                const dateStr = format(week, 'yyyy-MM-dd');
+                                                            {visibleWeeks.map((week, wIdx) => {
+                                                                const dateStr = visibleWeekDateStrs[wIdx];
                                                                 const members = weeklyStatus[dateStr]?.over100 || [];
-                                                                const isCurrent = isCurrentWeek(week);
+                                                                const isCurrent = wIdx === visibleCurrentWeekIdx;
                                                                 return (
                                                                     <td key={`over100-${dateStr}`} style={{
                                                                         minWidth: `${columnWidths.week}px`,
