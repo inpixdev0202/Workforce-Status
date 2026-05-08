@@ -1002,6 +1002,7 @@ const ProjectStatus = () => {
 
             await projectsAPI.create(newProjectData);
             setShowProjectModal(false);
+            dataCache.invalidateProjects();
             loadData({ force: true });
         } catch (err) {
             console.error('Failed to create project:', err);
@@ -1012,11 +1013,11 @@ const ProjectStatus = () => {
     const loadMasterData = useCallback(async () => {
         setMasterDataLoading(true);
         try {
-            const [projRes, empData] = await Promise.all([
-                projectsAPI.getAll(),
-                dataCache.getEmployees({ status: 'active' }), // shared cache
+            const [projData, empData] = await Promise.all([
+                dataCache.getProjects(),
+                dataCache.getEmployees({ status: 'active' }),
             ]);
-            setAllMasterProjects(projRes.data);
+            setAllMasterProjects(projData);
             setEmployees([...empData].sort((a, b) => a.name.localeCompare(b.name, 'ko')));
         } catch (err) {
             console.error('Failed to load master data:', err);
@@ -2438,6 +2439,7 @@ const ProjectStatus = () => {
 
                 try {
                     await projectsAPI.delete(projectId);
+                    dataCache.invalidateProjects();
                 } catch (err) {
                     console.error('Delete project failed', err);
                     loadData({ force: true });

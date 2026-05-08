@@ -22,16 +22,23 @@ import {
     CheckCircle,
     HelpCircle
 } from 'lucide-react';
-import { projectsAPI, employeesAPI } from '../api';
+import { projectsAPI } from '../api';
 import { format, parseISO, isAfter, isBefore, isValid } from 'date-fns';
 import { useTheme } from '../context/ThemeContext';
+import { useDataCache } from '../context/DataCacheContext';
 
 const ProjectMaster = () => {
     const { theme } = useTheme();
     const isDark = theme === 'dark';
-    const [projects, setProjects] = useState([]);
-    const [employees, setEmployees] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const dataCache = useDataCache();
+    // Hydrate from shared cache so route flicks don't trigger refetches.
+    const initialProjects = dataCache.getProjectsSync() || [];
+    const initialEmployees = dataCache.getEmployeesSync({ status: 'active' }) || [];
+    const [projects, setProjects] = useState(initialProjects);
+    const [employees, setEmployees] = useState(() =>
+        [...initialEmployees].sort((a, b) => a.name.localeCompare(b.name, 'ko'))
+    );
+    const [loading, setLoading] = useState(initialProjects.length === 0);
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('all'); // all, 진행예정, 진행중, 종료
     const [typeFilter, setTypeFilter] = useState('all');
@@ -64,11 +71,11 @@ const ProjectMaster = () => {
         loadEmployees();
     }, []);
 
-    const loadProjects = async () => {
-        setLoading(true);
+    const loadProjects = async ({ force = false } = {}) => {
+        if (projects.length === 0) setLoading(true);
         try {
-            const res = await projectsAPI.getAll();
-            setProjects(res.data);
+            const data = await dataCache.getProjects({ force });
+            setProjects(data);
         } catch (err) {
             console.error('Failed to load projects:', err);
         } finally {
@@ -76,11 +83,10 @@ const ProjectMaster = () => {
         }
     };
 
-    const loadEmployees = async () => {
+    const loadEmployees = async ({ force = false } = {}) => {
         try {
-            const res = await employeesAPI.getAll({ status: 'active' });
-            // Sort by name
-            const sorted = res.data.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+            const data = await dataCache.getEmployees({ status: 'active' }, { force });
+            const sorted = [...data].sort((a, b) => a.name.localeCompare(b.name, 'ko'));
             setEmployees(sorted);
         } catch (err) {
             console.error('Failed to load employees:', err);
@@ -156,7 +162,11 @@ const ProjectMaster = () => {
                 await projectsAPI.create(formData);
             }
             setIsModalOpen(false);
-            loadProjects();
+            // Project list and matrix both depend on this — invalidate both so
+            // ProjectStatus shows fresh data on its next mount.
+            dataCache.invalidateProjects();
+            dataCache.invalidateMatrix();
+            loadProjects({ force: true });
         } catch (err) {
             const errorMsg = err.response?.data?.error || err.message || '알 수 없는 오류';
             alert(`저장에 실패했습니다.\n사유: ${errorMsg}`);
@@ -168,7 +178,9 @@ const ProjectMaster = () => {
         try {
             await projectsAPI.delete(deleteConfirm.projectId);
             setDeleteConfirm({ isOpen: false, projectId: null, projectName: '' });
-            loadProjects();
+            dataCache.invalidateProjects();
+            dataCache.invalidateMatrix();
+            loadProjects({ force: true });
         } catch (err) {
             alert('삭제에 실패했습니다.');
             console.error(err);

@@ -18,6 +18,7 @@ const TTL_MS = 60_000;
 
 export const DataCacheProvider = ({ children }) => {
     const matrixRef = useRef({ data: null, fetchedAt: 0, promise: null });
+    const projectsRef = useRef({ data: null, fetchedAt: 0, promise: null });
     const employeesRef = useRef(new Map()); // key: JSON.stringify(params)
 
     const getMatrix = useCallback(async ({ force = false } = {}) => {
@@ -37,6 +38,26 @@ export const DataCacheProvider = ({ children }) => {
             }
         })();
         matrixRef.current.promise = promise;
+        return promise;
+    }, []);
+
+    const getProjects = useCallback(async ({ force = false } = {}) => {
+        const cache = projectsRef.current;
+        if (cache.promise) return cache.promise;
+        if (!force && cache.data && (Date.now() - cache.fetchedAt) < TTL_MS) {
+            return cache.data;
+        }
+        const promise = (async () => {
+            try {
+                const res = await projectsAPI.getAll();
+                projectsRef.current = { data: res.data, fetchedAt: Date.now(), promise: null };
+                return res.data;
+            } catch (err) {
+                projectsRef.current.promise = null;
+                throw err;
+            }
+        })();
+        projectsRef.current.promise = promise;
         return promise;
     }, []);
 
@@ -65,16 +86,22 @@ export const DataCacheProvider = ({ children }) => {
     // Synchronous reads — used for component initial state so a remount
     // can render previously-fetched data on the very first paint (no spinner).
     const getMatrixSync = useCallback(() => matrixRef.current.data, []);
+    const getProjectsSync = useCallback(() => projectsRef.current.data, []);
     const getEmployeesSync = useCallback((params = {}) => {
         const key = JSON.stringify(params);
         return employeesRef.current.get(key)?.data || null;
     }, []);
 
-    // Lets ProjectStatus push its locally-edited data into the cache so the
+    // Lets components push locally-edited data into the cache so the
     // next mount sees the user's edits without a refetch.
     const setMatrixData = useCallback((data) => {
         const c = matrixRef.current;
         matrixRef.current = { ...c, data };
+    }, []);
+
+    const setProjectsData = useCallback((data) => {
+        const c = projectsRef.current;
+        projectsRef.current = { ...c, data };
     }, []);
 
     const setEmployeesData = useCallback((params, data) => {
@@ -87,23 +114,32 @@ export const DataCacheProvider = ({ children }) => {
         matrixRef.current = { data: null, fetchedAt: 0, promise: null };
     }, []);
 
+    const invalidateProjects = useCallback(() => {
+        projectsRef.current = { data: null, fetchedAt: 0, promise: null };
+    }, []);
+
     const invalidateEmployees = useCallback(() => {
         employeesRef.current.clear();
     }, []);
 
     const invalidateAll = useCallback(() => {
         invalidateMatrix();
+        invalidateProjects();
         invalidateEmployees();
-    }, [invalidateMatrix, invalidateEmployees]);
+    }, [invalidateMatrix, invalidateProjects, invalidateEmployees]);
 
     const value = {
         getMatrix,
+        getProjects,
         getEmployees,
         getMatrixSync,
+        getProjectsSync,
         getEmployeesSync,
         setMatrixData,
+        setProjectsData,
         setEmployeesData,
         invalidateMatrix,
+        invalidateProjects,
         invalidateEmployees,
         invalidateAll,
     };
