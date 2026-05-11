@@ -2585,283 +2585,257 @@ const ProjectStatus = () => {
             return;
         }
 
+        const start = startOfWeek(new Date(exportStartDate), { weekStartsOn: 1 });
+        const end = startOfWeek(new Date(exportEndDate), { weekStartsOn: 1 });
+        if (isAfter(start, end)) {
+            alert('시작일이 종료일보다 늦을 수 없습니다.');
+            return;
+        }
+
         setIsDownloading(true);
         try {
             const workbook = new ExcelJS.Workbook();
-            const worksheet = workbook.addWorksheet('프로젝트 배정 현황', {
-                views: [{ state: 'frozen', xSplit: viewMode === 'project' ? 7 : 7, ySplit: 1 }]
-            });
-
-            // 1. Calculate weeks to show in Excel
-            const start = startOfWeek(new Date(exportStartDate), { weekStartsOn: 1 });
-            const end = startOfWeek(new Date(exportEndDate), { weekStartsOn: 1 });
-            
-            if (isAfter(start, end)) {
-                alert('시작일이 종료일보다 늦을 수 없습니다.');
-                setIsDownloading(false);
-                return;
-            }
-
             const exportWeeks = eachWeekOfInterval({ start, end }, { weekStartsOn: 1 });
 
-            // 2. Define Columns
-            const columns = [];
-            if (viewMode === 'project') {
-                columns.push(
-                    { header: '소속', key: 'group', width: 12 },
-                    { header: '직급', key: 'position', width: 10 },
-                    { header: '등급', key: 'grade', width: 8 },
-                    { header: '성명', key: 'name', width: 12 },
-                    { header: '근무', key: 'workLocation', width: 10 },
-                    { header: '투입일', key: 'startDate', width: 12 },
-                    { header: '종료일', key: 'endDate', width: 12 }
-                );
-            } else {
-                columns.push(
-                    { header: '성명', key: 'name', width: 12 },
-                    { header: '직급', key: 'position', width: 10 },
-                    { header: '등급', key: 'grade', width: 8 },
-                    { header: '고용', key: 'employmentType', width: 10 },
-                    { header: '프로젝트', key: 'projectName', width: 25 },
-                    { header: '투입일', key: 'startDate', width: 12 },
-                    { header: '종료일', key: 'endDate', width: 12 }
-                );
-            }
+            // Excel sheet names cap at 31 chars and disallow []:*?/\\
+            const usedSheetNames = new Set();
+            const uniqueSheetName = (raw) => {
+                const base = String(raw).replace(/[[\]:*?/\\]/g, '_').substring(0, 31) || 'Sheet';
+                let candidate = base;
+                let i = 2;
+                while (usedSheetNames.has(candidate)) {
+                    const suffix = `_${i++}`;
+                    candidate = base.substring(0, 31 - suffix.length) + suffix;
+                }
+                usedSheetNames.add(candidate);
+                return candidate;
+            };
 
-            // Add weekly columns
-            exportWeeks.forEach(w => {
-                columns.push({
-                    header: format(w, 'MM/dd'),
-                    key: format(w, 'yyyy-MM-dd'),
-                    width: 7
+            // Create a fresh worksheet with the standard columns + header styling.
+            const setupWorksheet = (sheetName) => {
+                const ws = workbook.addWorksheet(uniqueSheetName(sheetName), {
+                    views: [{ state: 'frozen', xSplit: 7, ySplit: 1 }]
                 });
-            });
 
-            worksheet.columns = columns;
-
-            // 3. Styling Header
-            const headerRow = worksheet.getRow(1);
-            headerRow.height = 30;
-            headerRow.eachCell((cell) => {
-                cell.fill = {
-                    type: 'pattern',
-                    pattern: 'solid',
-                    fgColor: { argb: 'FF1E293B' } // Slate-800
-                };
-                cell.font = {
-                    bold: true,
-                    color: { argb: 'FFFFFFFF' },
-                    size: 9
-                };
-                cell.alignment = { vertical: 'middle', horizontal: 'center' };
-                cell.border = {
-                    top: { style: 'thin' },
-                    left: { style: 'thin' },
-                    bottom: { style: 'thin' },
-                    right: { style: 'thin' }
-                };
-            });
-
-            // 4. Data Population
-            if (viewMode === 'project') {
-                data.forEach(project => {
-                    // Project Header Row
-                    const projHeaderRow = worksheet.addRow({
-                        group: project.name,
-                        position: `[${project.type || 'Client'}]`
+                const columns = [];
+                if (viewMode === 'project') {
+                    columns.push(
+                        { header: '소속', key: 'group', width: 12 },
+                        { header: '직급', key: 'position', width: 10 },
+                        { header: '등급', key: 'grade', width: 8 },
+                        { header: '성명', key: 'name', width: 12 },
+                        { header: '근무', key: 'workLocation', width: 10 },
+                        { header: '투입일', key: 'startDate', width: 12 },
+                        { header: '종료일', key: 'endDate', width: 12 }
+                    );
+                } else {
+                    columns.push(
+                        { header: '성명', key: 'name', width: 12 },
+                        { header: '직급', key: 'position', width: 10 },
+                        { header: '등급', key: 'grade', width: 8 },
+                        { header: '고용', key: 'employmentType', width: 10 },
+                        { header: '프로젝트', key: 'projectName', width: 25 },
+                        { header: '투입일', key: 'startDate', width: 12 },
+                        { header: '종료일', key: 'endDate', width: 12 }
+                    );
+                }
+                exportWeeks.forEach(w => {
+                    columns.push({
+                        header: format(w, 'MM/dd'),
+                        key: format(w, 'yyyy-MM-dd'),
+                        width: 7
                     });
-                    
-                    // Merge and Style Project Header
-                    worksheet.mergeCells(projHeaderRow.number, 1, projHeaderRow.number, 7);
-                    const groupCell = projHeaderRow.getCell(1);
-                    groupCell.font = { bold: true, color: { argb: 'FF3B82F6' }, size: 10 };
-                    groupCell.fill = {
-                        type: 'pattern',
-                        pattern: 'solid',
-                        fgColor: { argb: 'FFF8FAFC' }
+                });
+                ws.columns = columns;
+
+                const headerRow = ws.getRow(1);
+                headerRow.height = 30;
+                headerRow.eachCell((cell) => {
+                    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E293B' } };
+                    cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 9 };
+                    cell.alignment = { vertical: 'middle', horizontal: 'center' };
+                    cell.border = {
+                        top: { style: 'thin' },
+                        left: { style: 'thin' },
+                        bottom: { style: 'thin' },
+                        right: { style: 'thin' }
                     };
-                    projHeaderRow.eachCell({ includeEmpty: true }, (cell) => {
-                        cell.border = { bottom: { style: 'thin' } };
+                });
+
+                return ws;
+            };
+
+            // Project view block (one project on a single shared worksheet).
+            const renderProjectBlock = (worksheet, project) => {
+                const projHeaderRow = worksheet.addRow({
+                    group: project.name,
+                    position: `[${project.type || 'Client'}]`
+                });
+                worksheet.mergeCells(projHeaderRow.number, 1, projHeaderRow.number, 7);
+                const groupCell = projHeaderRow.getCell(1);
+                groupCell.font = { bold: true, color: { argb: 'FF3B82F6' }, size: 10 };
+                groupCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
+                projHeaderRow.eachCell({ includeEmpty: true }, (cell) => {
+                    cell.border = { bottom: { style: 'thin' } };
+                });
+
+                project.members.forEach(member => {
+                    const rowData = {
+                        group: member.group_name,
+                        position: member.employee_position,
+                        grade: member.employee_grade,
+                        name: member.employee_name,
+                        workLocation: member.work_location === 'Dispatch' ? '파견' : (member.work_location === 'In-house' ? '내근' : '-'),
+                        startDate: member.input_start_date || '-',
+                        endDate: member.input_end_date || '-'
+                    };
+                    exportWeeks.forEach(w => {
+                        const dateStr = format(w, 'yyyy-MM-dd');
+                        rowData[dateStr] = member.allocations?.[dateStr] ? (parseFloat(member.allocations[dateStr]) || 0) : '';
                     });
-
-                    // Members Rows
-                    project.members.forEach(member => {
-                        const rowData = {
-                            group: member.group_name,
-                            position: member.employee_position,
-                            grade: member.employee_grade,
-                            name: member.employee_name,
-                            workLocation: member.work_location === 'Dispatch' ? '파견' : (member.work_location === 'In-house' ? '내근' : '-'),
-                            startDate: member.input_start_date || '-',
-                            endDate: member.input_end_date || '-'
+                    const row = worksheet.addRow(rowData);
+                    row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+                        cell.font = { size: 9 };
+                        cell.alignment = { vertical: 'middle', horizontal: 'center' };
+                        cell.border = {
+                            bottom: { style: 'hair', color: { argb: 'FFCBD5E1' } },
+                            right: { style: 'hair', color: { argb: 'FFCBD5E1' } }
                         };
+                        if (colNumber > 7 && cell.value !== '') {
+                            cell.font = { bold: true, size: 9 };
+                        }
+                    });
+                });
 
-                        // Fill weekly allocations
+                const totalRowData = { group: 'Total MM' };
+                exportWeeks.forEach(w => {
+                    const dateStr = format(w, 'yyyy-MM-dd');
+                    const total = project.members.reduce((sum, m) => sum + (parseFloat(m.allocations?.[dateStr]) || 0), 0);
+                    totalRowData[dateStr] = total > 0 ? total : '';
+                });
+                const totalRow = worksheet.addRow(totalRowData);
+                worksheet.mergeCells(totalRow.number, 1, totalRow.number, 7);
+                totalRow.getCell(1).alignment = { horizontal: 'right' };
+                totalRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+                    cell.font = { bold: true, size: 8, color: { argb: 'FF64748B' } };
+                    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
+                    if (colNumber > 7 && cell.value > 1.0) {
+                        cell.font = { bold: true, size: 9, color: { argb: 'FFEF4444' } };
+                    }
+                });
+            };
+
+            // Group view block (one group: title row, project subheaders, assignments,
+            // total MM row, then 미투입 / 부분 투입 / 풀투입 name rows).
+            const renderGroupBlock = (worksheet, group) => {
+                const groupTitleRow = worksheet.addRow({ name: `${group.name} 그룹 (인원: ${group.memberCount}명)` });
+                worksheet.mergeCells(groupTitleRow.number, 1, groupTitleRow.number, worksheet.columns.length);
+                groupTitleRow.getCell(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+
+                let groupArgb = 'FF3B82F6';
+                if (group.color && group.color.startsWith('#')) {
+                    groupArgb = 'FF' + group.color.substring(1).toUpperCase();
+                }
+                groupTitleRow.getCell(1).fill = {
+                    type: 'pattern', pattern: 'solid', fgColor: { argb: groupArgb }
+                };
+
+                group.projects.forEach(p => {
+                    const pSubRow = worksheet.addRow({ name: `📁 ${p.name} [${p.type || 'Client'}]` });
+                    worksheet.mergeCells(pSubRow.number, 1, pSubRow.number, 7);
+                    pSubRow.getCell(1).font = { bold: true, size: 9, color: { argb: 'FF3B82F6' } };
+                    pSubRow.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F7FF' } };
+
+                    p.assignments.forEach(assignment => {
+                        const rowData = {
+                            name: assignment.employee_name,
+                            position: assignment.employee_position,
+                            grade: assignment.employee_grade,
+                            employmentType: assignment.employment_type || '-',
+                            projectName: p.name,
+                            startDate: assignment.input_start_date || '-',
+                            endDate: assignment.input_end_date || '-'
+                        };
                         exportWeeks.forEach(w => {
                             const dateStr = format(w, 'yyyy-MM-dd');
-                            rowData[dateStr] = member.allocations?.[dateStr] ? (parseFloat(member.allocations[dateStr]) || 0) : '';
+                            rowData[dateStr] = assignment.allocations?.[dateStr] ? (parseFloat(assignment.allocations[dateStr]) || 0) : '';
                         });
-
                         const row = worksheet.addRow(rowData);
                         row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
                             cell.font = { size: 9 };
                             cell.alignment = { vertical: 'middle', horizontal: 'center' };
-                            cell.border = {
-                                bottom: { style: 'hair', color: { argb: 'FFCBD5E1' } },
-                                right: { style: 'hair', color: { argb: 'FFCBD5E1' } }
-                            };
-                            
-                            // Highlight allocations
-                            if (colNumber > 7 && cell.value !== '') {
-                                cell.font = { bold: true, size: 9 };
-                            }
+                            cell.border = { bottom: { style: 'thin', color: { argb: 'FFF1F5F9' } } };
+                            if (colNumber === 5) cell.alignment = { vertical: 'middle', horizontal: 'left' };
+                            if (colNumber > 7 && cell.value !== '') cell.font = { bold: true, size: 9 };
                         });
                     });
+                });
 
-                    // Total Row
-                    const totalRowData = { group: 'Total MM' };
+                const groupCalc = calculateGroupStats(group, exportWeeks);
+                const gTotalRowData = { name: `${group.name} 합계 (Total MM)` };
+                exportWeeks.forEach((w, wIdx) => {
+                    const dateStr = format(w, 'yyyy-MM-dd');
+                    const total = groupCalc.stats[wIdx] || 0;
+                    gTotalRowData[dateStr] = total > 0 ? total : '';
+                });
+                const gTotalRow = worksheet.addRow(gTotalRowData);
+                worksheet.mergeCells(gTotalRow.number, 1, gTotalRow.number, 7);
+                gTotalRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+                    cell.font = { bold: true, size: 8, color: { argb: 'FF475569' } };
+                    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
+                    cell.alignment = { vertical: 'middle', horizontal: colNumber <= 7 ? 'right' : 'center' };
+                    if (colNumber > 7 && cell.value > group.memberCount) {
+                        cell.font = { bold: true, size: 9, color: { argb: 'FFEF4444' } };
+                    }
+                });
+
+                // Weekly Personnel Status Rows (미투입 / 부분 투입 / 풀투입)
+                const statusRows = [
+                    { label: '미투입 (0 MM)',          key: 'zero',    bgArgb: 'FFF1F5F9', textArgb: 'FF475569' },
+                    { label: '부분 투입 (1.0 MM 미만)', key: 'under50', bgArgb: 'FFFFFBEB', textArgb: 'FFD97706' },
+                    { label: '풀투입 (1.1 MM 이상)',    key: 'over100', bgArgb: 'FFEFF6FF', textArgb: 'FF2563EB' },
+                ];
+                statusRows.forEach(({ label, key, bgArgb, textArgb }) => {
+                    const rowData = { name: label };
+                    let maxNameCount = 0;
                     exportWeeks.forEach(w => {
                         const dateStr = format(w, 'yyyy-MM-dd');
-                        const total = project.members.reduce((sum, m) => sum + (parseFloat(m.allocations?.[dateStr]) || 0), 0);
-                        totalRowData[dateStr] = total > 0 ? total : '';
+                        const names = groupCalc.weeklyStatus[dateStr]?.[key] || [];
+                        if (names.length > maxNameCount) maxNameCount = names.length;
+                        rowData[dateStr] = names.length > 0 ? names.join('\n') : '';
                     });
-                    const totalRow = worksheet.addRow(totalRowData);
-                    worksheet.mergeCells(totalRow.number, 1, totalRow.number, 7);
-                    totalRow.getCell(1).alignment = { horizontal: 'right' };
-                    totalRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
-                        cell.font = { bold: true, size: 8, color: { argb: 'FF64748B' } };
-                        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
-                        if (colNumber > 7 && cell.value > 1.0) {
-                            cell.font = { bold: true, size: 9, color: { argb: 'FFEF4444' } };
-                        }
+                    const statusRow = worksheet.addRow(rowData);
+                    worksheet.mergeCells(statusRow.number, 1, statusRow.number, 7);
+                    statusRow.height = Math.min(Math.max(maxNameCount * 14 + 4, 18), 240);
+                    statusRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+                        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgArgb } };
+                        cell.font = { size: 8, color: { argb: textArgb }, bold: colNumber <= 7 };
+                        cell.alignment = {
+                            vertical: 'top',
+                            horizontal: colNumber <= 7 ? 'right' : 'center',
+                            wrapText: true,
+                        };
+                        cell.border = {
+                            bottom: { style: 'hair', color: { argb: 'FFCBD5E1' } },
+                        };
                     });
                 });
+            };
+
+            if (viewMode === 'project') {
+                const ws = setupWorksheet('프로젝트 배정 현황');
+                data.forEach(project => renderProjectBlock(ws, project));
             } else {
-                // Group View
-                groupStats.filter(g => selectedGroup === 'ALL' || g.name === selectedGroup).forEach(group => {
-                    // Group Title Row
-                    const groupTitleRow = worksheet.addRow({ name: `${group.name} 그룹 (인원: ${group.memberCount}명)` });
-                    worksheet.mergeCells(groupTitleRow.number, 1, groupTitleRow.number, worksheet.columns.length);
-                    groupTitleRow.getCell(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
-                    
-                    // Robust color handling
-                    let groupArgb = 'FF3B82F6';
-                    if (group.color && group.color.startsWith('#')) {
-                        groupArgb = 'FF' + group.color.substring(1).toUpperCase();
-                    }
-
-                    groupTitleRow.getCell(1).fill = { 
-                        type: 'pattern', 
-                        pattern: 'solid', 
-                        fgColor: { argb: groupArgb } 
-                    };
-
-                    group.projects.forEach(p => {
-                        // Project Subheader in Group View
-                        const pSubRow = worksheet.addRow({ name: `📁 ${p.name} [${p.type || 'Client'}]` });
-                        worksheet.mergeCells(pSubRow.number, 1, pSubRow.number, 7);
-                        pSubRow.getCell(1).font = { bold: true, size: 9, color: { argb: 'FF3B82F6' } };
-                        pSubRow.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F7FF' } };
-
-                        p.assignments.forEach(assignment => {
-                            const rowData = {
-                                name: assignment.employee_name,
-                                position: assignment.employee_position,
-                                grade: assignment.employee_grade,
-                                employmentType: assignment.employment_type || '-',
-                                projectName: p.name,
-                                startDate: assignment.input_start_date || '-',
-                                endDate: assignment.input_end_date || '-'
-                            };
-
-                            exportWeeks.forEach(w => {
-                                const dateStr = format(w, 'yyyy-MM-dd');
-                                rowData[dateStr] = assignment.allocations?.[dateStr] ? (parseFloat(assignment.allocations[dateStr]) || 0) : '';
-                            });
-
-                            const row = worksheet.addRow(rowData);
-                            row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
-                                cell.font = { size: 9 };
-                                cell.alignment = { vertical: 'middle', horizontal: 'center' };
-                                cell.border = { bottom: { style: 'thin', color: { argb: 'FFF1F5F9' } } };
-                                if (colNumber === 5) cell.alignment = { vertical: 'middle', horizontal: 'left' };
-                                if (colNumber > 7 && cell.value !== '') cell.font = { bold: true, size: 9 };
-                            });
-                        });
-                    });
-
-                    // Group Total Row
-                    const groupCalc = calculateGroupStats(group, exportWeeks);
-                    const gTotalRowData = { name: `${group.name} 합계 (Total MM)` };
-                    exportWeeks.forEach((w, wIdx) => {
-                        const dateStr = format(w, 'yyyy-MM-dd');
-                        const total = groupCalc.stats[wIdx] || 0;
-                        gTotalRowData[dateStr] = total > 0 ? total : '';
-                    });
-                    const gTotalRow = worksheet.addRow(gTotalRowData);
-                    worksheet.mergeCells(gTotalRow.number, 1, gTotalRow.number, 7);
-                    gTotalRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
-                        cell.font = { bold: true, size: 8, color: { argb: 'FF475569' } };
-                        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
-                        cell.alignment = { vertical: 'middle', horizontal: colNumber <= 7 ? 'right' : 'center' };
-                        if (colNumber > 7 && cell.value > group.memberCount) {
-                            cell.font = { bold: true, size: 9, color: { argb: 'FFEF4444' } };
-                        }
-                    });
-
-                    // Weekly Personnel Status Rows (미투입 / 부분 투입 / 풀투입)
-                    // Same data the on-screen group summary shows below the totals row.
-                    const statusRows = [
-                        {
-                            label: '미투입 (0 MM)',
-                            key: 'zero',
-                            bgArgb: 'FFF1F5F9',
-                            textArgb: 'FF475569',
-                        },
-                        {
-                            label: '부분 투입 (1.0 MM 미만)',
-                            key: 'under50',
-                            bgArgb: 'FFFFFBEB',
-                            textArgb: 'FFD97706',
-                        },
-                        {
-                            label: '풀투입 (1.1 MM 이상)',
-                            key: 'over100',
-                            bgArgb: 'FFEFF6FF',
-                            textArgb: 'FF2563EB',
-                        },
-                    ];
-
-                    statusRows.forEach(({ label, key, bgArgb, textArgb }) => {
-                        const rowData = { name: label };
-                        let maxNameCount = 0;
-                        exportWeeks.forEach(w => {
-                            const dateStr = format(w, 'yyyy-MM-dd');
-                            const names = groupCalc.weeklyStatus[dateStr]?.[key] || [];
-                            if (names.length > maxNameCount) maxNameCount = names.length;
-                            rowData[dateStr] = names.length > 0 ? names.join('\n') : '';
-                        });
-                        const statusRow = worksheet.addRow(rowData);
-                        worksheet.mergeCells(statusRow.number, 1, statusRow.number, 7);
-                        // Roughly 14px per name + padding; cap so we don't make absurdly tall rows
-                        statusRow.height = Math.min(Math.max(maxNameCount * 14 + 4, 18), 240);
-                        statusRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
-                            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgArgb } };
-                            cell.font = { size: 8, color: { argb: textArgb }, bold: colNumber <= 7 };
-                            cell.alignment = {
-                                vertical: 'top',
-                                horizontal: colNumber <= 7 ? 'right' : 'center',
-                                wrapText: true,
-                            };
-                            cell.border = {
-                                bottom: { style: 'hair', color: { argb: 'FFCBD5E1' } },
-                            };
-                        });
-                    });
+                // Group view: one sheet per group (always all groups, ignoring
+                // selectedGroup), plus a final "전체" sheet with everything combined.
+                groupStats.forEach(group => {
+                    const ws = setupWorksheet(group.name);
+                    renderGroupBlock(ws, group);
                 });
+                const totalWs = setupWorksheet('전체');
+                groupStats.forEach(group => renderGroupBlock(totalWs, group));
             }
 
-            // 5. Finalize and Save
             const buffer = await workbook.xlsx.writeBuffer();
             const fileName = `프로젝트배정현황_${viewMode === 'project' ? '프로젝트별' : '그룹별'}_${format(new Date(), 'yyyyMMdd')}.xlsx`;
             saveAs(new Blob([buffer]), fileName);
