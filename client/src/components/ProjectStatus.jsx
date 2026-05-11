@@ -2790,7 +2790,7 @@ const ProjectStatus = () => {
                         });
                     });
 
-                    // Group Total Row 
+                    // Group Total Row
                     const groupCalc = calculateGroupStats(group, exportWeeks);
                     const gTotalRowData = { name: `${group.name} 합계 (Total MM)` };
                     exportWeeks.forEach((w, wIdx) => {
@@ -2807,6 +2807,56 @@ const ProjectStatus = () => {
                         if (colNumber > 7 && cell.value > group.memberCount) {
                             cell.font = { bold: true, size: 9, color: { argb: 'FFEF4444' } };
                         }
+                    });
+
+                    // Weekly Personnel Status Rows (미투입 / 부분 투입 / 풀투입)
+                    // Same data the on-screen group summary shows below the totals row.
+                    const statusRows = [
+                        {
+                            label: '미투입 (0 MM)',
+                            key: 'zero',
+                            bgArgb: 'FFF1F5F9',
+                            textArgb: 'FF475569',
+                        },
+                        {
+                            label: '부분 투입 (1.0 MM 미만)',
+                            key: 'under50',
+                            bgArgb: 'FFFFFBEB',
+                            textArgb: 'FFD97706',
+                        },
+                        {
+                            label: '풀투입 (1.1 MM 이상)',
+                            key: 'over100',
+                            bgArgb: 'FFEFF6FF',
+                            textArgb: 'FF2563EB',
+                        },
+                    ];
+
+                    statusRows.forEach(({ label, key, bgArgb, textArgb }) => {
+                        const rowData = { name: label };
+                        let maxNameCount = 0;
+                        exportWeeks.forEach(w => {
+                            const dateStr = format(w, 'yyyy-MM-dd');
+                            const names = groupCalc.weeklyStatus[dateStr]?.[key] || [];
+                            if (names.length > maxNameCount) maxNameCount = names.length;
+                            rowData[dateStr] = names.length > 0 ? names.join('\n') : '';
+                        });
+                        const statusRow = worksheet.addRow(rowData);
+                        worksheet.mergeCells(statusRow.number, 1, statusRow.number, 7);
+                        // Roughly 14px per name + padding; cap so we don't make absurdly tall rows
+                        statusRow.height = Math.min(Math.max(maxNameCount * 14 + 4, 18), 240);
+                        statusRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+                            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgArgb } };
+                            cell.font = { size: 8, color: { argb: textArgb }, bold: colNumber <= 7 };
+                            cell.alignment = {
+                                vertical: 'top',
+                                horizontal: colNumber <= 7 ? 'right' : 'center',
+                                wrapText: true,
+                            };
+                            cell.border = {
+                                bottom: { style: 'hair', color: { argb: 'FFCBD5E1' } },
+                            };
+                        });
                     });
                 });
             }
