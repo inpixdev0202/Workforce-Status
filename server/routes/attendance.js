@@ -26,7 +26,7 @@ router.get('/', async (req, res) => {
             params.push(start_date, end_date);
         } else if (month) {
             // Format: YYYY-MM
-            sql += ' AND strftime("%Y-%m", a.date) = ?';
+            sql += " AND DATE_FORMAT(a.date, '%Y-%m') = ?";
             params.push(month);
         }
 
@@ -156,7 +156,7 @@ router.delete('/:id', async (req, res) => {
     try {
         const result = await run('DELETE FROM attendance WHERE id = ?', [req.params.id]);
 
-        if (result.changes === 0) {
+        if (result.affectedRows === 0) {
             return res.status(404).json({ error: 'Attendance record not found' });
         }
 
@@ -188,7 +188,7 @@ router.get('/summary/monthly', async (req, res) => {
       FROM groups g
       LEFT JOIN employees e ON g.id = e.group_id AND e.status = 'active'
       LEFT JOIN attendance a ON e.id = a.employee_id 
-        AND strftime('%Y-%m', a.date) = ?
+        AND DATE_FORMAT(a.date, '%Y-%m') = ?
       GROUP BY g.id
       ORDER BY g.display_order
     `, [month]);

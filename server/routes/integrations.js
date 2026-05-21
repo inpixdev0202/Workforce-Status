@@ -67,7 +67,7 @@ router.put('/:id', async (req, res) => {
             WHERE id = ?
         `, values);
 
-        if (result.changes === 0) {
+        if (result.affectedRows === 0) {
             return res.status(404).json({ error: 'Integration not found' });
         }
 
@@ -82,7 +82,7 @@ router.put('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
     try {
         const result = await run('DELETE FROM integrations WHERE id = ?', [req.params.id]);
-        if (result.changes === 0) {
+        if (result.affectedRows === 0) {
             return res.status(404).json({ error: 'Integration not found' });
         }
         res.json({ message: 'Integration deleted successfully' });

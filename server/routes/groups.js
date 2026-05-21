@@ -100,7 +100,7 @@ router.put('/:id', async (req, res) => {
       WHERE id = ?
     `, values);
 
-        if (result.changes === 0) {
+        if (result.affectedRows === 0) {
             return res.status(404).json({ error: 'Group not found' });
         }
 
@@ -128,7 +128,7 @@ router.delete('/:id', async (req, res) => {
 
         const result = await run('DELETE FROM groups WHERE id = ?', [req.params.id]);
 
-        if (result.changes === 0) {
+        if (result.affectedRows === 0) {
             return res.status(404).json({ error: 'Group not found' });
         }
 

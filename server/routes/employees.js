@@ -173,7 +173,7 @@ router.put('/:id', authenticateToken, requireRoles(WRITE_ROLES), async (req, res
 
         console.log('Update result:', result);
 
-        if (result.changes === 0) {
+        if (result.affectedRows === 0) {
             return res.status(404).json({ error: `Employee not found (ID: ${employeeId})` });
         }
 
@@ -195,7 +195,7 @@ router.delete('/:id', authenticateToken, requireRoles(WRITE_ROLES), async (req, 
     try {
         const result = await run('DELETE FROM employees WHERE id = ?', [req.params.id]);
 
-        if (result.changes === 0) {
+        if (result.affectedRows === 0) {
             return res.status(404).json({ error: 'Employee not found' });
         }
 

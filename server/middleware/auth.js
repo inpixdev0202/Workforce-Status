@@ -25,7 +25,9 @@ export const authenticateToken = (req, res, next) => {
             }
             if (user.permissions) {
                 try {
-                    user.permissions = JSON.parse(user.permissions);
+                    user.permissions = typeof user.permissions === 'string'
+                        ? JSON.parse(user.permissions)
+                        : user.permissions;
                 } catch (e) {
                     user.permissions = {};
                 }

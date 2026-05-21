@@ -43,7 +43,7 @@ router.post('/login', async (req, res) => {
                 email: user.email,
                 role: user.role,
                 group_id: user.group_id,
-                permissions: user.permissions ? JSON.parse(user.permissions) : {}
+                permissions: user.permissions ? (typeof user.permissions === 'string' ? JSON.parse(user.permissions) : user.permissions) : {}
             }
         });
 

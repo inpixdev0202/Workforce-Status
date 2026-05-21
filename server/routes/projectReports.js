@@ -4,6 +4,15 @@ import { authenticateToken } from '../middleware/auth.js';
 
 const router = express.Router();
 
+// mysql2 auto-parses JSON columns, so handle both object and string cases
+const parseDataJson = (raw) => {
+    if (!raw) return null;
+    if (typeof raw === 'string') {
+        try { return JSON.parse(raw); } catch { return null; }
+    }
+    return raw; // already an object
+};
+
 // Get report for a specific date
 router.get('/:date', authenticateToken, async (req, res) => {
     try {
@@ -12,7 +21,7 @@ router.get('/:date', authenticateToken, async (req, res) => {
         const report = await get('SELECT * FROM project_reports WHERE week_date = ?', [date]);
         
         if (report) {
-            let data = JSON.parse(report.data_json);
+            let data = parseDataJson(report.data_json);
 
             // If not Admin and not report_admin, filter rows to only show those owned by the user (PD or PM)
             const isReportAdmin = role === 'Admin' || (req.user.permissions && req.user.permissions.report_admin === true);
@@ -62,7 +71,7 @@ router.post('/', authenticateToken, async (req, res) => {
             let existingRows = [];
 
             if (existingReport) {
-                const parsedExisting = JSON.parse(existingReport.data_json);
+                const parsedExisting = parseDataJson(existingReport.data_json);
                 existingRows = Array.isArray(parsedExisting) ? parsedExisting : (parsedExisting.rows || []);
             }
 
@@ -123,7 +132,7 @@ router.post('/update-all-column-widths', authenticateToken, async (req, res) => 
         const allReports = await query('SELECT * FROM project_reports');
         
         for (const report of allReports) {
-            let data = JSON.parse(report.data_json);
+            let data = parseDataJson(report.data_json);
             
             if (Array.isArray(data)) {
                 // Migrate legacy array to new object format
@@ -177,7 +186,7 @@ router.post('/sync-project-field', authenticateToken, async (req, res) => {
         let updateCount = 0;
 
         for (const report of allReports) {
-            let data = JSON.parse(report.data_json);
+            let data = parseDataJson(report.data_json);
             let rows = Array.isArray(data) ? data : (data.rows || []);
             let modified = false;
 
