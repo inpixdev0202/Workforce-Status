@@ -23,4 +23,6 @@ services:
     volumes:
       - ./client:/app
       - /app/node_modules
+    environment:
+      - VITE_PROXY_TARGET=http://backend:5000
     restart: unless-stopped
