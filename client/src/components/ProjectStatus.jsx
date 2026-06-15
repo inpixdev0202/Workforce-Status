@@ -870,6 +870,49 @@ const InlineAddRow = React.memo(({
 });
 
 
+// Intersection Observer를 활용한 세로축(행) 지연 렌더링 wrapper
+const LazyProjectRowWrapper = React.memo(({ children, estimatedHeight = 100 }) => {
+    const [isIntersecting, setIsIntersecting] = useState(false);
+    const containerRef = useRef(null);
+
+    useEffect(() => {
+        const observer = new IntersectionObserver(
+            ([entry]) => {
+                setIsIntersecting(entry.isIntersecting);
+            },
+            {
+                root: null, // Viewport 기준
+                rootMargin: '400px 0px 400px 0px', // 상하 버퍼 400px을 주어 스크롤 시 이질감 최소화
+                threshold: 0.01
+            }
+        );
+
+        if (containerRef.current) {
+            observer.observe(containerRef.current);
+        }
+
+        return () => {
+            if (containerRef.current) {
+                observer.unobserve(containerRef.current);
+            }
+        };
+    }, []);
+
+    return (
+        <tbody ref={containerRef}>
+            {isIntersecting ? (
+                children
+            ) : (
+                // 화면 밖일 때는 뼈대(최소 높이를 가진 행)만 렌더링하여 DOM 트리 노드 수 최소화
+                <tr>
+                    <td colSpan={150} style={{ height: `${estimatedHeight}px`, border: 'none', background: 'transparent' }} />
+                </tr>
+            )}
+        </tbody>
+    );
+});
+
+
 // Sub-components for better organization and section management
 const ProjectItem = React.memo(({
     project,
@@ -4033,19 +4076,19 @@ const ProjectStatus = () => {
                             {rightSpacerWidth > 0 && <th style={{ width: rightSpacerWidth, minWidth: rightSpacerWidth, backgroundColor: 'var(--surface-high)' }} />}
                         </tr>
                     </thead>
-                    <tbody>
-                        {viewMode === 'project' ? (
-                            (() => {
-                                let currentGlobalRowIndex = 0;
-                                return (
-                                    <>
-                                        {/* Active Projects */}
-                                        {filteredData.active.map((project, pIdx) => {
-                                            const memberStartIndex = currentGlobalRowIndex;
-                                            currentGlobalRowIndex += project.members.length;
-                                            if (!project.isCompleted) currentGlobalRowIndex += 1;
+                    {viewMode === 'project' ? (
+                        (() => {
+                            let currentGlobalRowIndex = 0;
+                            return (
+                                <>
+                                    {/* Active Projects */}
+                                    {filteredData.active.map((project, pIdx) => {
+                                        const memberStartIndex = currentGlobalRowIndex;
+                                        currentGlobalRowIndex += project.members.length;
+                                        if (!project.isCompleted) currentGlobalRowIndex += 1;
 
-                                            return (
+                                        return (
+                                            <LazyProjectRowWrapper key={project.id} estimatedHeight={60 + (project.members.length * 40)}>
                                                 <ProjectItem
                                                     key={project.id}
                                                     project={project}
@@ -4088,12 +4131,14 @@ const ProjectStatus = () => {
                                                     onToggleCountInStats={handleToggleCountInStats}
                                                     isAdmin={user?.role === 'Admin'}
                                                 />
-                                            );
-                                        })}
+                                            </LazyProjectRowWrapper>
+                                        );
+                                    })}
 
-                                        {/* Completed Projects Section */}
-                                        {filteredData.completed.length > 0 && showCompleted && (
-                                            <>
+                                    {/* Completed Projects Section */}
+                                    {filteredData.completed.length > 0 && showCompleted && (
+                                        <>
+                                            <tbody key="completed-sec-header">
                                                 <tr className="completed-section-header" onClick={() => setIsCompletedSectionExpanded(!isCompletedSectionExpanded)}>
                                                     <td colSpan={8 + weeks.length} style={{
                                                         backgroundColor: 'var(--surface-high)',
@@ -4114,14 +4159,16 @@ const ProjectStatus = () => {
                                                         </div>
                                                     </td>
                                                 </tr>
-                                                {isCompletedSectionExpanded && filteredData.completed.map((project, pIdx) => {
-                                                    const isExpanded = expandedCompletedProjects.includes(project.id);
-                                                    const memberStartIndex = currentGlobalRowIndex;
-                                                    if (isExpanded) {
-                                                        currentGlobalRowIndex += project.members.length;
-                                                    }
+                                            </tbody>
+                                            {isCompletedSectionExpanded && filteredData.completed.map((project, pIdx) => {
+                                                const isExpanded = expandedCompletedProjects.includes(project.id);
+                                                const memberStartIndex = currentGlobalRowIndex;
+                                                if (isExpanded) {
+                                                    currentGlobalRowIndex += project.members.length;
+                                                }
 
-                                                    return (
+                                                return (
+                                                    <LazyProjectRowWrapper key={project.id} estimatedHeight={isExpanded ? 60 + (project.members.length * 40) : 60}>
                                                         <ProjectItem
                                                             key={project.id}
                                                             project={project}
@@ -4168,21 +4215,23 @@ const ProjectStatus = () => {
                                                             canEdit={canEdit}
                                                             onToggleCountInStats={handleToggleCountInStats}
                                                         />
-                                                    );
-                                                })}
-                                            </>
-                                        )}
-                                    </>
-                                );
-                            })()
-                        ) : (
-                            (() => {
-                                let globalRowIndex = 0;
-                                return groupStats.filter(g => selectedGroup === 'ALL' || g.name === selectedGroup).map((group) => {
-                                    const groupCalc = groupCalcMap[group.name];
-                                    return (
-                                        <React.Fragment key={group.name}>
-                                            {/* Group Header Row */}
+                                                    </LazyProjectRowWrapper>
+                                                );
+                                            })}
+                                        </>
+                                    )}
+                                </>
+                            );
+                        })()
+                    ) : (
+                        (() => {
+                            let globalRowIndex = 0;
+                            return groupStats.filter(g => selectedGroup === 'ALL' || g.name === selectedGroup).map((group) => {
+                                const groupCalc = groupCalcMap[group.name];
+                                return (
+                                    <React.Fragment key={group.name}>
+                                        {/* Group Header Row 전용 tbody */}
+                                        <tbody key={`g-tbody-${group.name}`}>
                                             <tr key={`group-h-${group.name}`} style={{ backgroundColor: 'var(--surface-high)' }}>
                                                 <td
                                                     style={{ position: 'sticky', left: 0, zIndex: 12, backgroundColor: 'var(--surface-high)', fontWeight: 'bold' }}
@@ -4213,126 +4262,127 @@ const ProjectStatus = () => {
                                                 })}
                                                 {rightSpacerWidth > 0 && <td style={{ width: rightSpacerWidth, backgroundColor: 'var(--surface-high)' }} />}
                                             </tr>
+                                        </tbody>
 
-                                            {group.projects.map((p) => (
-                                                <React.Fragment key={p.id}>
-                                                    <tr className="sub-header">
-                                                        <td colSpan={8} style={{ position: 'sticky', left: 0, zIndex: 11, backgroundColor: 'var(--primary-glow)', paddingLeft: '2rem', fontSize: '0.9em' }}>
-                                                            <div className="flex items-center justify-between w-full">
-                                                                <div className="flex items-center gap-xs">
-                                                                    <span>📁 {p.name}</span>
-                                                                    <span className={`badge ${p.type === 'Internal' ? 'badge-primary' : (p.type === 'Leave' || p.type === 'Annual' ? 'badge-neutral' : 'badge-success')}`} style={{ fontSize: '0.7em', opacity: 0.8 }}>
-                                                                        {p.type || 'Client'}
-                                                                    </span>
-                                                                    {p.status && (
-                                                                        <span className="badge" style={{
-                                                                            backgroundColor: p.status === '진행중' ? '#16a34a' : p.status === '진행예정' ? '#2563eb' : '#6b7280',
-                                                                            fontSize: '0.7em', opacity: 0.8, color: 'white'
-                                                                        }}>{p.status}</span>
-                                                                    )}
-                                                                </div>
-                                                                {canEdit && (
-                                                                    <div className="flex items-center gap-xs" style={{ marginRight: '8px' }}>
-                                                                        <button
-                                                                            onClick={() => handleHideProject(p.id, p.name)}
-                                                                            className="reorder-btn"
-                                                                            title="프로젝트 숨기기"
-                                                                            style={{ opacity: 0.5 }}
-                                                                        >👁️‍🗨️</button>
-                                                                        <button
-                                                                            onClick={() => handleDeleteProject(p.id, p.name)}
-                                                                            className="reorder-btn hover-danger"
-                                                                            title="프로젝트 삭제"
-                                                                            style={{ opacity: 0.5 }}
-                                                                        >🗑️</button>
-                                                                    </div>
+                                        {group.projects.map((p) => (
+                                            <LazyProjectRowWrapper key={p.id} estimatedHeight={60 + (p.assignments.length * 40)}>
+                                                <tr className="sub-header">
+                                                    <td colSpan={8} style={{ position: 'sticky', left: 0, zIndex: 11, backgroundColor: 'var(--primary-glow)', paddingLeft: '2rem', fontSize: '0.9em' }}>
+                                                        <div className="flex items-center justify-between w-full">
+                                                            <div className="flex items-center gap-xs">
+                                                                <span>📁 {p.name}</span>
+                                                                <span className={`badge ${p.type === 'Internal' ? 'badge-primary' : (p.type === 'Leave' || p.type === 'Annual' ? 'badge-neutral' : 'badge-success')}`} style={{ fontSize: '0.7em', opacity: 0.8 }}>
+                                                                    {p.type || 'Client'}
+                                                                </span>
+                                                                {p.status && (
+                                                                    <span className="badge" style={{
+                                                                        backgroundColor: p.status === '진행중' ? '#16a34a' : p.status === '진행예정' ? '#2563eb' : '#6b7280',
+                                                                        fontSize: '0.7em', opacity: 0.8, color: 'white'
+                                                                    }}>{p.status}</span>
                                                                 )}
                                                             </div>
-                                                        </td>
-                                                        {leftSpacerWidth > 0 && <td style={{ width: leftSpacerWidth, backgroundColor: 'rgba(59, 130, 246, 0.02)' }} />}
-                                                        {visibleWeeks.map((week, wIdx) => (
-                                                            <td key={wIdx} style={{
-                                                                backgroundColor: 'rgba(59, 130, 246, 0.02)',
-                                                                borderRight: wIdx === visibleCurrentWeekIdx ? '2px solid #ef4444' : 'none',
-                                                                minWidth: `${columnWidths.week}px`,
-                                                                maxWidth: `${columnWidths.week}px`
-                                                            }}></td>
-                                                        ))}
-                                                        {rightSpacerWidth > 0 && <td style={{ width: rightSpacerWidth, backgroundColor: 'rgba(59, 130, 246, 0.02)' }} />}
-                                                    </tr>
-                                                    {p.assignments.map((assignment, aIdx) => {
-                                                        const currentMemberIndex = globalRowIndex++;
-                                                        return (
-                                                            <GroupMemberRow
-                                                                key={`gmem-${assignment.id}`}
-                                                                assignment={assignment}
-                                                                weeks={visibleWeeks}
-                                                                weekDateStrs={visibleWeekDateStrs}
-                                                                weekEndStrs={visibleWeekEndStrs}
-                                                                currentWeekIdx={visibleCurrentWeekIdx}
-                                                                columnWidths={columnWidths}
-                                                                cursor={cursor}
-                                                                currentMemberIndex={currentMemberIndex}
-                                                                getStickyLeft={getStickyLeft}
-                                                                autoFormatDate={autoFormatDate}
-                                                                handleAssignmentUpdate={handleAssignmentUpdate}
-                                                                handleAllocationChange={handleAllocationChange}
-                                                                handleAllocationBlur={handleAllocationBlur}
-                                                                handleFillForward={handleFillForward}
-                                                                handleKeyDown={handleKeyDown}
-                                                                handlePaste={handlePaste}
-                                                                handleRemoveMember={handleRemoveMember}
-                                                                handleReorderMember={handleReorderMember}
-                                                                projectId={p.id}
-                                                                projectMemberCount={p.assignments.length}
-                                                                mIdx={aIdx}
-                                                                setCursor={setCursor}
-                                                                getFilteredEmployees={getFilteredEmployees}
-                                                                cellRefs={cellRefs}
-                                                                leftSpacerWidth={leftSpacerWidth}
-                                                                rightSpacerWidth={rightSpacerWidth}
-                                                                canEdit={canEdit}
-                                                            />
-                                                        );
-                                                    })}
+                                                            {canEdit && (
+                                                                <div className="flex items-center gap-xs" style={{ marginRight: '8px' }}>
+                                                                    <button
+                                                                        onClick={() => handleHideProject(p.id, p.name)}
+                                                                        className="reorder-btn"
+                                                                        title="프로젝트 숨기기"
+                                                                        style={{ opacity: 0.5 }}
+                                                                    >👁️‍🗨️</button>
+                                                                    <button
+                                                                        onClick={() => handleDeleteProject(p.id, p.name)}
+                                                                        className="reorder-btn hover-danger"
+                                                                        title="프로젝트 삭제"
+                                                                        style={{ opacity: 0.5 }}
+                                                                    >🗑️</button>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                    {leftSpacerWidth > 0 && <td style={{ width: leftSpacerWidth, backgroundColor: 'rgba(59, 130, 246, 0.02)' }} />}
+                                                    {visibleWeeks.map((week, wIdx) => (
+                                                        <td key={wIdx} style={{
+                                                            backgroundColor: 'rgba(59, 130, 246, 0.02)',
+                                                            borderRight: wIdx === visibleCurrentWeekIdx ? '2px solid #ef4444' : 'none',
+                                                            minWidth: `${columnWidths.week}px`,
+                                                            maxWidth: `${columnWidths.week}px`
+                                                        }}></td>
+                                                    ))}
+                                                    {rightSpacerWidth > 0 && <td style={{ width: rightSpacerWidth, backgroundColor: 'rgba(59, 130, 246, 0.02)' }} />}
+                                                </tr>
+                                                {p.assignments.map((assignment, aIdx) => {
+                                                    const currentMemberIndex = globalRowIndex++;
+                                                    return (
+                                                        <GroupMemberRow
+                                                            key={`gmem-${assignment.id}`}
+                                                            assignment={assignment}
+                                                            weeks={visibleWeeks}
+                                                            weekDateStrs={visibleWeekDateStrs}
+                                                            weekEndStrs={visibleWeekEndStrs}
+                                                            currentWeekIdx={visibleCurrentWeekIdx}
+                                                            columnWidths={columnWidths}
+                                                            cursor={cursor}
+                                                            currentMemberIndex={currentMemberIndex}
+                                                            getStickyLeft={getStickyLeft}
+                                                            autoFormatDate={autoFormatDate}
+                                                            handleAssignmentUpdate={handleAssignmentUpdate}
+                                                            handleAllocationChange={handleAllocationChange}
+                                                            handleAllocationBlur={handleAllocationBlur}
+                                                            handleFillForward={handleFillForward}
+                                                            handleKeyDown={handleKeyDown}
+                                                            handlePaste={handlePaste}
+                                                            handleRemoveMember={handleRemoveMember}
+                                                            handleReorderMember={handleReorderMember}
+                                                            projectId={p.id}
+                                                            projectMemberCount={p.assignments.length}
+                                                            mIdx={aIdx}
+                                                            setCursor={setCursor}
+                                                            getFilteredEmployees={getFilteredEmployees}
+                                                            cellRefs={cellRefs}
+                                                            leftSpacerWidth={leftSpacerWidth}
+                                                            rightSpacerWidth={rightSpacerWidth}
+                                                            canEdit={canEdit}
+                                                        />
+                                                    );
+                                                })}
 
-                                                    {/* Group View Inline Add Row per Project */}
-                                                    {canEdit && (() => {
-                                                        const addRowIndex = globalRowIndex++;
-                                                        return (
-                                                            <InlineAddRow
-                                                                key={`gadd-${p.id}`}
-                                                                project={p}
-                                                                weeks={visibleWeeks}
-                                                                columnWidths={columnWidths}
-                                                                viewMode={viewMode}
-                                                                getStickyLeft={getStickyLeft}
-                                                                isCurrentWeek={isCurrentWeek}
-                                                                cursor={cursor}
-                                                                addRowIndex={addRowIndex}
-                                                                handleInlineAssign={handleInlineAssign}
-                                                                handleTBDAssign={(projectId, tbdType) => handleAssignTBD(projectId, tbdType, group.name, group.color, group.id)}
-                                                                getFilteredEmployees={getFilteredEmployees}
-                                                                setCursor={setCursor}
-                                                                cellRefs={cellRefs}
-                                                                leftSpacerWidth={leftSpacerWidth}
-                                                                rightSpacerWidth={rightSpacerWidth}
-                                                            />
-                                                        );
-                                                    })()}
-                                                </React.Fragment>
-                                            ))}
+                                                {/* Group View Inline Add Row per Project */}
+                                                {canEdit && (() => {
+                                                    const addRowIndex = globalRowIndex++;
+                                                    return (
+                                                        <InlineAddRow
+                                                            key={`gadd-${p.id}`}
+                                                            project={p}
+                                                            weeks={visibleWeeks}
+                                                            columnWidths={columnWidths}
+                                                            viewMode={viewMode}
+                                                            getStickyLeft={getStickyLeft}
+                                                            isCurrentWeek={isCurrentWeek}
+                                                            cursor={cursor}
+                                                            addRowIndex={addRowIndex}
+                                                            handleInlineAssign={handleInlineAssign}
+                                                            handleTBDAssign={(projectId, tbdType) => handleAssignTBD(projectId, tbdType, group.name, group.color, group.id)}
+                                                            getFilteredEmployees={getFilteredEmployees}
+                                                            setCursor={setCursor}
+                                                            cellRefs={cellRefs}
+                                                            leftSpacerWidth={leftSpacerWidth}
+                                                            rightSpacerWidth={rightSpacerWidth}
+                                                        />
+                                                    );
+                                                })()}
+                                            </LazyProjectRowWrapper>
+                                        ))}
 
-                                            {/* Group Summary Row */}
+                                        {/* Group Summary Row 및 통계 데이터 전용 tbody */}
+                                        <tbody key={`g-sum-tbody-${group.name}`}>
                                             {(() => {
                                                 const { stats, weeklyStatus, activeClientProjects, headcount, idle } = groupCalc;
                                                 const monthName = (d) => format(d, 'M월');
 
                                                 return (
-                                                    <React.Fragment key={`summary-${group.name}`}>
+                                                    <>
                                                         <tr style={{ backgroundColor: '#f8fafc', borderBottom: '2px solid var(--border)' }}>
                                                             <td colSpan={8 + weeks.length} style={{ padding: 0 }}>
-                                                                {/* Wrapper to enforce sticky positioning inside the colSpan */}
                                                                 <div style={{ position: 'sticky', left: 0, padding: '8px 16px', backgroundColor: '#f8fafc', zIndex: 11, width: 'max-content' }}>
                                                                     <div style={{ display: 'flex', gap: '24px', fontSize: '0.85em', color: '#334155', flexWrap: 'wrap' }}>
                                                                         <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
@@ -4486,15 +4536,15 @@ const ProjectStatus = () => {
                                                             })}
                                                             {rightSpacerWidth > 0 && <td style={{ width: rightSpacerWidth, backgroundColor: '#eff6ff' }} />}
                                                         </tr>
-                                                    </React.Fragment>
+                                                    </>
                                                 );
                                             })()}
-                                        </React.Fragment>
-                                    );
-                                });
-                            })()
-                        )}
-                    </tbody>
+                                        </tbody>
+                                    </React.Fragment>
+                                );
+                            });
+                        })()
+                    )}
                 </table>
             </div>
 
