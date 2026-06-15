@@ -10,6 +10,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { useDataCache } from '../context/DataCacheContext';
 import { hasAccess, MENU_ITEMS } from '../constants/menuConfig';
+import { useProjectStatus } from '../hooks/useProjectStatus';
 
 // --- Memoized Sub-components for Performance ---
 
@@ -1223,204 +1224,82 @@ const ProjectItem = React.memo(({
     );
 });
 
+const COL_BUFFER = 8;
+
 const ProjectStatus = () => {
-    const { user } = useAuth();
-    const projectsMenu = MENU_ITEMS.find(m => m.id === 'projects');
-    const canEdit = hasAccess(user, projectsMenu);
-    const dataCache = useDataCache();
-    // Initialize from cache so a remount (after navigating from another menu)
-    // shows the previous data instantly — no spinner, no API wait.
-    const initialMatrix = dataCache.getMatrixSync() || [];
-    const initialEmployees = dataCache.getEmployeesSync({ status: 'active' }) || [];
-    const [data, setData] = useState(initialMatrix);
-    const dataRef = useRef(data);
-    useEffect(() => {
-        dataRef.current = data;
-        // Mirror local edits into cache so the next mount sees them.
-        if (data.length > 0) dataCache.setMatrixData(data);
-    }, [data, dataCache]);
-    const [employees, setEmployees] = useState(initialEmployees);
-    useEffect(() => {
-        if (employees.length > 0) dataCache.setEmployeesData({ status: 'active' }, employees);
-    }, [employees, dataCache]);
-    // Initialize weeks synchronously so the first render already has the
-    // full 156-week column set. Otherwise we render once with weeks=[] (only
-    // sticky columns visible) and again after the useEffect sets weeks —
-    // that second pass is the "MM 숫자가 늦게 차오르는" effect users see.
-    const [weeks, setWeeks] = useState(() => {
-        const initialStart = addWeeks(startOfWeek(new Date(), { weekStartsOn: 1 }), -52);
-        const start = startOfWeek(initialStart, { weekStartsOn: 1 });
-        const end = addWeeks(start, 155);
-        return eachWeekOfInterval({ start, end }, { weekStartsOn: 1 });
-    });
-    const [cursor, setCursor] = useState({ memberIndex: null, weekIndex: null });
-    const cellRefs = useRef({});
-    // Skip the initial spinner if we already have cached data from a prior mount.
-    const [loading, setLoading] = useState(initialMatrix.length === 0);
-    const assigningProjects = useRef(new Set()); // tracks in-flight assignment requests by projectId
-    // Buffer of 8 weeks on each side is enough to prevent flicker during scroll.
-    // Previously 52 (1 year), which effectively rendered all 156 weeks and caused
-    // 30k+ cells per group → main-thread block on group switch ("응답 없음").
-    const COL_BUFFER = 8;
-    // Column virtualization: track visible week range.
-    // startDate is today-52w, so today sits at index 52. Initialize the range
-    // around today (instead of 0..50) so the very first render isn't wasted on
-    // a year-ago window before the auto-scroll-to-today effect kicks in.
-    const [visibleColRange, setVisibleColRange] = useState(() => {
-        const todayIdx = 52;
-        const visibleEstimate = 50; // refined by handleTableScroll on first scroll
-        return {
-            start: Math.max(0, todayIdx - COL_BUFFER),
-            end: todayIdx + visibleEstimate + COL_BUFFER,
-        };
-    });
-    const [showProjectModal, setShowProjectModal] = useState(false);
-    const [showMemberModal, setShowMemberModal] = useState(false);
-    const [selectedProject, setSelectedProject] = useState(null);
-    // Start 52 weeks (1 year) ago so we can scroll back smoothly without re-rendering
-    const [startDate, setStartDate] = useState(() => addWeeks(startOfWeek(new Date(), { weekStartsOn: 1 }), -52));
-    const [viewMode, setViewMode] = useState(() => {
-        return localStorage.getItem('wfs_view_mode') || 'project';
-    }); // 'project' or 'group'
-
-    useEffect(() => {
-        localStorage.setItem('wfs_view_mode', viewMode);
-    }, [viewMode]);
-    const [selectedGroup, setSelectedGroup] = useState(() => {
-        return localStorage.getItem('wfs_selected_group') || 'ALL';
-    }); // 'ALL' or specific group name
-
-    useEffect(() => {
-        localStorage.setItem('wfs_selected_group', selectedGroup);
-    }, [selectedGroup]);
-    const [hiddenProjectIds, setHiddenProjectIds] = useState(() => {
-        try {
-            const saved = localStorage.getItem('wfs_hidden_project_ids');
-            return saved ? JSON.parse(saved) : [];
-        } catch (e) {
-            return [];
-        }
+    const [confirmConfig, setConfirmConfig] = useState({
+        isOpen: false,
+        title: '',
+        message: '',
+        onConfirm: null,
+        type: 'primary'
     });
 
-    useEffect(() => {
-        localStorage.setItem('wfs_hidden_project_ids', JSON.stringify(hiddenProjectIds));
-    }, [hiddenProjectIds]);
-
-    const [showHideManager, setShowHideManager] = useState(false);
-    const hideManagerRef = useRef(null);
-
-
-    const [isGroupTransitioning, startGroupTransition] = useTransition();
-    // Scroll Sync Refs
-    const tableContainerRef = useRef(null);
-    const sliderRef = useRef(null);
-    const visibleDateRef = useRef(null);
-    const isScrollingRef = useRef(false); // To prevent infinite loop between slider and container sync
-    const hasAutoScrolled = useRef(false); // To scroll to "Today" on mount
-    const [modalSearchTerm, setModalSearchTerm] = useState('');
-    const [projectSearchTerm, setProjectSearchTerm] = useState('');
-    const [inlineInputRect, setInlineInputRect] = useState(null);
-
-    const [allMasterProjects, setAllMasterProjects] = useState([]);
-    const [masterDataLoading, setMasterDataLoading] = useState(false);
-
-    const handleAddProject = async (newProjectData) => {
-        try {
-            // Before adding, ensure the project name is unique in the current list
-            const existingProject = data.find(p => p.name === newProjectData.name);
-            if (existingProject) {
-                if (viewMode === 'group') {
-                    // In Group View, if it exists, just open member modal for it
-                    setSelectedProject(existingProject);
-                    setModalSearchTerm('');
-                    setShowMemberModal(true);
-                    setShowProjectModal(false);
-                    return;
-                }
-                alert('이미 보드에 추가된 프로젝트입니다.');
-                return;
-            }
-
-            await projectsAPI.create(newProjectData);
-            setShowProjectModal(false);
-            dataCache.invalidateProjects();
-            loadData({ force: true });
-        } catch (err) {
-            console.error('Failed to create project:', err);
-            alert('프로젝트 추가 중 오류가 발생했습니다.');
-        }
-    };
-
-    const loadMasterData = useCallback(async () => {
-        setMasterDataLoading(true);
-        try {
-            const [projData, empData] = await Promise.all([
-                dataCache.getProjects(),
-                dataCache.getEmployees({ status: 'active' }),
-            ]);
-            setAllMasterProjects(projData);
-            setEmployees([...empData].sort((a, b) => a.name.localeCompare(b.name, 'ko')));
-        } catch (err) {
-            console.error('Failed to load master data:', err);
-        } finally {
-            setMasterDataLoading(false);
-        }
-    }, [dataCache]);
-
-    const handleOpenProjectModal = () => {
-        setShowProjectModal(true);
-        loadMasterData();
-    };
-
-    const [showCompleted, setShowCompleted] = useState(false);
-    const [expandedCompletedProjects, setExpandedCompletedProjects] = useState([]);
-    const [isCompletedSectionExpanded, setIsCompletedSectionExpanded] = useState(false);
-
-    // State for Settings Popover
-    const [showSettings, setShowSettings] = useState(false);
-
-    // State for Excel Export Period
-    const [exportStartDate, setExportStartDate] = useState(() => format(addWeeks(new Date(), -4), 'yyyy-MM-dd'));
-    const [exportEndDate, setExportEndDate] = useState(() => format(addWeeks(new Date(), 12), 'yyyy-MM-dd'));
-    const [isDownloading, setIsDownloading] = useState(false);
-    const [showExcelCalPicker, setShowExcelCalPicker] = useState(null); // 'start' | 'end' | null
-    const [excelCalRect, setExcelCalRect] = useState(null);
-    const [excelCalYear, setExcelCalYear] = useState(() => new Date().getFullYear());
-    const [excelCalMonth, setExcelCalMonth] = useState(() => new Date().getMonth());
-
-    const settingsRef = useRef(null);
-    const groupDropdownRef = useRef(null);
-    const [showGroupDropdown, setShowGroupDropdown] = useState(false);
     const [isToolbarCollapsed, setIsToolbarCollapsed] = useState(false);
-    // Initialize visible date to today to avoid '로딩 중...' flicker
-    const [visibleDate, setVisibleDate] = useState(() => {
-        const today = startOfWeek(new Date(), { weekStartsOn: 1 });
-        return `${format(today, 'yyyy년 M월 d일')} ~ ${format(addDays(today, 4), 'M월 d일')}`;
-    });
-    const [showCalendarPicker, setShowCalendarPicker] = useState(false);
-    const [calendarPickerRect, setCalendarPickerRect] = useState(null);
-    const [calPickerYear, setCalPickerYear] = useState(() => new Date().getFullYear());
-    const [calPickerMonth, setCalPickerMonth] = useState(() => new Date().getMonth());
-    const [hoveredWeekIdx, setHoveredWeekIdx] = useState(null);
-    const [isMobile, setIsMobile] = useState(() => window.innerWidth < 900);
-    useEffect(() => {
-        const onResize = () => setIsMobile(window.innerWidth < 900);
-        window.addEventListener('resize', onResize);
-        return () => window.removeEventListener('resize', onResize);
-    }, []);
 
-    // Close calendar picker when clicking outside
-    useEffect(() => {
-        if (!showCalendarPicker) return;
-        const handler = (e) => {
-            // Check if the click is on our calendar picker button or the picker itself
-            if (!e.target.closest('.inline-search-results') && !e.target.closest('[title="달력으로 날짜 이동"]')) {
-                setShowCalendarPicker(false);
-            }
-        };
-        document.addEventListener('mousedown', handler);
-        return () => document.removeEventListener('mousedown', handler);
-    }, [showCalendarPicker]);
+    const {
+        canEdit,
+        data, setData, dataRef,
+        employees, setEmployees,
+        weeks, setWeeks,
+        cursor, setCursor,
+        cellRefs,
+        loading, setLoading,
+        assigningProjects,
+        visibleColRange, setVisibleColRange,
+        showProjectModal, setShowProjectModal,
+        showMemberModal, setShowMemberModal,
+        selectedProject, setSelectedProject,
+        startDate, setStartDate,
+        viewMode, setViewMode,
+        selectedGroup, setSelectedGroup,
+        hiddenProjectIds, setHiddenProjectIds,
+        showHideManager, setShowHideManager,
+        isGroupTransitioning, startGroupTransition,
+        tableContainerRef,
+        sliderRef,
+        visibleDateRef,
+        isScrollingRef,
+        hasAutoScrolled,
+        modalSearchTerm, setModalSearchTerm,
+        projectSearchTerm, setProjectSearchTerm,
+        inlineInputRect, setInlineInputRect,
+        allMasterProjects, setAllMasterProjects,
+        masterDataLoading, setMasterDataLoading,
+        showSettings, setShowSettings,
+        settingsRef,
+        showGroupDropdown, setShowGroupDropdown,
+        groupDropdownRef,
+        exportStartDate, setExportStartDate,
+        exportEndDate, setExportEndDate,
+        isDownloading, setIsDownloading,
+        showExcelCalPicker, setShowExcelCalPicker,
+        excelCalRect, setExcelCalRect,
+        excelCalYear, setExcelCalYear,
+        excelCalMonth, setExcelCalMonth,
+        visibleDate, setVisibleDate,
+        showCalendarPicker, setShowCalendarPicker,
+        calendarPickerRect, setCalendarPickerRect,
+        calPickerYear, setCalPickerYear,
+        calPickerMonth, setCalPickerMonth,
+        hoveredWeekIdx, setHoveredWeekIdx,
+        isMobile,
+        showCompleted, setShowCompleted,
+        expandedCompletedProjects, setExpandedCompletedProjects,
+        isCompletedSectionExpanded, setIsCompletedSectionExpanded,
+        hideManagerRef,
+
+        // Actions
+        loadData,
+        triggerAutoAllocation,
+        handleAssignmentUpdate,
+        handleUnassignMember,
+        handleAddProject,
+        loadMasterData,
+        handleOpenProjectModal,
+        openExcelCalPicker,
+        handleDownloadExcel
+    } = useProjectStatus(confirmConfig, setConfirmConfig);
 
     const mobileDate = useMemo(() => {
         const m = visibleDate.match(/(\d+)월\s*(\d+)일\s*~\s*(?:\d+월\s*)?(\d+)일/);
@@ -1846,9 +1725,6 @@ const ProjectStatus = () => {
 
     const resizingRef = useRef({ isResizing: false, column: null, startX: 0, startWidth: 0 });
 
-    // Custom Confirm Modal State
-    const [confirmConfig, setConfirmConfig] = useState({ isOpen: false, title: '', message: '', onConfirm: null, type: 'danger' });
-
     const handleHideProject = useCallback((projectId, projectName) => {
         setConfirmConfig({
             isOpen: true,
@@ -1920,27 +1796,7 @@ const ProjectStatus = () => {
         }
     }, [columnWidths]);
 
-    const loadData = useCallback(async ({ force = false } = {}) => {
-        // Show the spinner only when we don't have anything to display yet.
-        // Background refreshes (cache hit but stale, or post-mutation refetch)
-        // keep the existing data visible.
-        if (dataRef.current.length === 0) setLoading(true);
-        try {
-            const [matrixData, empData] = await Promise.all([
-                dataCache.getMatrix({ force }),
-                dataCache.getEmployees({ status: 'active' }, { force }),
-            ]);
 
-            React.startTransition(() => {
-                if (matrixData) setData(matrixData);
-                if (empData) setEmployees(empData);
-                setLoading(false);
-            });
-        } catch (err) {
-            console.error('Failed to load project status data:', err);
-            setLoading(false);
-        }
-    }, [dataCache]);
 
     // Skip the first run — the initial value was already computed in useState
     // from this same startDate. Re-running here would only create a new array
@@ -2128,94 +1984,6 @@ const ProjectStatus = () => {
     }, [weeks, loading, handleToday, columnWidths.week, COL_BUFFER]);
 
 
-
-    const triggerAutoAllocation = useCallback(async (assignmentId, startStr, endStr, existingAllocations) => {
-        // Validate dates before proceeding
-        const startD = parseISO(startStr);
-        const endD = parseISO(endStr);
-        if (isNaN(startD.getTime()) || isNaN(endD.getTime()) || startD > endD) return;
-
-        const start = startOfWeek(startD, { weekStartsOn: 1 });
-        const allProjectWeeks = eachWeekOfInterval({ start, end: endD }, { weekStartsOn: 1 });
-        const activeWeekStrings = new Set(allProjectWeeks.map(w => format(w, 'yyyy-MM-dd')));
-
-        const localUpdates = [];
-        
-        // Find current allocations from provided arg or from reliable dataRef
-        let currentAllocations = existingAllocations;
-        if (!currentAllocations) {
-            for (const p of dataRef.current) {
-                const m = p.members.find(am => am.id == assignmentId);
-                if (m) {
-                    currentAllocations = m.allocations;
-                    break;
-                }
-            }
-        }
-
-        const newAllocations = { ...(currentAllocations || {}) };
-        let hasChanges = false;
-
-        // 1. Identify and clear allocations outside the new range
-        Object.keys(newAllocations).forEach(dateStr => {
-            if (!activeWeekStrings.has(dateStr) && newAllocations[dateStr] !== '') {
-                newAllocations[dateStr] = '';
-                localUpdates.push({
-                    assignment_id: assignmentId,
-                    date: dateStr,
-                    value: ''
-                });
-                hasChanges = true;
-            }
-        });
-
-        // 2. Auto-allocate calculated MM for new weeks in the range
-        allProjectWeeks.forEach((week, index) => {
-            const dateStr = format(week, 'yyyy-MM-dd');
-            const currentValue = newAllocations[dateStr];
-
-            const isBoundaryWeek = index === 0 || index === allProjectWeeks.length - 1;
-            const isEmpty = currentValue === undefined || currentValue === '' || String(currentValue) === '0' || String(currentValue) === '0.0';
-
-            const calculatedMM = calculateWeeklyMM(week, startStr, endStr);
-
-            if (isEmpty || isBoundaryWeek) {
-                const valA = parseFloat(currentValue || 0).toFixed(1);
-                const valB = parseFloat(calculatedMM).toFixed(1);
-
-                if (valA !== valB && parseFloat(valB) > 0) {
-                    newAllocations[dateStr] = calculatedMM;
-                    localUpdates.push({
-                        assignment_id: assignmentId,
-                        date: dateStr,
-                        value: calculatedMM
-                    });
-                    hasChanges = true;
-                }
-            }
-        });
-
-        if (!hasChanges) return;
-
-        // 3. Update local state
-        setData(prev => prev.map(p => ({
-            ...p,
-            members: p.members.map(m =>
-                m.id == assignmentId ? { ...m, allocations: newAllocations } : m
-            )
-        })));
-
-        // 4. Batch update backend
-        if (localUpdates.length > 0) {
-            try {
-                await projectsAPI.updateAllocationBatch(localUpdates);
-                console.log(`[triggerAutoAllocation] Successfully triggered batch update for assignment ${assignmentId}, ${localUpdates.length} records.`);
-            } catch (err) {
-                console.error('[triggerAutoAllocation] Auto-allocation batch update failed', err);
-            }
-        }
-    }, [setData]);
-
     const handleAllocationChange = useCallback((assignmentId, date, value) => {
         // Validation: 0 to 1, up to 1 decimal place
         let cleanValue = value.replace(/[^0-9.]/g, ''); // Allow only numbers and dot
@@ -2347,100 +2115,7 @@ const ProjectStatus = () => {
         });
     }, [employees]);
 
-    const handleAssignmentUpdate = useCallback(async (assignmentId, field, value) => {
-        console.log(`[handleAssignmentUpdate] Updating ${field} to ${value} for assignment ${assignmentId}`);
-        let currentTarget = null;
-        let found = false;
 
-        // Synchronously extract currentTarget from the reliable dataRef
-        for (const p of dataRef.current) {
-            const m = p.members.find(am => am.id == assignmentId);
-            if (m) {
-                currentTarget = { ...m };
-                found = true;
-                break;
-            }
-        }
-
-        if (!found || !currentTarget) {
-            console.error(`[handleAssignmentUpdate] Assignment ID ${assignmentId} not found in state.`);
-            return;
-        }
-
-        setData(prev => {
-            return prev.map(p => ({
-                ...p,
-                members: p.members.map(m => {
-                    if (m.id == assignmentId) { // Use loose equality to handle string/number mismatch
-                        return { ...m, [field]: value };
-                    }
-                    return m;
-                })
-            }));
-        });
-
-        try {
-            const finalStart = field === 'input_start_date' ? value : currentTarget.input_start_date;
-            const finalEnd = field === 'input_end_date' ? value : currentTarget.input_end_date;
-
-            const response = await projectsAPI.updateAssignment(assignmentId, {
-                role: field === 'role' ? value : currentTarget.role,
-                input_start_date: finalStart,
-                input_end_date: finalEnd,
-                employee_id: field === 'employee_id' ? value : currentTarget.employee_id,
-                work_location: field === 'work_location' ? value : currentTarget.work_location
-            });
-
-            if (field === 'employee_id') {
-                const empInfo = employees.find(e => e.id === value);
-                const updated = {
-                    ...response.data,
-                    employee_name: response.data.employee_name || empInfo?.name,
-                    employee_position: response.data.employee_position || empInfo?.position,
-                    group_name: response.data.group_name || empInfo?.group_name,
-                    group_color: response.data.group_color || empInfo?.group_color
-                };
-
-                setData(prev => prev.map(p => ({
-                    ...p,
-                    members: p.members.map(m => m.id == assignmentId ? { ...m, ...updated } : m)
-                })));
-            }
-
-            if ((field === 'input_start_date' || field === 'input_end_date') && finalStart && finalEnd) {
-                // Trigger auto-allocation logic
-                triggerAutoAllocation(assignmentId, finalStart, finalEnd, currentTarget.allocations);
-            }
-        } catch (err) {
-            console.error('Assignment update failed', err);
-            alert('정보 업데이트에 실패했습니다. 다시 시도해 주세요.');
-            loadData({ force: true }); // Revert to server state
-        }
-    }, [employees, triggerAutoAllocation, loadData]);
-
-
-
-
-    const handleUnassignMember = useCallback((assignmentId, memberName) => {
-        setConfirmConfig({
-            isOpen: true,
-            title: '배정 해제 확인',
-            message: `${memberName}님을 이 프로젝트에서 배정 해제하시겠습니까? (입력된 MM 정보가 모두 삭제됩니다)`,
-            onConfirm: async () => {
-                try {
-                    await projectsAPI.removeMember(assignmentId);
-                    setData(prev => prev.map(p => ({
-                        ...p,
-                        members: p.members.filter(m => m.id !== assignmentId)
-                    })));
-                } catch (err) {
-                    console.error('Unassign failed:', err);
-                    alert('인원 제외에 실패했습니다.');
-                }
-            },
-            type: 'danger'
-        });
-    }, [setConfirmConfig, setData]);
 
     const handleInlineAssign = useCallback(async (projectId, employeeId) => {
         const key = `${projectId}-${employeeId}-${Date.now()}`;
@@ -3049,292 +2724,6 @@ const ProjectStatus = () => {
         }
     }, []);    // Scroll to Today
 
-    const openExcelCalPicker = (type, e) => {
-        const rect = e.currentTarget.getBoundingClientRect();
-        setExcelCalRect(rect);
-        setShowExcelCalPicker(type);
-        
-        const currentVal = type === 'start' ? exportStartDate : exportEndDate;
-        const d = new Date(currentVal);
-        if (!isNaN(d.getTime())) {
-            setExcelCalYear(d.getFullYear());
-            setExcelCalMonth(d.getMonth());
-        } else {
-            const today = new Date();
-            setExcelCalYear(today.getFullYear());
-            setExcelCalMonth(today.getMonth());
-        }
-    };
-
-    // Excel Download Handler
-    const handleDownloadExcel = async () => {
-        if (!exportStartDate || !exportEndDate) {
-            alert('시작일과 종료일을 선택해 주세요.');
-            return;
-        }
-
-        const start = startOfWeek(new Date(exportStartDate), { weekStartsOn: 1 });
-        const end = startOfWeek(new Date(exportEndDate), { weekStartsOn: 1 });
-        if (isAfter(start, end)) {
-            alert('시작일이 종료일보다 늦을 수 없습니다.');
-            return;
-        }
-
-        setIsDownloading(true);
-        try {
-            const workbook = new ExcelJS.Workbook();
-            const exportWeeks = eachWeekOfInterval({ start, end }, { weekStartsOn: 1 });
-
-            // Excel sheet names cap at 31 chars and disallow []:*?/\\
-            const usedSheetNames = new Set();
-            const uniqueSheetName = (raw) => {
-                const base = String(raw).replace(/[[\]:*?/\\]/g, '_').substring(0, 31) || 'Sheet';
-                let candidate = base;
-                let i = 2;
-                while (usedSheetNames.has(candidate)) {
-                    const suffix = `_${i++}`;
-                    candidate = base.substring(0, 31 - suffix.length) + suffix;
-                }
-                usedSheetNames.add(candidate);
-                return candidate;
-            };
-
-            // Create a fresh worksheet with the standard columns + header styling.
-            const setupWorksheet = (sheetName) => {
-                const ws = workbook.addWorksheet(uniqueSheetName(sheetName), {
-                    views: [{ state: 'frozen', xSplit: 7, ySplit: 1 }]
-                });
-
-                const columns = [];
-                if (viewMode === 'project') {
-                    columns.push(
-                        { header: '소속', key: 'group', width: 12 },
-                        { header: '직급', key: 'position', width: 10 },
-                        { header: '등급', key: 'grade', width: 8 },
-                        { header: '성명', key: 'name', width: 12 },
-                        { header: '근무', key: 'workLocation', width: 10 },
-                        { header: '투입일', key: 'startDate', width: 12 },
-                        { header: '종료일', key: 'endDate', width: 12 }
-                    );
-                } else {
-                    columns.push(
-                        { header: '성명', key: 'name', width: 12 },
-                        { header: '직급', key: 'position', width: 10 },
-                        { header: '등급', key: 'grade', width: 8 },
-                        { header: '고용', key: 'employmentType', width: 10 },
-                        { header: '프로젝트', key: 'projectName', width: 25 },
-                        { header: '투입일', key: 'startDate', width: 12 },
-                        { header: '종료일', key: 'endDate', width: 12 }
-                    );
-                }
-                exportWeeks.forEach(w => {
-                    columns.push({
-                        header: format(w, 'MM/dd'),
-                        key: format(w, 'yyyy-MM-dd'),
-                        width: 7
-                    });
-                });
-                ws.columns = columns;
-
-                const headerRow = ws.getRow(1);
-                headerRow.height = 30;
-                headerRow.eachCell((cell) => {
-                    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E293B' } };
-                    cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 9 };
-                    cell.alignment = { vertical: 'middle', horizontal: 'center' };
-                    cell.border = {
-                        top: { style: 'thin' },
-                        left: { style: 'thin' },
-                        bottom: { style: 'thin' },
-                        right: { style: 'thin' }
-                    };
-                });
-
-                return ws;
-            };
-
-            // Project view block (one project on a single shared worksheet).
-            const renderProjectBlock = (worksheet, project) => {
-                const projHeaderRow = worksheet.addRow({
-                    group: project.name,
-                    position: `[${project.type || 'Client'}]`
-                });
-                worksheet.mergeCells(projHeaderRow.number, 1, projHeaderRow.number, 7);
-                const groupCell = projHeaderRow.getCell(1);
-                groupCell.font = { bold: true, color: { argb: 'FF3B82F6' }, size: 10 };
-                groupCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
-                projHeaderRow.eachCell({ includeEmpty: true }, (cell) => {
-                    cell.border = { bottom: { style: 'thin' } };
-                });
-
-                project.members.forEach(member => {
-                    const rowData = {
-                        group: member.group_name,
-                        position: member.employee_position,
-                        grade: member.employee_grade,
-                        name: member.employee_name,
-                        workLocation: member.work_location === 'Dispatch' ? '파견' : (member.work_location === 'In-house' ? '내근' : '-'),
-                        startDate: member.input_start_date || '-',
-                        endDate: member.input_end_date || '-'
-                    };
-                    exportWeeks.forEach(w => {
-                        const dateStr = format(w, 'yyyy-MM-dd');
-                        rowData[dateStr] = member.allocations?.[dateStr] ? (parseFloat(member.allocations[dateStr]) || 0) : '';
-                    });
-                    const row = worksheet.addRow(rowData);
-                    row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
-                        cell.font = { size: 9 };
-                        cell.alignment = { vertical: 'middle', horizontal: 'center' };
-                        cell.border = {
-                            bottom: { style: 'hair', color: { argb: 'FFCBD5E1' } },
-                            right: { style: 'hair', color: { argb: 'FFCBD5E1' } }
-                        };
-                        if (colNumber > 7 && cell.value !== '') {
-                            cell.font = { bold: true, size: 9 };
-                        }
-                    });
-                });
-
-                const totalRowData = { group: 'Total MM' };
-                exportWeeks.forEach(w => {
-                    const dateStr = format(w, 'yyyy-MM-dd');
-                    const total = project.members.reduce((sum, m) => sum + (parseFloat(m.allocations?.[dateStr]) || 0), 0);
-                    totalRowData[dateStr] = total > 0 ? total : '';
-                });
-                const totalRow = worksheet.addRow(totalRowData);
-                worksheet.mergeCells(totalRow.number, 1, totalRow.number, 7);
-                totalRow.getCell(1).alignment = { horizontal: 'right' };
-                totalRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
-                    cell.font = { bold: true, size: 8, color: { argb: 'FF64748B' } };
-                    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
-                    if (colNumber > 7 && cell.value > 1.0) {
-                        cell.font = { bold: true, size: 9, color: { argb: 'FFEF4444' } };
-                    }
-                });
-            };
-
-            // Group view block (one group: title row, project subheaders, assignments,
-            // total MM row, then 미투입 / 부분 투입 / 풀투입 name rows).
-            const renderGroupBlock = (worksheet, group) => {
-                const groupTitleRow = worksheet.addRow({ name: `${group.name} 그룹 (인원: ${group.memberCount}명)` });
-                worksheet.mergeCells(groupTitleRow.number, 1, groupTitleRow.number, worksheet.columns.length);
-                groupTitleRow.getCell(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
-
-                let groupArgb = 'FF3B82F6';
-                if (group.color && group.color.startsWith('#')) {
-                    groupArgb = 'FF' + group.color.substring(1).toUpperCase();
-                }
-                groupTitleRow.getCell(1).fill = {
-                    type: 'pattern', pattern: 'solid', fgColor: { argb: groupArgb }
-                };
-
-                group.projects.forEach(p => {
-                    const pSubRow = worksheet.addRow({ name: `📁 ${p.name} [${p.type || 'Client'}]` });
-                    worksheet.mergeCells(pSubRow.number, 1, pSubRow.number, 7);
-                    pSubRow.getCell(1).font = { bold: true, size: 9, color: { argb: 'FF3B82F6' } };
-                    pSubRow.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F7FF' } };
-
-                    p.assignments.forEach(assignment => {
-                        const rowData = {
-                            name: assignment.employee_name,
-                            position: assignment.employee_position,
-                            grade: assignment.employee_grade,
-                            employmentType: assignment.employment_type || '-',
-                            projectName: p.name,
-                            startDate: assignment.input_start_date || '-',
-                            endDate: assignment.input_end_date || '-'
-                        };
-                        exportWeeks.forEach(w => {
-                            const dateStr = format(w, 'yyyy-MM-dd');
-                            rowData[dateStr] = assignment.allocations?.[dateStr] ? (parseFloat(assignment.allocations[dateStr]) || 0) : '';
-                        });
-                        const row = worksheet.addRow(rowData);
-                        row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
-                            cell.font = { size: 9 };
-                            cell.alignment = { vertical: 'middle', horizontal: 'center' };
-                            cell.border = { bottom: { style: 'thin', color: { argb: 'FFF1F5F9' } } };
-                            if (colNumber === 5) cell.alignment = { vertical: 'middle', horizontal: 'left' };
-                            if (colNumber > 7 && cell.value !== '') cell.font = { bold: true, size: 9 };
-                        });
-                    });
-                });
-
-                const groupCalc = calculateGroupStats(group, exportWeeks);
-                const gTotalRowData = { name: `${group.name} 합계 (Total MM)` };
-                exportWeeks.forEach((w, wIdx) => {
-                    const dateStr = format(w, 'yyyy-MM-dd');
-                    const total = groupCalc.stats[wIdx] || 0;
-                    gTotalRowData[dateStr] = total > 0 ? total : '';
-                });
-                const gTotalRow = worksheet.addRow(gTotalRowData);
-                worksheet.mergeCells(gTotalRow.number, 1, gTotalRow.number, 7);
-                gTotalRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
-                    cell.font = { bold: true, size: 8, color: { argb: 'FF475569' } };
-                    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
-                    cell.alignment = { vertical: 'middle', horizontal: colNumber <= 7 ? 'right' : 'center' };
-                    if (colNumber > 7 && cell.value > group.memberCount) {
-                        cell.font = { bold: true, size: 9, color: { argb: 'FFEF4444' } };
-                    }
-                });
-
-                // Weekly Personnel Status Rows (미투입 / 부분 투입 / 풀투입)
-                const statusRows = [
-                    { label: '미투입 (0 MM)',          key: 'zero',    bgArgb: 'FFF1F5F9', textArgb: 'FF475569' },
-                    { label: '부분 투입 (1.0 MM 미만)', key: 'under50', bgArgb: 'FFFFFBEB', textArgb: 'FFD97706' },
-                    { label: '풀투입 (1.1 MM 이상)',    key: 'over100', bgArgb: 'FFEFF6FF', textArgb: 'FF2563EB' },
-                ];
-                statusRows.forEach(({ label, key, bgArgb, textArgb }) => {
-                    const rowData = { name: label };
-                    let maxNameCount = 0;
-                    exportWeeks.forEach(w => {
-                        const dateStr = format(w, 'yyyy-MM-dd');
-                        const names = groupCalc.weeklyStatus[dateStr]?.[key] || [];
-                        if (names.length > maxNameCount) maxNameCount = names.length;
-                        rowData[dateStr] = names.length > 0 ? names.join('\n') : '';
-                    });
-                    const statusRow = worksheet.addRow(rowData);
-                    worksheet.mergeCells(statusRow.number, 1, statusRow.number, 7);
-                    statusRow.height = Math.min(Math.max(maxNameCount * 14 + 4, 18), 240);
-                    statusRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
-                        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgArgb } };
-                        cell.font = { size: 8, color: { argb: textArgb }, bold: colNumber <= 7 };
-                        cell.alignment = {
-                            vertical: 'top',
-                            horizontal: colNumber <= 7 ? 'right' : 'center',
-                            wrapText: true,
-                        };
-                        cell.border = {
-                            bottom: { style: 'hair', color: { argb: 'FFCBD5E1' } },
-                        };
-                    });
-                });
-            };
-
-            if (viewMode === 'project') {
-                const ws = setupWorksheet('프로젝트 배정 현황');
-                data.forEach(project => renderProjectBlock(ws, project));
-            } else {
-                // Group view: one sheet per group (always all groups, ignoring
-                // selectedGroup), plus a final "전체" sheet with everything combined.
-                groupStats.forEach(group => {
-                    const ws = setupWorksheet(group.name);
-                    renderGroupBlock(ws, group);
-                });
-                const totalWs = setupWorksheet('전체');
-                groupStats.forEach(group => renderGroupBlock(totalWs, group));
-            }
-
-            const buffer = await workbook.xlsx.writeBuffer();
-            const fileName = `프로젝트배정현황_${viewMode === 'project' ? '프로젝트별' : '그룹별'}_${format(new Date(), 'yyyyMMdd')}.xlsx`;
-            saveAs(new Blob([buffer]), fileName);
-
-        } catch (error) {
-            console.error('Excel Download Error:', error);
-            alert(`엑셀 다운로드 중 오류가 발생했습니다: ${error.message}`);
-        } finally {
-            setIsDownloading(false);
-        }
-    };
 
     if (loading) return (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '60vh', gap: '16px' }}>
