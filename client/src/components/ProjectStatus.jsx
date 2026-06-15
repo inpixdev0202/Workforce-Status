@@ -1238,6 +1238,7 @@ const ProjectStatus = () => {
     const [isToolbarCollapsed, setIsToolbarCollapsed] = useState(false);
 
     const {
+        user,
         canEdit,
         data, setData, dataRef,
         employees, setEmployees,
