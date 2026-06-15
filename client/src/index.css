@@ -861,6 +861,36 @@ h6 {
   opacity: 1;
 }
 
+.premium-date-input-display {
+  background: rgba(255, 255, 255, 0.03);
+  border: none;
+  border-bottom: 1.5px solid transparent;
+  color: var(--text-primary);
+  font-size: 0.75rem;
+  padding: 3px 6px;
+  min-width: 90px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  outline: none;
+  text-align: center;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.premium-date-input-display:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+  border-bottom-color: var(--primary-glow);
+}
+
+.premium-date-input-display.active {
+  border-bottom-color: var(--primary);
+  color: var(--primary);
+  background-color: var(--primary-glow);
+}
+
 .btn-export-premium {
   display: flex;
   align-items: center;

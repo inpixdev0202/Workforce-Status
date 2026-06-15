@@ -142,14 +142,15 @@ const InlineSearchInput = React.memo(({
     getFilteredEmployees,
     inputRef,
     onCancel,
-    handleTBDAssign
+    handleTBDAssign,
+    groupFilter
 }) => {
     const [searchTerm, setSearchTerm] = useState(initialTerm);
     const [autoCompleteIdx, setAutoCompleteIdx] = useState(-1);
     const [inputRect, setInputRect] = useState(null);
     const [isOpen, setIsOpen] = useState(false);
 
-    const filteredEmployees = useMemo(() => getFilteredEmployees(projectId, searchTerm), [projectId, searchTerm, getFilteredEmployees]);
+    const filteredEmployees = useMemo(() => getFilteredEmployees(projectId, searchTerm, groupFilter), [projectId, searchTerm, getFilteredEmployees, groupFilter]);
 
     const handleSelect = (empId) => {
         onSelection(projectId, empId);
@@ -324,13 +325,45 @@ const MemberRow = React.memo(({
                     {/* Name (clickable to swap employee) */}
                     <div
                         ref={(el) => (cellRefs.current[`${currentMemberIndex}-swap`] = el)}
+                        tabIndex={canEdit && !isCompleted ? 0 : -1}
                         className="flex items-center gap-xs"
-                        style={{ padding: '2px 4px', flex: 1, minWidth: 0, cursor: canEdit && !isCompleted ? 'pointer' : 'default' }}
+                        style={{ 
+                            padding: '2px 4px', 
+                            flex: 1, 
+                            minWidth: 0, 
+                            cursor: canEdit && !isCompleted ? 'pointer' : 'default',
+                            outline: cursor.memberIndex === currentMemberIndex && cursor.weekIndex === 'swap' ? '2px solid var(--primary)' : 'none',
+                            borderRadius: '4px'
+                        }}
+                        onFocus={() => {
+                            if (canEdit && !isCompleted) {
+                                setCursor({ memberIndex: currentMemberIndex, weekIndex: 'swap' });
+                            }
+                        }}
                         onClick={(e) => {
                             if (!canEdit || isCompleted) return;
                             setSwapRect(e.currentTarget.getBoundingClientRect());
                             setSwapOpen(true);
                             setSwapTerm('');
+                        }}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                                if (!canEdit || isCompleted) return;
+                                setSwapRect(e.currentTarget.getBoundingClientRect());
+                                setSwapOpen(true);
+                                setSwapTerm('');
+                            } else if (e.key === 'ArrowRight') {
+                                e.preventDefault();
+                                setCursor({ memberIndex: currentMemberIndex, weekIndex: 0 });
+                            } else if (e.key === 'ArrowUp') {
+                                e.preventDefault();
+                                const prevIdx = Math.max(0, currentMemberIndex - 1);
+                                setCursor({ memberIndex: prevIdx, weekIndex: 'swap' });
+                            } else if (e.key === 'ArrowDown') {
+                                e.preventDefault();
+                                const nextIdx = currentMemberIndex + 1;
+                                setCursor({ memberIndex: nextIdx, weekIndex: 'swap' });
+                            }
                         }}
                         title={canEdit && !isCompleted ? '클릭하여 직원 변경' : undefined}
                     >
@@ -610,10 +643,39 @@ const GroupMemberRow = React.memo(({
             <td style={{ position: 'sticky', left: getStickyLeft('name', 'group'), zIndex: 10, width: columnWidths.name, backgroundColor: 'var(--bg-primary)', borderBottom: '1px solid var(--border)' }}>
                 <div className="flex items-center justify-between w-full">
                     <div
-                        ref={swapRef}
+                        ref={(el) => (cellRefs.current[`${currentMemberIndex}-swap`] = el)}
+                        tabIndex={canEdit ? 0 : -1}
                         className="flex items-center gap-xs"
-                        style={{ padding: '2px 4px', cursor: canEdit ? 'pointer' : 'default', flex: 1, minWidth: 0 }}
+                        style={{ 
+                            padding: '2px 4px', 
+                            cursor: canEdit ? 'pointer' : 'default', 
+                            flex: 1, 
+                            minWidth: 0,
+                            outline: cursor.memberIndex === currentMemberIndex && cursor.weekIndex === 'swap' ? '2px solid var(--primary)' : 'none',
+                            borderRadius: '4px'
+                        }}
+                        onFocus={() => {
+                            if (canEdit) {
+                                setCursor({ memberIndex: currentMemberIndex, weekIndex: 'swap' });
+                            }
+                        }}
                         onClick={openSwap}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                                openSwap(e);
+                            } else if (e.key === 'ArrowRight') {
+                                e.preventDefault();
+                                setCursor({ memberIndex: currentMemberIndex, weekIndex: 0 });
+                            } else if (e.key === 'ArrowUp') {
+                                e.preventDefault();
+                                const prevIdx = Math.max(0, currentMemberIndex - 1);
+                                setCursor({ memberIndex: prevIdx, weekIndex: 'swap' });
+                            } else if (e.key === 'ArrowDown') {
+                                e.preventDefault();
+                                const nextIdx = currentMemberIndex + 1;
+                                setCursor({ memberIndex: nextIdx, weekIndex: 'swap' });
+                            }
+                        }}
                         title={canEdit ? '클릭하여 직원 변경' : undefined}
                     >
                         {assignment.employee_id == null ? (
@@ -833,7 +895,8 @@ const InlineAddRow = React.memo(({
     setCursor,
     cellRefs,
     leftSpacerWidth,
-    rightSpacerWidth
+    rightSpacerWidth,
+    groupFilter
 }) => {
     return (
         <tr style={{ borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}>
@@ -849,6 +912,7 @@ const InlineAddRow = React.memo(({
                     }}
                     getFilteredEmployees={getFilteredEmployees}
                     handleTBDAssign={handleTBDAssign}
+                    groupFilter={groupFilter}
                 />
             </td>
             <td colSpan={3} style={{ position: 'sticky', left: getStickyLeft('workLocation', viewMode), zIndex: 10, backgroundColor: 'var(--bg-primary)', height: '28px', borderBottom: '1px solid var(--border)' }}></td>
@@ -1319,6 +1383,11 @@ const ProjectStatus = () => {
     const [exportStartDate, setExportStartDate] = useState(() => format(addWeeks(new Date(), -4), 'yyyy-MM-dd'));
     const [exportEndDate, setExportEndDate] = useState(() => format(addWeeks(new Date(), 12), 'yyyy-MM-dd'));
     const [isDownloading, setIsDownloading] = useState(false);
+    const [showExcelCalPicker, setShowExcelCalPicker] = useState(null); // 'start' | 'end' | null
+    const [excelCalRect, setExcelCalRect] = useState(null);
+    const [excelCalYear, setExcelCalYear] = useState(() => new Date().getFullYear());
+    const [excelCalMonth, setExcelCalMonth] = useState(() => new Date().getMonth());
+
     const settingsRef = useRef(null);
     const groupDropdownRef = useRef(null);
     const [showGroupDropdown, setShowGroupDropdown] = useState(false);
@@ -2265,10 +2334,13 @@ const ProjectStatus = () => {
         }
     }, [setData]);
 
-    const getFilteredEmployees = useCallback((projectId, term) => {
+    const getFilteredEmployees = useCallback((projectId, term, groupFilter) => {
         const lowerTerm = term.toLowerCase();
 
         return employees.filter(emp => {
+            if (groupFilter && emp.group_name !== groupFilter) {
+                return false;
+            }
             if (!lowerTerm) return true;
             return (emp.name?.toLowerCase().includes(lowerTerm) ||
                 emp.group_name?.toLowerCase().includes(lowerTerm))
@@ -2447,10 +2519,10 @@ const ProjectStatus = () => {
             return { ...p, members };
         }));
 
-        // Focus the newly added member's startDate input (weekIndex 0) on next render
+        // Focus the newly added member's name (swap) on next render
         if (newMemberIndex !== -1) {
             setTimeout(() => {
-                setCursor({ memberIndex: newMemberIndex, weekIndex: 0 });
+                setCursor({ memberIndex: newMemberIndex, weekIndex: 'swap' });
             }, 50);
         }
 
@@ -2976,6 +3048,23 @@ const ProjectStatus = () => {
             return false;
         }
     }, []);    // Scroll to Today
+
+    const openExcelCalPicker = (type, e) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        setExcelCalRect(rect);
+        setShowExcelCalPicker(type);
+        
+        const currentVal = type === 'start' ? exportStartDate : exportEndDate;
+        const d = new Date(currentVal);
+        if (!isNaN(d.getTime())) {
+            setExcelCalYear(d.getFullYear());
+            setExcelCalMonth(d.getMonth());
+        } else {
+            const today = new Date();
+            setExcelCalYear(today.getFullYear());
+            setExcelCalMonth(today.getMonth());
+        }
+    };
 
     // Excel Download Handler
     const handleDownloadExcel = async () => {
@@ -3656,23 +3745,25 @@ const ProjectStatus = () => {
                                 </div>
                                 
                                 <div className="flex items-center gap-xs px-xs">
-                                    <input
-                                        type="date"
-                                        className="premium-date-input"
-                                        value={exportStartDate}
-                                        onChange={(e) => setExportStartDate(e.target.value)}
-                                        title="엑셀 추출 시작일"
-                                        style={{ colorScheme: 'dark' }}
-                                    />
+                                    <button
+                                        type="button"
+                                        className={`premium-date-input-display ${showExcelCalPicker === 'start' ? 'active' : ''}`}
+                                        onClick={(e) => openExcelCalPicker('start', e)}
+                                        title="엑셀 추출 시작일 선택"
+                                    >
+                                        <Calendar size={11} style={{ opacity: 0.7 }} />
+                                        <span>{exportStartDate}</span>
+                                    </button>
                                     <span className="text-muted text-[10px]">~</span>
-                                    <input
-                                        type="date"
-                                        className="premium-date-input"
-                                        value={exportEndDate}
-                                        onChange={(e) => setExportEndDate(e.target.value)}
-                                        title="엑셀 추출 종료일"
-                                        style={{ colorScheme: 'dark' }}
-                                    />
+                                    <button
+                                        type="button"
+                                        className={`premium-date-input-display ${showExcelCalPicker === 'end' ? 'active' : ''}`}
+                                        onClick={(e) => openExcelCalPicker('end', e)}
+                                        title="엑셀 추출 종료일 선택"
+                                    >
+                                        <Calendar size={11} style={{ opacity: 0.7 }} />
+                                        <span>{exportEndDate}</span>
+                                    </button>
                                 </div>
 
                                 <button
@@ -3690,6 +3781,153 @@ const ProjectStatus = () => {
                                         </>
                                     )}
                                 </button>
+
+                                {/* Excel Date Picker Dropdown Portal */}
+                                {showExcelCalPicker && excelCalRect && (() => {
+                                    const startMonth = new Date(excelCalYear, excelCalMonth, 1);
+                                    const endMonth = new Date(excelCalYear, excelCalMonth + 1, 0);
+
+                                    const calStart = startOfWeek(startMonth, { weekStartsOn: 1 });
+                                    const calEnd = endOfWeek(endMonth, { weekStartsOn: 1 });
+
+                                    const eachDay = [];
+                                    let curr = new Date(calStart);
+                                    while (curr <= calEnd) {
+                                        eachDay.push(new Date(curr));
+                                        curr.setDate(curr.getDate() + 1);
+                                    }
+
+                                    const calendarWeeks = [];
+                                    for (let i = 0; i < eachDay.length; i += 7) {
+                                        calendarWeeks.push(eachDay.slice(i, i + 7));
+                                    }
+
+                                    const handlePrevMonth = () => {
+                                        if (excelCalMonth === 0) {
+                                            setExcelCalYear(y => y - 1);
+                                            setExcelCalMonth(11);
+                                        } else {
+                                            setExcelCalMonth(m => m - 1);
+                                        }
+                                    };
+
+                                    const handleNextMonth = () => {
+                                        if (excelCalMonth === 11) {
+                                            setExcelCalYear(y => y + 1);
+                                            setExcelCalMonth(0);
+                                        } else {
+                                            setExcelCalMonth(m => m + 1);
+                                        }
+                                    };
+
+                                    const selectedDateVal = showExcelCalPicker === 'start' ? exportStartDate : exportEndDate;
+
+                                    return createPortal(
+                                        <div
+                                            className="inline-search-results"
+                                            style={{
+                                                position: 'fixed',
+                                                left: `${excelCalRect.left}px`,
+                                                top: `${excelCalRect.bottom + 6}px`,
+                                                width: '260px',
+                                                zIndex: 9999,
+                                                padding: '12px',
+                                                boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
+                                                borderRadius: '12px',
+                                                userSelect: 'none'
+                                            }}
+                                            onMouseDown={(e) => e.stopPropagation()}
+                                        >
+                                            {/* Year & Month nav */}
+                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                                                <button style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--text-primary)', fontSize: '1.2em', padding: '2px 10px', fontWeight: 'bold' }}
+                                                    onClick={handlePrevMonth}>‹</button>
+                                                <strong style={{ fontSize: '0.95em' }}>{excelCalYear}년 {excelCalMonth + 1}월</strong>
+                                                <button style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--text-primary)', fontSize: '1.2em', padding: '2px 10px', fontWeight: 'bold' }}
+                                                    onClick={handleNextMonth}>›</button>
+                                            </div>
+
+                                            {/* Weekday headers */}
+                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', textAlign: 'center', fontSize: '0.78em', fontWeight: 'bold', borderBottom: '1px solid var(--border)', paddingBottom: '6px', marginBottom: '6px', color: 'var(--text-muted)' }}>
+                                                <div>월</div><div>화</div><div>수</div><div>목</div><div>금</div>
+                                                <div style={{ color: '#3b82f6' }}>토</div><div style={{ color: '#ef4444' }}>일</div>
+                                            </div>
+
+                                            {/* Days grid */}
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                                                {calendarWeeks.map((week, wIdx) => (
+                                                    <div
+                                                        key={wIdx}
+                                                        style={{
+                                                            display: 'grid',
+                                                            gridTemplateColumns: 'repeat(7, 1fr)',
+                                                            gap: '4px'
+                                                        }}
+                                                    >
+                                                        {week.map((day, dIdx) => {
+                                                            const isCurrentMonth = day.getMonth() === excelCalMonth;
+                                                            const dateStr = format(day, 'yyyy-MM-dd');
+                                                            const isSelected = dateStr === selectedDateVal;
+                                                            const isToday = dateStr === format(new Date(), 'yyyy-MM-dd');
+
+                                                            let dayColor = 'var(--text-primary)';
+                                                            if (!isCurrentMonth) {
+                                                                dayColor = 'var(--text-muted)';
+                                                            } else if (dIdx === 5) {
+                                                                dayColor = '#3b82f6'; // Sat
+                                                            } else if (dIdx === 6) {
+                                                                dayColor = '#ef4444'; // Sun
+                                                            }
+
+                                                            return (
+                                                                <div
+                                                                    key={dIdx}
+                                                                    onClick={() => {
+                                                                        if (showExcelCalPicker === 'start') {
+                                                                            setExportStartDate(dateStr);
+                                                                        } else {
+                                                                            setExportEndDate(dateStr);
+                                                                        }
+                                                                        setShowExcelCalPicker(null);
+                                                                    }}
+                                                                    style={{
+                                                                        textAlign: 'center',
+                                                                        padding: '5px 0',
+                                                                        fontSize: '0.8em',
+                                                                        color: dayColor,
+                                                                        opacity: isCurrentMonth ? 1 : 0.3,
+                                                                        fontWeight: isSelected || isToday ? 'bold' : 'normal',
+                                                                        border: isSelected ? '1px solid var(--color-primary, #6366f1)' : isToday ? '1px solid rgba(99, 102, 241, 0.4)' : 'none',
+                                                                        borderRadius: '4px',
+                                                                        backgroundColor: isSelected ? 'var(--primary-muted, rgba(99, 102, 241, 0.15))' : isToday ? 'var(--primary-muted, rgba(99, 102, 241, 0.05))' : 'transparent',
+                                                                        cursor: 'pointer',
+                                                                        transition: 'all 0.15s'
+                                                                    }}
+                                                                    onMouseEnter={(e) => {
+                                                                        if (!isSelected) e.currentTarget.style.backgroundColor = 'var(--primary-muted, rgba(99, 102, 241, 0.08))';
+                                                                    }}
+                                                                    onMouseLeave={(e) => {
+                                                                        if (!isSelected) e.currentTarget.style.backgroundColor = isToday ? 'var(--primary-muted, rgba(99, 102, 241, 0.05))' : 'transparent';
+                                                                    }}
+                                                                >
+                                                                    {day.getDate()}
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                ))}
+                                            </div>
+
+                                            <div style={{ marginTop: '10px', textAlign: 'center', borderTop: '1px solid var(--border)', paddingTop: '8px' }}>
+                                                <button
+                                                    style={{ border: '1px solid var(--border)', borderRadius: '6px', padding: '4px 16px', fontSize: '0.8em', cursor: 'pointer', background: 'transparent', color: 'var(--text-primary)' }}
+                                                    onClick={() => setShowExcelCalPicker(null)}
+                                                >닫기</button>
+                                            </div>
+                                        </div>,
+                                        document.body
+                                    );
+                                })()}
                             </div>
                         )}
 
@@ -4367,6 +4605,7 @@ const ProjectStatus = () => {
                                                             cellRefs={cellRefs}
                                                             leftSpacerWidth={leftSpacerWidth}
                                                             rightSpacerWidth={rightSpacerWidth}
+                                                            groupFilter={group.name}
                                                         />
                                                     );
                                                 })()}
