@@ -299,8 +299,17 @@ const MemberRow = React.memo(({
     visibleStartIdx,
     canEdit
 }) => {
+    const [swapOpen, setSwapOpen] = React.useState(false);
+    const [swapTerm, setSwapTerm] = React.useState('');
+    const [swapRect, setSwapRect] = React.useState(null);
+    const filteredSwapEmps = useMemo(() => {
+        if (!getFilteredEmployees) return [];
+        return getFilteredEmployees(project.id, swapTerm || '');
+    }, [swapTerm, project.id, getFilteredEmployees]);
+
     const opacity = isCompleted ? 0.5 : 1;
     const bgColor = isCompleted ? 'var(--surface-low)' : 'var(--bg-primary)';
+
 
     return (
         <tr key={`mem-${member.id}`} style={{ opacity, borderBottom: '1px solid var(--border)' }}>
@@ -312,7 +321,79 @@ const MemberRow = React.memo(({
             <td style={{ position: 'sticky', left: getStickyLeft('employmentType', 'project'), zIndex: 10, width: columnWidths.employmentType, backgroundColor: bgColor, fontSize: '0.8em', color: 'var(--text-muted)', borderBottom: '1px solid var(--border)' }}>{member.employee_id != null ? member.employee_employment_type : '-'}</td>
             <td style={{ position: 'sticky', left: getStickyLeft('name', 'project'), zIndex: 10, width: columnWidths.name, backgroundColor: bgColor, borderBottom: '1px solid var(--border)' }}>
                 <div className="flex items-center justify-between w-full">
-                    <div className="flex items-center gap-sm">
+                    {/* Name (clickable to swap employee) */}
+                    <div
+                        ref={(el) => (cellRefs.current[`${currentMemberIndex}-swap`] = el)}
+                        className="flex items-center gap-xs"
+                        style={{ padding: '2px 4px', flex: 1, minWidth: 0, cursor: canEdit && !isCompleted ? 'pointer' : 'default' }}
+                        onClick={(e) => {
+                            if (!canEdit || isCompleted) return;
+                            setSwapRect(e.currentTarget.getBoundingClientRect());
+                            setSwapOpen(true);
+                            setSwapTerm('');
+                        }}
+                        title={canEdit && !isCompleted ? '클릭하여 직원 변경' : undefined}
+                    >
+                        {member.employee_id == null ? (
+                            <span style={{
+                                background: member.tbd_employment_type === 'Regular' ? '#6366f1' : '#f59e0b',
+                                color: 'white', padding: '2px 8px', borderRadius: '4px', fontSize: '0.75em', whiteSpace: 'nowrap'
+                            }}>
+                                TBD — {member.tbd_employment_type === 'Regular' ? '정규직' : '계약직'}
+                            </span>
+                        ) : (
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{member.employee_name}</span>
+                        )}
+                    </div>
+                    {/* Swap dropdown */}
+                    {swapOpen && swapRect && createPortal(
+                        <div
+                            className="inline-search-results"
+                            style={{
+                                position: 'fixed',
+                                left: `${swapRect.left}px`,
+                                top: `${swapRect.bottom + 4}px`,
+                                width: `${Math.max(swapRect.width, 280)}px`,
+                                zIndex: 9999
+                            }}
+                        >
+                            <div style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)', fontSize: '0.78em', color: 'var(--text-muted)' }}>직원 변경 (검색)</div>
+                            <div style={{ padding: '4px 8px' }}>
+                                <input
+                                    type="text"
+                                    autoFocus
+                                    className="grid-input"
+                                    placeholder="이름 또는 소속 검색..."
+                                    style={{ border: '1px solid var(--border)', borderRadius: '4px', width: '100%', padding: '4px 8px', fontSize: '0.85em' }}
+                                    value={swapTerm}
+                                    onChange={(e) => setSwapTerm(e.target.value)}
+                                    onBlur={() => setTimeout(() => setSwapOpen(false), 200)}
+                                    onKeyDown={(e) => { if (e.key === 'Escape') setSwapOpen(false); }}
+                                />
+                            </div>
+                            {filteredSwapEmps.map(emp => (
+                                <div
+                                    key={emp.id}
+                                    className="inline-search-item"
+                                    onMouseDown={(e) => {
+                                        e.preventDefault();
+                                        handleAssignmentUpdate(member.id, 'employee_id', emp.id);
+                                        setSwapOpen(false);
+                                    }}
+                                >
+                                    <div className="flex justify-between">
+                                        <strong>{emp.name}</strong>
+                                        <span className="badge" style={{ backgroundColor: emp.group_color, fontSize: '0.6em' }}>{emp.group_name}</span>
+                                    </div>
+                                    <div className="text-muted" style={{ fontSize: '0.75em' }}>{emp.position}</div>
+                                </div>
+                            ))}
+                            {swapTerm && filteredSwapEmps.length === 0 && <div className="p-sm text-center text-muted" style={{ fontSize: '0.85em' }}>결과 없음</div>}
+                        </div>,
+                        document.body
+                    )}
+                    {/* Reorder arrows (after name) + delete */}
+                    <div className="flex items-center" style={{ gap: 0 }}>
                         {canEdit && (
                             <div className="flex flex-col" style={{ fontSize: '0.8em', color: 'var(--text-muted)', lineHeight: 1 }}>
                                 <button
@@ -329,31 +410,15 @@ const MemberRow = React.memo(({
                                 >▼</button>
                             </div>
                         )}
-                        <div
-                            ref={(el) => (cellRefs.current[`${currentMemberIndex}-swap`] = el)}
-                            className="flex items-center gap-xs"
-                            style={{ padding: '2px 4px' }}
-                        >
-                            {member.employee_id == null ? (
-                                <span style={{
-                                    background: member.tbd_employment_type === 'Regular' ? '#6366f1' : '#f59e0b',
-                                    color: 'white', padding: '2px 8px', borderRadius: '4px', fontSize: '0.75em', whiteSpace: 'nowrap'
-                                }}>
-                                    TBD — {member.tbd_employment_type === 'Regular' ? '정규직' : '계약직'}
-                                </span>
-                            ) : (
-                                <span>{member.employee_name}</span>
-                            )}
-                        </div>
+                        {!isCompleted && canEdit && (
+                            <button
+                                onClick={() => handleRemoveMember(project.id, member.id, member.employee_id == null ? `TBD (${member.tbd_employment_type === 'Regular' ? '정규직' : '계약직'})` : member.employee_name)}
+                                className="reorder-btn hover-danger"
+                                title="배정 해제"
+                                style={{ marginLeft: '2px', opacity: 0.5 }}
+                            >🗑️</button>
+                        )}
                     </div>
-                    {!isCompleted && canEdit && (
-                        <button
-                            onClick={() => handleRemoveMember(member.id, member.employee_id == null ? `TBD (${member.tbd_employment_type === 'Regular' ? '정규직' : '계약직'})` : member.employee_name)}
-                            className="reorder-btn hover-danger"
-                            title="배정 해제"
-                            style={{ marginLeft: '4px', opacity: 0.5 }}
-                        >🗑️</button>
-                    )}
                 </div>
             </td>
             <td style={{ position: 'sticky', left: getStickyLeft('workLocation', 'project'), zIndex: 10, width: columnWidths.workLocation, backgroundColor: bgColor, padding: 0, borderBottom: '1px solid var(--border)' }}>
@@ -450,6 +515,8 @@ const MemberRow = React.memo(({
     );
 });
 
+
+// GroupMemberRow — 그룹별 탭 행 (컬럼 순서: 소속·직급·등급·고용·이름)
 const GroupMemberRow = React.memo(({
     assignment,
     weeks,
@@ -468,37 +535,42 @@ const GroupMemberRow = React.memo(({
     handleKeyDown,
     handlePaste,
     handleRemoveMember,
+    handleReorderMember,
     projectId,
+    projectMemberCount,
+    mIdx,
     setCursor,
+    getFilteredEmployees,
     cellRefs,
     leftSpacerWidth,
     rightSpacerWidth,
     canEdit
 }) => {
+    // Inline employee swap state
+    const [swapOpen, setSwapOpen] = useState(false);
+    const [swapTerm, setSwapTerm] = useState('');
+    const swapRef = React.useRef(null);
+    const [swapRect, setSwapRect] = useState(null);
+
+    const filteredSwapEmps = useMemo(() => {
+        if (!getFilteredEmployees) return [];
+        return getFilteredEmployees(projectId, swapTerm || '');
+    }, [swapTerm, projectId, getFilteredEmployees]);
+
+    const openSwap = (e) => {
+        if (!canEdit) return;
+        setSwapRect(e.currentTarget.getBoundingClientRect());
+        setSwapOpen(true);
+        setSwapTerm('');
+    };
+
     return (
         <tr key={assignment.id} style={{ borderBottom: '1px solid var(--border)' }}>
-            <td style={{ position: 'sticky', left: getStickyLeft('name', 'group'), zIndex: 10, width: columnWidths.name, backgroundColor: 'var(--bg-primary)', borderBottom: '1px solid var(--border)' }}>
-                <div className="flex items-center justify-between w-full">
-                    {assignment.employee_id == null ? (
-                        <span style={{
-                            background: assignment.tbd_employment_type === 'Regular' ? '#6366f1' : '#f59e0b',
-                            color: 'white', borderRadius: '4px', padding: '2px 8px', fontSize: '0.8em'
-                        }}>
-                            TBD — {assignment.tbd_employment_type === 'Regular' ? '정규직' : '계약직'}
-                        </span>
-                    ) : (
-                        <span>{assignment.employee_name}</span>
-                    )}
-                    {canEdit && (
-                        <button
-                            onClick={() => handleRemoveMember(projectId, assignment.id, assignment.employee_name)}
-                            className="reorder-btn hover-danger"
-                            title="배정 해제"
-                            style={{ marginLeft: '4px', opacity: 0.5 }}
-                        >🗑️</button>
-                    )}
-                </div>
+            {/* 소속 */}
+            <td style={{ position: 'sticky', left: getStickyLeft('group', 'group'), zIndex: 10, width: columnWidths.group, backgroundColor: 'var(--bg-primary)', borderBottom: '1px solid var(--border)' }}>
+                {assignment.employee_id != null && <span className="badge" style={{ backgroundColor: assignment.group_color, fontSize: '0.7em' }}>{assignment.group_name}</span>}
             </td>
+            {/* 직급 */}
             <td style={{ position: 'sticky', left: getStickyLeft('position', 'group'), zIndex: 10, width: columnWidths.position, backgroundColor: 'var(--bg-primary)', borderBottom: '1px solid var(--border)', padding: assignment.employee_id == null ? 0 : undefined }}>
                 {assignment.employee_id == null ? (
                     <select className="grid-input" style={{ fontSize: '0.85em', textAlign: 'center' }}
@@ -516,6 +588,7 @@ const GroupMemberRow = React.memo(({
                     </select>
                 ) : assignment.employee_position}
             </td>
+            {/* 등급 */}
             <td style={{ position: 'sticky', left: getStickyLeft('grade', 'group'), zIndex: 10, width: columnWidths.grade, backgroundColor: 'var(--bg-primary)', fontSize: '0.8em', color: 'var(--text-muted)', borderBottom: '1px solid var(--border)', padding: assignment.employee_id == null ? 0 : undefined }}>
                 {assignment.employee_id == null ? (
                     <select className="grid-input" style={{ fontSize: '0.85em', textAlign: 'center' }}
@@ -529,7 +602,109 @@ const GroupMemberRow = React.memo(({
                     </select>
                 ) : assignment.employee_grade}
             </td>
-            <td style={{ position: 'sticky', left: getStickyLeft('employmentType', 'group'), zIndex: 10, width: columnWidths.employmentType, backgroundColor: 'var(--bg-primary)', fontSize: '0.8em', color: 'var(--text-muted)', borderBottom: '1px solid var(--border)' }}>{assignment.employee_id == null ? '-' : assignment.employee_employment_type}</td>
+            {/* 고용 */}
+            <td style={{ position: 'sticky', left: getStickyLeft('employmentType', 'group'), zIndex: 10, width: columnWidths.employmentType, backgroundColor: 'var(--bg-primary)', fontSize: '0.8em', color: 'var(--text-muted)', borderBottom: '1px solid var(--border)' }}>
+                {assignment.employee_id == null ? '-' : assignment.employee_employment_type}
+            </td>
+            {/* 이름 + 화살표 */}
+            <td style={{ position: 'sticky', left: getStickyLeft('name', 'group'), zIndex: 10, width: columnWidths.name, backgroundColor: 'var(--bg-primary)', borderBottom: '1px solid var(--border)' }}>
+                <div className="flex items-center justify-between w-full">
+                    <div
+                        ref={swapRef}
+                        className="flex items-center gap-xs"
+                        style={{ padding: '2px 4px', cursor: canEdit ? 'pointer' : 'default', flex: 1, minWidth: 0 }}
+                        onClick={openSwap}
+                        title={canEdit ? '클릭하여 직원 변경' : undefined}
+                    >
+                        {assignment.employee_id == null ? (
+                            <span style={{
+                                background: assignment.tbd_employment_type === 'Regular' ? '#6366f1' : '#f59e0b',
+                                color: 'white', padding: '2px 8px', borderRadius: '4px', fontSize: '0.75em', whiteSpace: 'nowrap'
+                            }}>
+                                TBD — {assignment.tbd_employment_type === 'Regular' ? '정규직' : '계약직'}
+                            </span>
+                        ) : (
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{assignment.employee_name}</span>
+                        )}
+                    </div>
+                    <div className="flex items-center" style={{ gap: 0 }}>
+                        {canEdit && (
+                            <div className="flex flex-col" style={{ fontSize: '0.8em', color: 'var(--text-muted)', lineHeight: 1 }}>
+                                <button
+                                    onClick={() => handleReorderMember(projectId, assignment.id, 'up')}
+                                    disabled={mIdx === 0}
+                                    className="reorder-btn"
+                                    title="위로 이동"
+                                >▲</button>
+                                <button
+                                    onClick={() => handleReorderMember(projectId, assignment.id, 'down')}
+                                    disabled={mIdx === projectMemberCount - 1}
+                                    className="reorder-btn"
+                                    title="아래로 이동"
+                                >▼</button>
+                            </div>
+                        )}
+                        {canEdit && (
+                            <button
+                                onClick={() => handleRemoveMember(projectId, assignment.id, assignment.employee_id == null ? `TBD (${assignment.tbd_employment_type === 'Regular' ? '정규직' : '계약직'})` : assignment.employee_name)}
+                                className="reorder-btn hover-danger"
+                                title="배정 해제"
+                                style={{ marginLeft: '2px', opacity: 0.5 }}
+                            >🗑️</button>
+                        )}
+                    </div>
+                </div>
+                {/* Employee swap dropdown */}
+                {swapOpen && swapRect && createPortal(
+                    <div
+                        className="inline-search-results"
+                        style={{
+                            position: 'fixed',
+                            left: `${swapRect.left}px`,
+                            top: `${swapRect.bottom + 4}px`,
+                            width: `${Math.max(swapRect.width, 280)}px`,
+                            zIndex: 9999
+                        }}
+                    >
+                        <div style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)', fontSize: '0.78em', color: 'var(--text-muted)' }}>
+                            직원 변경 (검색)
+                        </div>
+                        <div style={{ padding: '4px 8px' }}>
+                            <input
+                                type="text"
+                                autoFocus
+                                className="grid-input"
+                                placeholder="이름 또는 소속 검색..."
+                                style={{ border: '1px solid var(--border)', borderRadius: '4px', width: '100%', padding: '4px 8px', fontSize: '0.85em' }}
+                                value={swapTerm}
+                                onChange={(e) => setSwapTerm(e.target.value)}
+                                onBlur={() => setTimeout(() => setSwapOpen(false), 200)}
+                                onKeyDown={(e) => { if (e.key === 'Escape') setSwapOpen(false); }}
+                            />
+                        </div>
+                        {filteredSwapEmps.map(emp => (
+                            <div
+                                key={emp.id}
+                                className="inline-search-item"
+                                onMouseDown={(e) => {
+                                    e.preventDefault();
+                                    handleAssignmentUpdate(assignment.id, 'employee_id', emp.id);
+                                    setSwapOpen(false);
+                                }}
+                            >
+                                <div className="flex justify-between">
+                                    <strong>{emp.name}</strong>
+                                    <span className="badge" style={{ backgroundColor: emp.group_color, fontSize: '0.6em' }}>{emp.group_name}</span>
+                                </div>
+                                <div className="text-muted" style={{ fontSize: '0.75em' }}>{emp.position}</div>
+                            </div>
+                        ))}
+                        {swapTerm && filteredSwapEmps.length === 0 && <div className="p-sm text-center text-muted" style={{ fontSize: '0.85em' }}>결과 없음</div>}
+                    </div>,
+                    document.body
+                )}
+            </td>
+            {/* 근무 */}
             <td style={{ position: 'sticky', left: getStickyLeft('workLocation', 'group'), zIndex: 10, width: columnWidths.workLocation, backgroundColor: 'var(--bg-primary)', padding: 0, borderBottom: '1px solid var(--border)' }}>
                 <select
                     className="grid-input"
@@ -542,6 +717,7 @@ const GroupMemberRow = React.memo(({
                     <option value="In-house">내근</option>
                 </select>
             </td>
+            {/* 투입일 */}
             <td style={{ position: 'sticky', left: getStickyLeft('startDate', 'group'), zIndex: 10, width: columnWidths.startDate, backgroundColor: 'var(--bg-primary)', padding: 0, borderLeft: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}>
                 <DateInput
                     inputRef={(el) => (cellRefs.current[`${currentMemberIndex}-0`] = el)}
@@ -557,6 +733,7 @@ const GroupMemberRow = React.memo(({
                     onKeyDown={(e) => handleKeyDown(e, currentMemberIndex, 0)}
                 />
             </td>
+            {/* 종료일 */}
             <td style={{ position: 'sticky', left: getStickyLeft('endDate', 'group'), zIndex: 10, width: columnWidths.endDate, backgroundColor: 'var(--bg-primary)', padding: 0, borderBottom: '1px solid var(--border)' }}>
                 <DateInput
                     inputRef={(el) => (cellRefs.current[`${currentMemberIndex}-1`] = el)}
@@ -655,13 +832,12 @@ const InlineAddRow = React.memo(({
     getFilteredEmployees,
     setCursor,
     cellRefs,
+    leftSpacerWidth,
     rightSpacerWidth
 }) => {
     return (
         <tr style={{ borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}>
-            {viewMode === 'project' && (
-                <td colSpan={4} style={{ position: 'sticky', left: 0, zIndex: 10, backgroundColor: 'var(--bg-primary)', height: '28px', borderBottom: '1px solid var(--border)' }}></td>
-            )}
+            <td colSpan={4} style={{ position: 'sticky', left: 0, zIndex: 10, backgroundColor: 'var(--bg-primary)', height: '28px', borderBottom: '1px solid var(--border)' }}></td>
             <td style={{ position: 'sticky', left: getStickyLeft('name', viewMode), zIndex: 100, width: columnWidths.name, backgroundColor: 'var(--bg-primary)', padding: 0, height: '28px', borderBottom: '1px solid var(--border)' }}>
                 <InlineSearchInput
                     inputRef={(el) => (cellRefs.current[`${addRowIndex}-0`] = el)}
@@ -675,7 +851,8 @@ const InlineAddRow = React.memo(({
                     handleTBDAssign={handleTBDAssign}
                 />
             </td>
-            <td colSpan={viewMode === 'project' ? 3 : 6} style={{ position: 'sticky', left: getStickyLeft(viewMode === 'project' ? 'workLocation' : 'position', viewMode), zIndex: 10, backgroundColor: 'var(--bg-primary)', height: '28px', borderBottom: '1px solid var(--border)' }}></td>
+            <td colSpan={3} style={{ position: 'sticky', left: getStickyLeft('workLocation', viewMode), zIndex: 10, backgroundColor: 'var(--bg-primary)', height: '28px', borderBottom: '1px solid var(--border)' }}></td>
+            {leftSpacerWidth > 0 && <td style={{ width: leftSpacerWidth, backgroundColor: 'var(--bg-primary)', borderBottom: '1px solid var(--border)' }} />}
             {weeks.map(week => (
                 <td key={format(week, 'yyyy-MM-dd')} style={{
                     minWidth: `${columnWidths.week}px`,
@@ -683,7 +860,8 @@ const InlineAddRow = React.memo(({
                     height: '28px',
                     borderLeft: '1px solid var(--border)',
                     borderBottom: '1px solid var(--border)',
-                    backgroundColor: isCurrentWeek(week) ? 'rgba(239, 68, 68, 0.05)' : 'transparent'
+                    backgroundColor: isCurrentWeek(week) ? 'rgba(239, 68, 68, 0.05)' : 'transparent',
+                    borderRight: isCurrentWeek(week) ? '2px solid #ef4444' : 'none'
                 }}></td>
             ))}
             {(rightSpacerWidth || 0) > 0 && <td style={{ width: rightSpacerWidth, height: '28px', borderBottom: '1px solid var(--border)' }} />}
@@ -713,6 +891,7 @@ const ProjectItem = React.memo(({
     isCurrentWeek,
     handleReorderProject,
     handleDeleteProject,
+    handleHideProject,
     getStickyLeft,
     memberStartIndex,
     isDateInRange,
@@ -796,18 +975,32 @@ const ProjectItem = React.memo(({
                             </div>
                         </div>
                         {!isCompleted && canEdit && (
-                            <button
-                                onClick={() => handleDeleteProject(project.id, project.name)}
-                                className="reorder-btn hover-danger"
-                                title="프로젝트 삭제"
-                                style={{ marginRight: '8px' }}
-                            >🗑️</button>
+                            <div className="flex items-center gap-xs" style={{ marginRight: '8px' }}>
+                                <button
+                                    onClick={() => handleHideProject(project.id, project.name)}
+                                    className="reorder-btn"
+                                    title="프로젝트 숨기기"
+                                    style={{ opacity: 0.5 }}
+                                >👁️‍🗨️</button>
+                                <button
+                                    onClick={() => handleDeleteProject(project.id, project.name)}
+                                    className="reorder-btn hover-danger"
+                                    title="프로젝트 삭제"
+                                    style={{ opacity: 0.5 }}
+                                >🗑️</button>
+                            </div>
                         )}
                     </div>
                 </td>
                 {leftSpacerWidth > 0 && <td style={{ width: leftSpacerWidth, backgroundColor: bgColor, borderBottom: '1px solid var(--border)' }} />}
                 {weeks.map((week, wIdx) => (
-                    <td key={wIdx} style={{ backgroundColor: bgColor, borderRight: isCurrentWeek(week) ? '2px solid #ef4444' : 'none', borderBottom: '1px solid var(--border)' }}></td>
+                    <td key={wIdx} style={{
+                        backgroundColor: bgColor,
+                        borderRight: isCurrentWeek(week) ? '2px solid #ef4444' : 'none',
+                        borderBottom: '1px solid var(--border)',
+                        minWidth: `${columnWidths.week}px`,
+                        maxWidth: `${columnWidths.week}px`
+                    }}></td>
                 ))}
                 {rightSpacerWidth > 0 && <td style={{ width: rightSpacerWidth, backgroundColor: bgColor, borderBottom: '1px solid var(--border)' }} />}
             </tr>
@@ -865,6 +1058,7 @@ const ProjectItem = React.memo(({
                     getFilteredEmployees={getFilteredEmployees}
                     setCursor={setCursor}
                     cellRefs={cellRefs}
+                    leftSpacerWidth={leftSpacerWidth}
                     rightSpacerWidth={rightSpacerWidth}
                 />
             )}
@@ -906,7 +1100,9 @@ const ProjectItem = React.memo(({
                                     fontWeight: 'bold',
                                     color: total > activeCount ? 'var(--danger)' : 'var(--text-primary)',
                                     borderRight: isCurrentWeek(week) ? '2px solid #ef4444' : 'none',
-                                    borderBottom: '2px solid var(--border)'
+                                    borderBottom: '2px solid var(--border)',
+                                    minWidth: `${columnWidths.week}px`,
+                                    maxWidth: `${columnWidths.week}px`
                                 }}
                             >
                                 {total > 0 ? total.toFixed(1) : ''}
@@ -976,8 +1172,37 @@ const ProjectStatus = () => {
     const [selectedProject, setSelectedProject] = useState(null);
     // Start 52 weeks (1 year) ago so we can scroll back smoothly without re-rendering
     const [startDate, setStartDate] = useState(() => addWeeks(startOfWeek(new Date(), { weekStartsOn: 1 }), -52));
-    const [viewMode, setViewMode] = useState('project'); // 'project' or 'group'
-    const [selectedGroup, setSelectedGroup] = useState('ALL'); // 'ALL' or specific group name
+    const [viewMode, setViewMode] = useState(() => {
+        return localStorage.getItem('wfs_view_mode') || 'project';
+    }); // 'project' or 'group'
+
+    useEffect(() => {
+        localStorage.setItem('wfs_view_mode', viewMode);
+    }, [viewMode]);
+    const [selectedGroup, setSelectedGroup] = useState(() => {
+        return localStorage.getItem('wfs_selected_group') || 'ALL';
+    }); // 'ALL' or specific group name
+
+    useEffect(() => {
+        localStorage.setItem('wfs_selected_group', selectedGroup);
+    }, [selectedGroup]);
+    const [hiddenProjectIds, setHiddenProjectIds] = useState(() => {
+        try {
+            const saved = localStorage.getItem('wfs_hidden_project_ids');
+            return saved ? JSON.parse(saved) : [];
+        } catch (e) {
+            return [];
+        }
+    });
+
+    useEffect(() => {
+        localStorage.setItem('wfs_hidden_project_ids', JSON.stringify(hiddenProjectIds));
+    }, [hiddenProjectIds]);
+
+    const [showHideManager, setShowHideManager] = useState(false);
+    const hideManagerRef = useRef(null);
+
+
     const [isGroupTransitioning, startGroupTransition] = useTransition();
     // Scroll Sync Refs
     const tableContainerRef = useRef(null);
@@ -1060,12 +1285,30 @@ const ProjectStatus = () => {
         const today = startOfWeek(new Date(), { weekStartsOn: 1 });
         return `${format(today, 'yyyy년 M월 d일')} ~ ${format(addDays(today, 4), 'M월 d일')}`;
     });
+    const [showCalendarPicker, setShowCalendarPicker] = useState(false);
+    const [calendarPickerRect, setCalendarPickerRect] = useState(null);
+    const [calPickerYear, setCalPickerYear] = useState(() => new Date().getFullYear());
+    const [calPickerMonth, setCalPickerMonth] = useState(() => new Date().getMonth());
+    const [hoveredWeekIdx, setHoveredWeekIdx] = useState(null);
     const [isMobile, setIsMobile] = useState(() => window.innerWidth < 900);
     useEffect(() => {
         const onResize = () => setIsMobile(window.innerWidth < 900);
         window.addEventListener('resize', onResize);
         return () => window.removeEventListener('resize', onResize);
     }, []);
+
+    // Close calendar picker when clicking outside
+    useEffect(() => {
+        if (!showCalendarPicker) return;
+        const handler = (e) => {
+            // Check if the click is on our calendar picker button or the picker itself
+            if (!e.target.closest('.inline-search-results') && !e.target.closest('[title="달력으로 날짜 이동"]')) {
+                setShowCalendarPicker(false);
+            }
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, [showCalendarPicker]);
 
     const mobileDate = useMemo(() => {
         const m = visibleDate.match(/(\d+)월\s*(\d+)일\s*~\s*(?:\d+월\s*)?(\d+)일/);
@@ -1098,6 +1341,9 @@ const ProjectStatus = () => {
             if (groupDropdownRef.current && !groupDropdownRef.current.contains(event.target)) {
                 setShowGroupDropdown(false);
             }
+            if (hideManagerRef.current && !hideManagerRef.current.contains(event.target)) {
+                setShowHideManager(false);
+            }
         }
         document.addEventListener("mousedown", handleClickOutside);
         return () => {
@@ -1127,6 +1373,7 @@ const ProjectStatus = () => {
 
         // Map project members to groups
         data.forEach(project => {
+            if (hiddenProjectIds.includes(project.id)) return;
             project.members.forEach(member => {
                 const groupName = member.group_name || '미지정';
                 if (!groupMap[groupName]) {
@@ -1211,12 +1458,12 @@ const ProjectStatus = () => {
         }).filter(g => g.projects.length > 0);
 
         return result.sort((a, b) => a.name.localeCompare(b.name));
-    }, [data, employees]);
+    }, [data, employees, hiddenProjectIds]);
 
     const filteredData = useMemo(() => {
         const todayStr = format(new Date(), 'yyyy-MM-dd');
 
-        let processedData = data;
+        let processedData = data.filter(p => !hiddenProjectIds.includes(p.id));
         const term = projectSearchTerm.trim().toLowerCase();
 
         if (term) {
@@ -1284,7 +1531,7 @@ const ProjectStatus = () => {
         completed.sort(sortFn);
 
         return { active, completed };
-    }, [data, projectSearchTerm]);
+    }, [data, projectSearchTerm, hiddenProjectIds]);
 
     const groupStats = useMemo(() => transformDataByGroup(), [transformDataByGroup]);
 
@@ -1490,6 +1737,22 @@ const ProjectStatus = () => {
     // Custom Confirm Modal State
     const [confirmConfig, setConfirmConfig] = useState({ isOpen: false, title: '', message: '', onConfirm: null, type: 'danger' });
 
+    const handleHideProject = useCallback((projectId, projectName) => {
+        setConfirmConfig({
+            isOpen: true,
+            title: '프로젝트 숨기기',
+            message: `"${projectName}" 프로젝트를 화면에서 숨기시겠습니까? 언제든 우상단 숨김 관리 메뉴에서 복구할 수 있습니다.`,
+            type: 'info',
+            onConfirm: () => {
+                setHiddenProjectIds(prev => {
+                    if (prev.includes(projectId)) return prev;
+                    return [...prev, projectId];
+                });
+                setConfirmConfig(prev => ({ ...prev, isOpen: false }));
+            }
+        });
+    }, [setConfirmConfig]);
+
 
 
     // Grid State
@@ -1537,10 +1800,10 @@ const ProjectStatus = () => {
             if (idx <= 0) return idx === 0 ? 0 : -1;
             return order.slice(0, idx).reduce((acc, col) => acc + columnWidths[col], 0);
         } else {
-            // Group View order: name, position, grade, employmentType, workLocation, startDate, endDate
-            const order = ['name', 'position', 'grade', 'employmentType', 'workLocation', 'startDate', 'endDate'];
+            // Group View order: group, position, grade, employmentType, name, workLocation, startDate, endDate
+            const order = ['group', 'position', 'grade', 'employmentType', 'name', 'workLocation', 'startDate', 'endDate'];
             const idx = order.indexOf(column);
-            if (idx <= 0) return 0;
+            if (idx <= 0) return idx === 0 ? 0 : -1;
             return order.slice(0, idx).reduce((acc, col) => acc + columnWidths[col], 0);
         }
     }, [columnWidths]);
@@ -1963,11 +2226,10 @@ const ProjectStatus = () => {
         const lowerTerm = term.toLowerCase();
 
         return employees.filter(emp => {
-            // Expensive lookup inside filter: try to optimize if data is huge
-            // For now, it's okay but ideally we'd have a pre-calculated set of assigned IDs per project
+            if (!lowerTerm) return true;
             return (emp.name?.toLowerCase().includes(lowerTerm) ||
                 emp.group_name?.toLowerCase().includes(lowerTerm))
-        }).slice(0, 10);
+        });
     }, [employees]);
 
     const handleAssignmentUpdate = useCallback(async (assignmentId, field, value) => {
@@ -2066,8 +2328,7 @@ const ProjectStatus = () => {
     }, [setConfirmConfig, setData]);
 
     const handleInlineAssign = useCallback(async (projectId, employeeId) => {
-        const key = `${projectId}-${employeeId}`;
-        if (assigningProjects.current.has(key)) return;
+        const key = `${projectId}-${employeeId}-${Date.now()}`;
         assigningProjects.current.add(key);
 
         // Optimistic update: add temporary member immediately for instant feedback
@@ -2079,13 +2340,76 @@ const ProjectStatus = () => {
             employee_id: employeeId,
             employee_name: empInfo?.name || '',
             employee_position: empInfo?.position || '',
+            employee_grade: empInfo?.skill_level || '',
+            employee_employment_type: empInfo?.employment_type || '',
             group_name: empInfo?.group_name || '',
             group_color: empInfo?.group_color || '',
             allocations: {}
         };
-        setData(prev => prev.map(p =>
-            p.id === projectId ? { ...p, members: [...p.members, tempMember] } : p
-        ));
+
+        // Calculate newMemberIndex in the flatRows list BEFORE setting state
+        let newMemberIndex = -1;
+        let flatIdx = 0;
+
+        if (viewMode === 'project') {
+            for (const p of data) {
+                if (p.id === projectId) {
+                    let insertAfter = -1;
+                    p.members.forEach((m, idx) => {
+                        if (m.employee_id === employeeId) insertAfter = idx;
+                    });
+
+                    const insertPos = insertAfter >= 0 ? insertAfter + 1 : p.members.length;
+                    newMemberIndex = flatIdx + insertPos;
+                    break;
+                } else {
+                    flatIdx += p.members.length + 1; // members count + 1 (for 'add' row)
+                }
+            }
+        } else {
+            // Group view
+            for (const g of groupStats) {
+                for (const p of g.projects) {
+                    if (p.id === projectId) {
+                        let insertAfter = -1;
+                        p.assignments.forEach((a, idx) => {
+                            if (a.employee_id === employeeId) insertAfter = idx;
+                        });
+
+                        const insertPos = insertAfter >= 0 ? insertAfter + 1 : p.assignments.length;
+                        newMemberIndex = flatIdx + insertPos;
+                        break;
+                    } else {
+                        flatIdx += p.assignments.length + 1; // assignments count + 1 (for 'group_add' row)
+                    }
+                }
+                if (newMemberIndex !== -1) break;
+            }
+        }
+
+        // Insert right after the last occurrence of the same employee in this project
+        setData(prev => prev.map(p => {
+            if (p.id !== projectId) return p;
+            const members = [...p.members];
+            // Find the last index of same employee
+            let insertAfter = -1;
+            members.forEach((m, idx) => {
+                if (m.employee_id === employeeId) insertAfter = idx;
+            });
+            if (insertAfter >= 0) {
+                members.splice(insertAfter + 1, 0, tempMember);
+            } else {
+                members.push(tempMember);
+            }
+            return { ...p, members };
+        }));
+
+        // Focus the newly added member's startDate input (weekIndex 0) on next render
+        if (newMemberIndex !== -1) {
+            setTimeout(() => {
+                setCursor({ memberIndex: newMemberIndex, weekIndex: 0 });
+            }, 50);
+        }
 
         try {
             const response = await projectsAPI.assignMember(projectId, { employee_id: employeeId });
@@ -2093,16 +2417,53 @@ const ProjectStatus = () => {
                 ...response.data,
                 employee_name: response.data.employee_name || empInfo?.name,
                 employee_position: response.data.employee_position || empInfo?.position,
+                employee_grade: response.data.employee_grade || empInfo?.skill_level,
+                employee_employment_type: response.data.employee_employment_type || empInfo?.employment_type,
                 group_name: response.data.group_name || empInfo?.group_name,
                 group_color: response.data.group_color || empInfo?.group_color,
                 allocations: {}
             };
+
+            // Calculate the updated members list and their IDs synchronously
+            let updatedOrderIds = [];
+            const currentProject = data.find(p => p.id === projectId);
+            if (currentProject) {
+                // Filter out any tempMember and insert newMember right after the last same employee
+                const cleanMembers = currentProject.members.filter(m => m.id !== tempId);
+                let insertAfter = -1;
+                cleanMembers.forEach((m, idx) => {
+                    if (m.employee_id === employeeId) insertAfter = idx;
+                });
+                if (insertAfter >= 0) {
+                    cleanMembers.splice(insertAfter + 1, 0, newMember);
+                } else {
+                    cleanMembers.push(newMember);
+                }
+                updatedOrderIds = cleanMembers.map(m => m.id);
+            }
+
             // Replace temp member with real server data
-            setData(prev => prev.map(p =>
-                p.id === projectId
-                    ? { ...p, members: p.members.map(m => m.id === tempId ? newMember : m) }
-                    : p
-            ));
+            setData(prev => prev.map(p => {
+                if (p.id === projectId) {
+                    const cleanMembers = p.members.filter(m => m.id !== tempId);
+                    let insertAfter = -1;
+                    cleanMembers.forEach((m, idx) => {
+                        if (m.employee_id === employeeId) insertAfter = idx;
+                    });
+                    if (insertAfter >= 0) {
+                        cleanMembers.splice(insertAfter + 1, 0, newMember);
+                    } else {
+                        cleanMembers.push(newMember);
+                    }
+                    return { ...p, members: cleanMembers };
+                }
+                return p;
+            }));
+
+            // Persist the order to DB
+            if (updatedOrderIds.length > 0) {
+                await projectsAPI.reorderMembers(updatedOrderIds);
+            }
         } catch (err) {
             // Rollback optimistic update
             setData(prev => prev.map(p =>
@@ -2110,16 +2471,11 @@ const ProjectStatus = () => {
             ));
             console.error('Failed to assign member:', err);
             const errorMsg = err.response?.data?.error;
-
-            if (errorMsg === 'Employee already assigned to this project') {
-                alert('이미 배정된 인원입니다.');
-            } else {
-                alert(errorMsg || '인원 배정에 실패했습니다. (서버 연결을 확인하세요)');
-            }
+            alert(errorMsg || '인원 배정에 실패했습니다. (서버 연결을 확인하세요)');
         } finally {
             assigningProjects.current.delete(key);
         }
-    }, [employees, setData, loadData]);
+    }, [employees, setData, loadData, viewMode, groupStats, data]);
 
     const handleKeyDown = useCallback((e, rowIndex, weekIndex, isAddCell = false) => {
         const flatRows = getFlatRows();
@@ -3016,13 +3372,183 @@ const ProjectStatus = () => {
                             <ChevronLeft size={18} />
                         </button>
 
-                        <div className="flex items-center gap-xs px-sm border-l border-r border-border mx-xs">
-                            {!isMobile && <Calendar size={14} className="text-muted" />}
+                        <div className="flex items-center gap-xs px-sm border-l border-r border-border mx-xs" style={{ position: 'relative' }}>
+                            {!isMobile && (
+                                <button
+                                    onClick={(e) => {
+                                        setCalendarPickerRect(e.currentTarget.getBoundingClientRect());
+                                        let initialDate = new Date();
+                                        if (tableContainerRef.current && weeks && weeks.length > 0) {
+                                            const offsetWeeks = Math.max(0, Math.round(tableContainerRef.current.scrollLeft / columnWidths.week));
+                                            if (weeks[offsetWeeks]) {
+                                                initialDate = weeks[offsetWeeks];
+                                            }
+                                        }
+                                        setCalPickerYear(initialDate.getFullYear());
+                                        setCalPickerMonth(initialDate.getMonth());
+                                        setShowCalendarPicker(v => !v);
+                                    }}
+                                    title="달력으로 날짜 이동"
+                                    style={{ border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', color: 'var(--text-muted)', padding: '2px' }}
+                                >
+                                    <Calendar size={15} />
+                                </button>
+                            )}
                             <span
                                 style={{ fontWeight: 600, fontSize: isMobile ? '0.75em' : '0.85em', minWidth: isMobile ? '70px' : '160px', textAlign: 'center' }}
                             >
                                 {isMobile ? mobileDate : visibleDate}
                             </span>
+                            {/* Calendar Picker Portal */}
+                            {showCalendarPicker && calendarPickerRect && (() => {
+                                // Calculate start and end days for the month grid
+                                const startMonth = new Date(calPickerYear, calPickerMonth, 1);
+                                const endMonth = new Date(calPickerYear, calPickerMonth + 1, 0);
+
+                                const calStart = startOfWeek(startMonth, { weekStartsOn: 1 });
+                                const calEnd = endOfWeek(endMonth, { weekStartsOn: 1 });
+
+                                const eachDay = [];
+                                let curr = new Date(calStart);
+                                while (curr <= calEnd) {
+                                    eachDay.push(new Date(curr));
+                                    curr.setDate(curr.getDate() + 1);
+                                }
+
+                                const calendarWeeks = [];
+                                for (let i = 0; i < eachDay.length; i += 7) {
+                                    calendarWeeks.push(eachDay.slice(i, i + 7));
+                                }
+
+                                const handlePrevMonth = () => {
+                                    if (calPickerMonth === 0) {
+                                        setCalPickerYear(y => y - 1);
+                                        setCalPickerMonth(11);
+                                    } else {
+                                        setCalPickerMonth(m => m - 1);
+                                    }
+                                };
+
+                                const handleNextMonth = () => {
+                                    if (calPickerMonth === 11) {
+                                        setCalPickerYear(y => y + 1);
+                                        setCalPickerMonth(0);
+                                    } else {
+                                        setCalPickerMonth(m => m + 1);
+                                    }
+                                };
+
+                                return createPortal(
+                                    <div
+                                        className="inline-search-results"
+                                        style={{
+                                            position: 'fixed',
+                                            left: `${calendarPickerRect.left - 60}px`,
+                                            top: `${calendarPickerRect.bottom + 6}px`,
+                                            width: '280px',
+                                            zIndex: 9999,
+                                            padding: '12px',
+                                            boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
+                                            borderRadius: '12px',
+                                            userSelect: 'none'
+                                        }}
+                                        onMouseDown={(e) => e.stopPropagation()}
+                                    >
+                                        {/* Year & Month nav */}
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                                            <button style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--text-primary)', fontSize: '1.2em', padding: '2px 10px', fontWeight: 'bold' }}
+                                                onClick={handlePrevMonth}>‹</button>
+                                            <strong style={{ fontSize: '0.95em' }}>{calPickerYear}년 {calPickerMonth + 1}월</strong>
+                                            <button style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--text-primary)', fontSize: '1.2em', padding: '2px 10px', fontWeight: 'bold' }}
+                                                onClick={handleNextMonth}>›</button>
+                                        </div>
+
+                                        {/* Weekday headers */}
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', textAlign: 'center', fontSize: '0.78em', fontWeight: 'bold', borderBottom: '1px solid var(--border)', paddingBottom: '6px', marginBottom: '6px', color: 'var(--text-muted)' }}>
+                                            <div>월</div><div>화</div><div>수</div><div>목</div><div>금</div>
+                                            <div style={{ color: '#3b82f6' }}>토</div><div style={{ color: '#ef4444' }}>일</div>
+                                        </div>
+
+                                        {/* Weekly Calendar rows */}
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                                            {calendarWeeks.map((week, wIdx) => {
+                                                const monday = week[0];
+                                                const isHovered = hoveredWeekIdx === wIdx;
+
+                                                return (
+                                                    <div
+                                                        key={wIdx}
+                                                        onMouseEnter={() => setHoveredWeekIdx(wIdx)}
+                                                        onMouseLeave={() => setHoveredWeekIdx(null)}
+                                                        onClick={() => {
+                                                            const weeksFromStart = Math.round((monday - weeks[0]) / (7 * 24 * 3600 * 1000));
+                                                            const clampedWeeks = Math.max(0, Math.min(weeks.length - 1, weeksFromStart));
+                                                            if (tableContainerRef.current) {
+                                                                const scrollLeft = clampedWeeks * columnWidths.week;
+                                                                tableContainerRef.current.scrollTo({ left: scrollLeft, behavior: 'smooth' });
+                                                            }
+                                                            const targetWeek = weeks[clampedWeeks] || monday;
+                                                            setVisibleDate(`${format(targetWeek, 'yyyy년 M월 d일')} ~ ${format(addDays(targetWeek, 4), 'M월 d일')}`);
+                                                            setShowCalendarPicker(false);
+                                                        }}
+                                                        style={{
+                                                            display: 'grid',
+                                                            gridTemplateColumns: 'repeat(7, 1fr)',
+                                                            gap: '4px',
+                                                            padding: '4px 0',
+                                                            borderRadius: '6px',
+                                                            cursor: 'pointer',
+                                                            backgroundColor: isHovered ? 'var(--primary-muted, rgba(99, 102, 241, 0.08))' : 'transparent',
+                                                            transition: 'background-color 0.15s'
+                                                        }}
+                                                    >
+                                                        {week.map((day, dIdx) => {
+                                                            const isCurrentMonth = day.getMonth() === calPickerMonth;
+                                                            const isToday = format(day, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
+                                                            
+                                                            let dayColor = 'var(--text-primary)';
+                                                            if (!isCurrentMonth) {
+                                                                dayColor = 'var(--text-muted)';
+                                                            } else if (dIdx === 5) {
+                                                                dayColor = '#3b82f6'; // Sat
+                                                            } else if (dIdx === 6) {
+                                                                dayColor = '#ef4444'; // Sun
+                                                            }
+
+                                                            return (
+                                                                <div
+                                                                    key={dIdx}
+                                                                    style={{
+                                                                        textAlign: 'center',
+                                                                        padding: '4px 0',
+                                                                        fontSize: '0.8em',
+                                                                        color: dayColor,
+                                                                        opacity: isCurrentMonth ? 1 : 0.4,
+                                                                        fontWeight: isToday ? 'bold' : 'normal',
+                                                                        border: isToday ? '1px solid var(--color-primary, #6366f1)' : 'none',
+                                                                        borderRadius: '4px',
+                                                                        backgroundColor: isToday ? 'var(--primary-muted, rgba(99, 102, 241, 0.05))' : 'transparent'
+                                                                    }}
+                                                                >
+                                                                    {day.getDate()}
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+
+                                        <div style={{ marginTop: '10px', textAlign: 'center', borderTop: '1px solid var(--border)', paddingTop: '8px' }}>
+                                            <button
+                                                style={{ border: '1px solid var(--border)', borderRadius: '6px', padding: '4px 16px', fontSize: '0.8em', cursor: 'pointer', background: 'transparent', color: 'var(--text-primary)' }}
+                                                onClick={() => setShowCalendarPicker(false)}
+                                            >닫기</button>
+                                        </div>
+                                    </div>,
+                                    document.body
+                                );
+                            })()}
                         </div>
 
                         <button
@@ -3132,6 +3658,75 @@ const ProjectStatus = () => {
                                 <Plus size={14} /> 프로젝트 추가
                             </button>
                         )}
+
+                        {/* 숨김 프로젝트 관리 위젯 */}
+                        {!isToolbarCollapsed && (
+                            <div className="relative" ref={hideManagerRef} style={{ zIndex: 1000 }}>
+                                <button
+                                    onClick={() => setShowHideManager(!showHideManager)}
+                                    className={`btn flex items-center gap-xs px-md py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${showHideManager ? 'bg-secondary text-white' : 'btn-outline'}`}
+                                    title="숨긴 프로젝트 목록"
+                                    style={{ border: '1px solid var(--border)', background: showHideManager ? 'var(--surface-high)' : 'transparent', color: 'var(--text-primary)' }}
+                                >
+                                    <EyeOff size={14} />
+                                    <span>숨김 관리 ({hiddenProjectIds.length})</span>
+                                </button>
+
+                                {showHideManager && (
+                                    <div
+                                        className="absolute right-0 top-full mt-xs border-2 border-border rounded-lg z-[2000] p-md animate-in fade-in slide-in-from-top-2 duration-200"
+                                        style={{
+                                            backgroundColor: '#000000',
+                                            width: '280px',
+                                            boxShadow: 'var(--shadow-xl)',
+                                            maxHeight: '300px',
+                                            overflowY: 'auto'
+                                        }}
+                                    >
+                                        <div style={{ fontWeight: 'bold', fontSize: '0.85em', borderBottom: '1px solid var(--border)', paddingBottom: '6px', marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#ffffff' }}>
+                                            <span>숨겨진 프로젝트 목록</span>
+                                            {hiddenProjectIds.length > 0 && (
+                                                <button
+                                                    onClick={() => setHiddenProjectIds([])}
+                                                    style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontSize: '0.8em', fontWeight: 'bold' }}
+                                                >
+                                                    전체 해제
+                                                </button>
+                                            )}
+                                        </div>
+                                        {hiddenProjectIds.length === 0 ? (
+                                            <div className="text-center text-muted py-md" style={{ fontSize: '0.8em', color: 'var(--text-muted)' }}>
+                                                숨겨진 프로젝트가 없습니다.
+                                            </div>
+                                        ) : (
+                                            <div className="flex flex-col gap-xs" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                {hiddenProjectIds.map(id => {
+                                                    const proj = allMasterProjects.find(p => p.id === id) || data.find(p => p.id === id);
+                                                    if (!proj) return null;
+                                                    return (
+                                                        <div key={id} className="flex justify-between items-center py-xs" style={{ borderBottom: '1px dotted var(--border)', gap: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                            <span style={{ fontSize: '0.8em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, color: '#ffffff', textAlign: 'left' }} title={proj.name}>
+                                                                {proj.name}
+                                                            </span>
+                                                            <button
+                                                                onClick={() => {
+                                                                    setHiddenProjectIds(prev => prev.filter(hid => hid !== id));
+                                                                }}
+                                                                className="btn btn-outline"
+                                                                style={{ padding: '2px 8px', fontSize: '0.75em', minHeight: 'auto', borderRadius: '4px', cursor: 'pointer', border: '1px solid var(--border)', color: '#ffffff', background: 'transparent' }}
+                                                            >
+                                                                표시
+                                                            </button>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
                         <div className="relative z-1000" ref={settingsRef}>
                             <button
                                 onClick={() => setShowSettings(!showSettings)}
@@ -3223,35 +3818,18 @@ const ProjectStatus = () => {
                         borderCollapse: 'collapse',
                         borderSpacing: 0,
                         tableLayout: 'fixed',
-                        width: `${(viewMode === 'project' ?
-                            (columnWidths.group + columnWidths.position + columnWidths.grade + columnWidths.employmentType + columnWidths.name + columnWidths.workLocation + columnWidths.startDate + columnWidths.endDate) :
-                            (columnWidths.name + columnWidths.position + columnWidths.grade + columnWidths.employmentType + columnWidths.workLocation + columnWidths.startDate + columnWidths.endDate)
-                        ) + (weeks.length * columnWidths.week)}px`
+                        width: `${(columnWidths.group + columnWidths.position + columnWidths.grade + columnWidths.employmentType + columnWidths.name + columnWidths.workLocation + columnWidths.startDate + columnWidths.endDate) + (weeks.length * columnWidths.week)}px`
                     }}
                 >
                     <colgroup>
-                        {viewMode === 'project' ? (
-                            <>
-                                <col style={{ width: columnWidths.group }} />
-                                <col style={{ width: columnWidths.position }} />
-                                <col style={{ width: columnWidths.grade }} />
-                                <col style={{ width: columnWidths.employmentType }} />
-                                <col style={{ width: columnWidths.name }} />
-                                <col style={{ width: columnWidths.workLocation }} />
-                                <col style={{ width: columnWidths.startDate }} />
-                                <col style={{ width: columnWidths.endDate }} />
-                            </>
-                        ) : (
-                            <>
-                                <col style={{ width: columnWidths.name }} />
-                                <col style={{ width: columnWidths.position }} />
-                                <col style={{ width: columnWidths.grade }} />
-                                <col style={{ width: columnWidths.employmentType }} />
-                                <col style={{ width: columnWidths.workLocation }} />
-                                <col style={{ width: columnWidths.startDate }} />
-                                <col style={{ width: columnWidths.endDate }} />
-                            </>
-                        )}
+                        <col style={{ width: columnWidths.group }} />
+                        <col style={{ width: columnWidths.position }} />
+                        <col style={{ width: columnWidths.grade }} />
+                        <col style={{ width: columnWidths.employmentType }} />
+                        <col style={{ width: columnWidths.name }} />
+                        <col style={{ width: columnWidths.workLocation }} />
+                        <col style={{ width: columnWidths.startDate }} />
+                        <col style={{ width: columnWidths.endDate }} />
                         {leftSpacerWidth > 0 && <col style={{ width: leftSpacerWidth }} />}
                         {visibleWeeks.map(w => (
                             <col key={w.toString()} style={{ width: columnWidths.week }} />
@@ -3261,7 +3839,7 @@ const ProjectStatus = () => {
                     <thead style={{ position: 'sticky', top: 0, zIndex: 200, backgroundColor: 'var(--surface-high)' }}>
                         {/* Month Group Header Row */}
                         <tr>
-                            <th colSpan={viewMode === 'project' ? 8 : 7} style={{ position: 'sticky', left: 0, zIndex: 201, backgroundColor: 'var(--surface-high)', borderBottom: '1px solid var(--border)' }}></th>
+                            <th colSpan={8} style={{ position: 'sticky', left: 0, zIndex: 201, backgroundColor: 'var(--surface-high)', borderBottom: '1px solid var(--border)' }}></th>
                             {leftSpacerWidth > 0 && <th style={{ width: leftSpacerWidth, minWidth: leftSpacerWidth, backgroundColor: 'var(--surface-high)' }} />}
                             {(() => {
                                 // Only render month groups that overlap with visible range
@@ -3363,11 +3941,11 @@ const ProjectStatus = () => {
                                 </>
                             ) : (
                                 <>
-                                    <th style={{ position: 'sticky', left: getStickyLeft('name', 'group'), zIndex: 201, minWidth: columnWidths.name, width: columnWidths.name, backgroundColor: 'var(--bg-tertiary)' }}>
+                                    <th style={{ position: 'sticky', left: getStickyLeft('group', 'group'), zIndex: 201, minWidth: columnWidths.group, width: columnWidths.group, backgroundColor: 'var(--bg-tertiary)' }}>
                                         <div className="flex items-center justify-between">
-                                            <span>이름</span>
-                                            {isResizeMode && <input type="number" className="width-input" value={columnWidths.name} onChange={(e) => handleWidthInputChange('name', e.target.value)} />}
-                                            <div className="resize-handle" onMouseDown={(e) => startResizing('name', e)}></div>
+                                            <span>소속</span>
+                                            {isResizeMode && <input type="number" className="width-input" value={columnWidths.group} onChange={(e) => handleWidthInputChange('group', e.target.value)} />}
+                                            <div className="resize-handle" onMouseDown={(e) => startResizing('group', e)}></div>
                                         </div>
                                     </th>
                                     <th style={{ position: 'sticky', left: getStickyLeft('position', 'group'), zIndex: 201, minWidth: columnWidths.position, width: columnWidths.position, backgroundColor: 'var(--bg-tertiary)' }}>
@@ -3389,6 +3967,13 @@ const ProjectStatus = () => {
                                             <span>고용</span>
                                             {isResizeMode && <input type="number" className="width-input" value={columnWidths.employmentType} onChange={(e) => handleWidthInputChange('employmentType', e.target.value)} />}
                                             <div className="resize-handle" onMouseDown={(e) => startResizing('employmentType', e)}></div>
+                                        </div>
+                                    </th>
+                                    <th style={{ position: 'sticky', left: getStickyLeft('name', 'group'), zIndex: 201, minWidth: columnWidths.name, width: columnWidths.name, backgroundColor: 'var(--bg-tertiary)' }}>
+                                        <div className="flex items-center justify-between">
+                                            <span>이름</span>
+                                            {isResizeMode && <input type="number" className="width-input" value={columnWidths.name} onChange={(e) => handleWidthInputChange('name', e.target.value)} />}
+                                            <div className="resize-handle" onMouseDown={(e) => startResizing('name', e)}></div>
                                         </div>
                                     </th>
                                     <th style={{ position: 'sticky', left: getStickyLeft('workLocation', 'group'), zIndex: 201, minWidth: columnWidths.workLocation, width: columnWidths.workLocation, backgroundColor: 'var(--bg-tertiary)' }}>
@@ -3480,6 +4065,7 @@ const ProjectStatus = () => {
                                                     isCurrentWeek={isCurrentWeek}
                                                     handleReorderProject={handleReorderProject}
                                                     handleDeleteProject={handleDeleteProject}
+                                                    handleHideProject={handleHideProject}
                                                     getStickyLeft={getStickyLeft}
                                                     memberStartIndex={memberStartIndex}
                                                     isDateInRange={isDateInRange}
@@ -3560,6 +4146,7 @@ const ProjectStatus = () => {
                                                             isCurrentWeek={isCurrentWeek}
                                                             handleReorderProject={handleReorderProject}
                                                             handleDeleteProject={handleDeleteProject}
+                                                            handleHideProject={handleHideProject}
                                                             getStickyLeft={getStickyLeft}
                                                             memberStartIndex={memberStartIndex}
                                                             isDateInRange={isDateInRange}
@@ -3599,7 +4186,7 @@ const ProjectStatus = () => {
                                             <tr key={`group-h-${group.name}`} style={{ backgroundColor: 'var(--surface-high)' }}>
                                                 <td
                                                     style={{ position: 'sticky', left: 0, zIndex: 12, backgroundColor: 'var(--surface-high)', fontWeight: 'bold' }}
-                                                    colSpan={7}
+                                                    colSpan={8}
                                                 >
                                                     <div className="flex items-center gap-md">
                                                         <span className="badge" style={{ backgroundColor: group.color }}>{group.name}</span>
@@ -3616,7 +4203,9 @@ const ProjectStatus = () => {
                                                             fontWeight: 'bold',
                                                             backgroundColor: 'var(--surface-high)',
                                                             color: total > group.memberCount ? '#ef4444' : (total > 0 ? 'var(--primary)' : 'var(--text-muted)'),
-                                                            borderRight: isCurrent ? '2px solid #ef4444' : 'none'
+                                                            borderRight: isCurrent ? '2px solid #ef4444' : 'none',
+                                                            minWidth: `${columnWidths.week}px`,
+                                                            maxWidth: `${columnWidths.week}px`
                                                         }}>
                                                             {total > 0 ? total.toFixed(1) : '-'}
                                                         </td>
@@ -3628,27 +4217,50 @@ const ProjectStatus = () => {
                                             {group.projects.map((p) => (
                                                 <React.Fragment key={p.id}>
                                                     <tr className="sub-header">
-                                                        <td colSpan={7} style={{ position: 'sticky', left: 0, zIndex: 11, backgroundColor: 'var(--primary-glow)', paddingLeft: '2rem', fontSize: '0.9em' }}>
-                                                            <div className="flex items-center gap-xs">
-                                                                <span>📁 {p.name}</span>
-                                                                <span className={`badge ${p.type === 'Internal' ? 'badge-primary' : (p.type === 'Leave' || p.type === 'Annual' ? 'badge-neutral' : 'badge-success')}`} style={{ fontSize: '0.7em', opacity: 0.8 }}>
-                                                                    {p.type || 'Client'}
-                                                                </span>
-                                                                {p.status && (
-                                                                    <span className="badge" style={{
-                                                                        backgroundColor: p.status === '진행중' ? '#16a34a' : p.status === '진행예정' ? '#2563eb' : '#6b7280',
-                                                                        fontSize: '0.7em', opacity: 0.8, color: 'white'
-                                                                    }}>{p.status}</span>
+                                                        <td colSpan={8} style={{ position: 'sticky', left: 0, zIndex: 11, backgroundColor: 'var(--primary-glow)', paddingLeft: '2rem', fontSize: '0.9em' }}>
+                                                            <div className="flex items-center justify-between w-full">
+                                                                <div className="flex items-center gap-xs">
+                                                                    <span>📁 {p.name}</span>
+                                                                    <span className={`badge ${p.type === 'Internal' ? 'badge-primary' : (p.type === 'Leave' || p.type === 'Annual' ? 'badge-neutral' : 'badge-success')}`} style={{ fontSize: '0.7em', opacity: 0.8 }}>
+                                                                        {p.type || 'Client'}
+                                                                    </span>
+                                                                    {p.status && (
+                                                                        <span className="badge" style={{
+                                                                            backgroundColor: p.status === '진행중' ? '#16a34a' : p.status === '진행예정' ? '#2563eb' : '#6b7280',
+                                                                            fontSize: '0.7em', opacity: 0.8, color: 'white'
+                                                                        }}>{p.status}</span>
+                                                                    )}
+                                                                </div>
+                                                                {canEdit && (
+                                                                    <div className="flex items-center gap-xs" style={{ marginRight: '8px' }}>
+                                                                        <button
+                                                                            onClick={() => handleHideProject(p.id, p.name)}
+                                                                            className="reorder-btn"
+                                                                            title="프로젝트 숨기기"
+                                                                            style={{ opacity: 0.5 }}
+                                                                        >👁️‍🗨️</button>
+                                                                        <button
+                                                                            onClick={() => handleDeleteProject(p.id, p.name)}
+                                                                            className="reorder-btn hover-danger"
+                                                                            title="프로젝트 삭제"
+                                                                            style={{ opacity: 0.5 }}
+                                                                        >🗑️</button>
+                                                                    </div>
                                                                 )}
                                                             </div>
                                                         </td>
                                                         {leftSpacerWidth > 0 && <td style={{ width: leftSpacerWidth, backgroundColor: 'rgba(59, 130, 246, 0.02)' }} />}
                                                         {visibleWeeks.map((week, wIdx) => (
-                                                            <td key={wIdx} style={{ backgroundColor: 'rgba(59, 130, 246, 0.02)', borderRight: wIdx === visibleCurrentWeekIdx ? '2px solid #ef4444' : 'none' }}></td>
+                                                            <td key={wIdx} style={{
+                                                                backgroundColor: 'rgba(59, 130, 246, 0.02)',
+                                                                borderRight: wIdx === visibleCurrentWeekIdx ? '2px solid #ef4444' : 'none',
+                                                                minWidth: `${columnWidths.week}px`,
+                                                                maxWidth: `${columnWidths.week}px`
+                                                            }}></td>
                                                         ))}
                                                         {rightSpacerWidth > 0 && <td style={{ width: rightSpacerWidth, backgroundColor: 'rgba(59, 130, 246, 0.02)' }} />}
                                                     </tr>
-                                                    {p.assignments.map((assignment) => {
+                                                    {p.assignments.map((assignment, aIdx) => {
                                                         const currentMemberIndex = globalRowIndex++;
                                                         return (
                                                             <GroupMemberRow
@@ -3670,8 +4282,12 @@ const ProjectStatus = () => {
                                                                 handleKeyDown={handleKeyDown}
                                                                 handlePaste={handlePaste}
                                                                 handleRemoveMember={handleRemoveMember}
+                                                                handleReorderMember={handleReorderMember}
                                                                 projectId={p.id}
+                                                                projectMemberCount={p.assignments.length}
+                                                                mIdx={aIdx}
                                                                 setCursor={setCursor}
+                                                                getFilteredEmployees={getFilteredEmployees}
                                                                 cellRefs={cellRefs}
                                                                 leftSpacerWidth={leftSpacerWidth}
                                                                 rightSpacerWidth={rightSpacerWidth}
@@ -3699,6 +4315,7 @@ const ProjectStatus = () => {
                                                                 getFilteredEmployees={getFilteredEmployees}
                                                                 setCursor={setCursor}
                                                                 cellRefs={cellRefs}
+                                                                leftSpacerWidth={leftSpacerWidth}
                                                                 rightSpacerWidth={rightSpacerWidth}
                                                             />
                                                         );
@@ -3714,7 +4331,7 @@ const ProjectStatus = () => {
                                                 return (
                                                     <React.Fragment key={`summary-${group.name}`}>
                                                         <tr style={{ backgroundColor: '#f8fafc', borderBottom: '2px solid var(--border)' }}>
-                                                            <td colSpan={7 + weeks.length} style={{ padding: 0 }}>
+                                                            <td colSpan={8 + weeks.length} style={{ padding: 0 }}>
                                                                 {/* Wrapper to enforce sticky positioning inside the colSpan */}
                                                                 <div style={{ position: 'sticky', left: 0, padding: '8px 16px', backgroundColor: '#f8fafc', zIndex: 11, width: 'max-content' }}>
                                                                     <div style={{ display: 'flex', gap: '24px', fontSize: '0.85em', color: '#334155', flexWrap: 'wrap' }}>
@@ -3780,7 +4397,7 @@ const ProjectStatus = () => {
                                                         </tr>
                                                         {/* Weekly Personnel Status Rows */}
                                                         <tr style={{ backgroundColor: '#f1f5f9', borderBottom: '1px solid #cbd5e1' }}>
-                                                            <td style={{ position: 'sticky', left: 0, zIndex: 10, backgroundColor: '#f1f5f9', padding: '4px 8px', fontSize: '0.75em', fontWeight: 'bold', color: '#475569', textAlign: 'right', borderRight: '1px solid #cbd5e1' }} colSpan={7}>
+                                                            <td style={{ position: 'sticky', left: 0, zIndex: 10, backgroundColor: '#f1f5f9', padding: '4px 8px', fontSize: '0.75em', fontWeight: 'bold', color: '#475569', textAlign: 'right', borderRight: '1px solid #cbd5e1' }} colSpan={8}>
                                                                 미투입 (0 MM)
                                                             </td>
                                                             {leftSpacerWidth > 0 && <td style={{ width: leftSpacerWidth, backgroundColor: '#f1f5f9' }} />}
@@ -3810,7 +4427,7 @@ const ProjectStatus = () => {
                                                             {rightSpacerWidth > 0 && <td style={{ width: rightSpacerWidth, backgroundColor: '#f1f5f9' }} />}
                                                         </tr>
                                                         <tr style={{ backgroundColor: '#fffbeb', borderBottom: '1px solid #fcd34d' }}>
-                                                            <td style={{ position: 'sticky', left: 0, zIndex: 10, backgroundColor: '#fffbeb', padding: '4px 8px', fontSize: '0.75em', fontWeight: 'bold', color: '#d97706', textAlign: 'right', borderRight: '1px solid #fcd34d' }} colSpan={7}>
+                                                            <td style={{ position: 'sticky', left: 0, zIndex: 10, backgroundColor: '#fffbeb', padding: '4px 8px', fontSize: '0.75em', fontWeight: 'bold', color: '#d97706', textAlign: 'right', borderRight: '1px solid #fcd34d' }} colSpan={8}>
                                                                 부분 투입 (1.0 MM 미만)
                                                             </td>
                                                             {leftSpacerWidth > 0 && <td style={{ width: leftSpacerWidth, backgroundColor: '#fffbeb' }} />}
@@ -3840,7 +4457,7 @@ const ProjectStatus = () => {
                                                             {rightSpacerWidth > 0 && <td style={{ width: rightSpacerWidth, backgroundColor: '#fffbeb' }} />}
                                                         </tr>
                                                         <tr style={{ backgroundColor: '#eff6ff', borderBottom: '2px solid var(--border)' }}>
-                                                            <td style={{ position: 'sticky', left: 0, zIndex: 10, backgroundColor: '#eff6ff', padding: '4px 8px', fontSize: '0.75em', fontWeight: 'bold', color: '#2563eb', textAlign: 'right', borderRight: '1px solid #bfdbfe' }} colSpan={7}>
+                                                            <td style={{ position: 'sticky', left: 0, zIndex: 10, backgroundColor: '#eff6ff', padding: '4px 8px', fontSize: '0.75em', fontWeight: 'bold', color: '#2563eb', textAlign: 'right', borderRight: '1px solid #bfdbfe' }} colSpan={8}>
                                                                 풀투입 (1.1 MM 이상)
                                                             </td>
                                                             {leftSpacerWidth > 0 && <td style={{ width: leftSpacerWidth, backgroundColor: '#eff6ff' }} />}

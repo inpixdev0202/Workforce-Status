@@ -47,7 +47,7 @@ router.get('/matrix', authenticateToken, async (req, res) => {
                 LEFT JOIN employees e ON pa.employee_id = e.id
                 LEFT JOIN groups g ON e.group_id = g.id
                 LEFT JOIN groups tbd_g ON pa.group_id = tbd_g.id
-                ORDER BY COALESCE(pa.display_order, pa.id) ASC
+                ORDER BY pa.project_id ASC, COALESCE(pa.display_order, pa.id) ASC
             `),
             query(`
                 SELECT assignment_id, period_date, value
@@ -251,16 +251,9 @@ router.post('/:id/assign', async (req, res) => {
     try {
         const { employee_id, role, input_start_date, input_end_date, tbd_employment_type, group_id } = req.body;
 
-        // Duplicate check only for real employees (TBD allows multiple slots)
-        if (employee_id) {
-            const exists = await get(
-                'SELECT id FROM project_assignments WHERE project_id = ? AND employee_id = ?',
-                [req.params.id, employee_id]
-            );
-            if (exists) {
-                return res.status(400).json({ error: 'Employee already assigned to this project' });
-            }
-        }
+        // Duplicate assignments are now allowed — the same employee may appear
+        // multiple times in a project (e.g. different roles or date ranges).
+        // TBD slots have always allowed multiples; real employees now do too.
 
         // Get max order
         const maxOrder = (await get('SELECT MAX(display_order) as max_order FROM project_assignments WHERE project_id = ?', [req.params.id]))?.max_order || 0;
