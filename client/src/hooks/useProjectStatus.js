@@ -205,15 +205,22 @@ export const useProjectStatus = (confirmConfig, setConfirmConfig) => {
     const loadData = useCallback(async (options = {}) => {
         if (options.force) {
             dataCache.invalidateMatrix();
+            dataCache.invalidateEmployees();
         }
         if (!options.silent) {
             setLoading(true);
         }
         try {
-            const result = await dataCache.getMatrix();
-            setData(result);
+            const [matrixResult, employeesResult] = await Promise.all([
+                dataCache.getMatrix({ force: options.force }),
+                dataCache.getEmployees({ status: 'active' }, { force: options.force })
+            ]);
+            setData(matrixResult);
+            if (employeesResult) {
+                setEmployees([...employeesResult].sort((a, b) => a.name.localeCompare(b.name, 'ko')));
+            }
         } catch (err) {
-            console.error('Failed to load project matrix:', err);
+            console.error('Failed to load project status data:', err);
         } finally {
             if (!options.silent) {
                 setLoading(false);
