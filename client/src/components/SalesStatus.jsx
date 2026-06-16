@@ -6,7 +6,7 @@ import { salesAPI } from '../api';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 
-const SpreadsheetCellInput = React.memo(({ initialValue, onCommit, onFocus, isFocused, className = "", isMultilineField = false }) => {
+const SpreadsheetCellInput = React.memo(({ rowId, columnKey, initialValue, onCommit, onFocus, isFocused, className = "", isMultilineField = false }) => {
     const [localValue, setLocalValue] = useState(initialValue || '');
     const textAreaRef = useRef(null);
     const selectionRef = useRef({ start: 0, end: 0 });
@@ -20,9 +20,6 @@ const SpreadsheetCellInput = React.memo(({ initialValue, onCommit, onFocus, isFo
     useEffect(() => {
         if (isFocused && textAreaRef.current) {
             textAreaRef.current.focus();
-            // Optional: Move cursor to end on initial focus if needed, 
-            // but we usually want to maintain if already set.
-            // For now, let's just restore from selectionRef.
         }
     }, [isFocused]);
 
@@ -31,7 +28,7 @@ const SpreadsheetCellInput = React.memo(({ initialValue, onCommit, onFocus, isFo
             const { start, end } = selectionRef.current;
             textAreaRef.current.setSelectionRange(start, end);
         }
-    });
+    }, [isFocused]);
 
     const handleChange = (e) => {
         const { value, selectionStart, selectionEnd } = e.target;
@@ -41,7 +38,7 @@ const SpreadsheetCellInput = React.memo(({ initialValue, onCommit, onFocus, isFo
 
     const handleBlur = () => {
         if (localValue !== initialValue) {
-            onCommit(localValue);
+            onCommit(rowId, columnKey, localValue);
         }
     };
 
@@ -67,7 +64,7 @@ const SpreadsheetCellInput = React.memo(({ initialValue, onCommit, onFocus, isFo
             ref={textAreaRef}
             value={localValue}
             onChange={handleChange}
-            onFocus={onFocus}
+            onFocus={() => onFocus && onFocus(rowId, columnKey)}
             onBlur={handleBlur}
             onKeyDown={handleKeyDown}
             spellCheck={false}
@@ -100,12 +97,12 @@ const RowResizeHandle = React.memo(({ rowId, onMouseDown }) => (
     </div>
 ));
 
-const SpreadsheetCellSelect = React.memo(({ value, options, onCommit, onFocus, isFocused, className = "" }) => {
+const SpreadsheetCellSelect = React.memo(({ rowId, columnKey, value, options, onCommit, onFocus, isFocused, className = "" }) => {
     return (
         <select
             value={value || ''}
-            onChange={(e) => onCommit(e.target.value)}
-            onFocus={onFocus}
+            onChange={(e) => onCommit(rowId, columnKey, e.target.value)}
+            onFocus={() => onFocus && onFocus(rowId, columnKey)}
             className={`grid-input ${isFocused ? 'focused-field' : ''} ${className}`}
             style={{ 
                 appearance: 'none',
@@ -193,7 +190,7 @@ const SalesDataRow = React.memo(({
     columnWidths,
     rowHeight,
     focusedCell,
-    setFocusedCell,
+    onCellFocus,
     onCellChange,
     onDelete,
     onRowResize,
@@ -244,10 +241,12 @@ const SalesDataRow = React.memo(({
                             }}
                         >
                             <SpreadsheetCellSelect
+                                rowId={item.id}
+                                columnKey={col.key}
                                 value={displayValue}
                                 options={categoryOptions}
-                                onCommit={(v) => onCellChange(item.id, col.key, v)}
-                                onFocus={() => setFocusedCell({ rowId: item.id, field: `${item.id}-${col.key}` })}
+                                onCommit={onCellChange}
+                                onFocus={onCellFocus}
                                 isFocused={focusedCell?.field === `${item.id}-${col.key}`}
                                 className="font-bold text-center text-[11px]"
                                 style={{ 
@@ -262,9 +261,11 @@ const SalesDataRow = React.memo(({
                 return (
                     <td key={col.key} className="border border-[var(--border)] p-0 relative" style={{ width: columnWidths[col.key], height: rowHeight }}>
                         <SpreadsheetCellInput 
+                            rowId={item.id}
+                            columnKey={col.key}
                             initialValue={item[col.key]}
-                            onCommit={(v) => onCellChange(item.id, col.key, v)}
-                            onFocus={() => setFocusedCell({ rowId: item.id, field: `${item.id}-${col.key}` })}
+                            onCommit={onCellChange}
+                            onFocus={onCellFocus}
                             isFocused={focusedCell?.field === `${item.id}-${col.key}`}
                             className={
                                 col.key === 'projectName' ? 'font-bold text-[var(--text-primary)] text-[11px]' :
@@ -276,6 +277,44 @@ const SalesDataRow = React.memo(({
                 );
             })}
         </tr>
+    );
+});
+
+const LazySalesRowWrapper = React.memo(({ children, rowHeight, columnsCount }) => {
+    const [isVisible, setIsVisible] = useState(false);
+    const containerRef = useRef(null);
+
+    useEffect(() => {
+        const observer = new IntersectionObserver(([entry]) => {
+            setIsVisible(entry.isIntersecting);
+        }, {
+            root: null,
+            rootMargin: '400px 0px', // Pre-render buffer
+            threshold: 0.01
+        });
+
+        const target = containerRef.current;
+        if (target) {
+            observer.observe(target);
+        }
+
+        return () => {
+            if (target) {
+                observer.unobserve(target);
+            }
+        };
+    }, []);
+
+    return (
+        <tbody ref={containerRef}>
+            {isVisible ? (
+                children
+            ) : (
+                <tr style={{ height: rowHeight }} className="lazy-row-placeholder">
+                    <td colSpan={columnsCount || 100} style={{ height: rowHeight, background: 'var(--bg-secondary)', border: '1px solid var(--border)' }} />
+                </tr>
+            )}
+        </tbody>
     );
 });
 
@@ -653,8 +692,12 @@ const SalesStatus = () => {
         document.removeEventListener('mouseup', handleMouseUp);
     }, [handleMouseMove]);
 
-    const handleCellChange = useCallback((id, field, value) => {
-        setSalesData(prev => prev.map(item => item.id === id ? { ...item, [field]: value } : item));
+    const handleCellChange = useCallback((rowId, columnKey, value) => {
+        setSalesData(prev => prev.map(item => item.id === rowId ? { ...item, [columnKey]: value } : item));
+    }, []);
+
+    const handleCellFocus = useCallback((rowId, columnKey) => {
+        setFocusedCell({ rowId, field: `${rowId}-${columnKey}` });
     }, []);
 
     const handleHeaderChange = useCallback((key, newLabel) => {
@@ -1019,10 +1062,12 @@ const SalesStatus = () => {
                                         <span className="p-1.5 inline-block">{col.label}</span>
                                     ) : (
                                         <SpreadsheetCellInput 
+                                            rowId="header"
+                                            columnKey={col.key}
                                             initialValue={col.label}
-                                            onCommit={(v) => handleHeaderChange(col.key, v)}
-                                            onFocus={() => setFocusedCell({ rowId: 'header', field: col.key })}
-                                            isFocused={focusedCell?.rowId === 'header' && focusedCell?.field === col.key}
+                                            onCommit={(_, key, v) => handleHeaderChange(key, v)}
+                                            onFocus={handleCellFocus}
+                                            isFocused={focusedCell?.rowId === 'header' && focusedCell?.field === `header-${col.key}`}
                                             className="text-center font-bold uppercase !px-1 text-[var(--text-primary)]"
                                         />
                                     )}
@@ -1030,11 +1075,28 @@ const SalesStatus = () => {
                             ))}
                         </tr>
                     </thead>
-                    <tbody>
-                        {filteredData.map((item, rowIndex) => (
-                            <SalesDataRow key={item.id} item={item} rowIndex={rowIndex} columns={columns} columnWidths={columnWidths} rowHeight={rowHeights[item.id] || 80} focusedCell={focusedCell} setFocusedCell={setFocusedCell} onCellChange={handleCellChange} onDelete={deleteRow} onRowResize={handleRowMouseDown} canDelete={canDelete} theme={theme} />
-                        ))}
-                    </tbody>
+                    {filteredData.map((item, rowIndex) => (
+                        <LazySalesRowWrapper 
+                            key={item.id} 
+                            rowHeight={rowHeights[item.id] || 80}
+                            columnsCount={columns.length + 1}
+                        >
+                            <SalesDataRow 
+                                item={item} 
+                                rowIndex={rowIndex} 
+                                columns={columns} 
+                                columnWidths={columnWidths} 
+                                rowHeight={rowHeights[item.id] || 80} 
+                                focusedCell={focusedCell} 
+                                onCellFocus={handleCellFocus} 
+                                onCellChange={handleCellChange} 
+                                onDelete={deleteRow} 
+                                onRowResize={handleRowMouseDown} 
+                                canDelete={canDelete} 
+                                theme={theme} 
+                            />
+                        </LazySalesRowWrapper>
+                    ))}
                 </table>
             </div>
             <ColumnSettingsModal 
