@@ -532,7 +532,9 @@ export const useProjectStatus = (confirmConfig, setConfirmConfig) => {
                     const rowData = [
                         proj.name,
                         member.group_name || '',
-                        member.name || '',
+                        member.employee_id == null
+                            ? `TBD (${member.tbd_employment_type === 'Regular' ? '정규직' : '계약직'})`
+                            : (member.employee_name || member.name || ''),
                         member.input_start_date || '',
                         member.input_end_date || '',
                         ...filteredWeeks.map(w => {
